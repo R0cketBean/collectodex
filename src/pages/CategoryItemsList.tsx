@@ -14,32 +14,21 @@ import {
 } from '@heroicons/react/24/outline';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import { useCollection } from '../context/CollectionContext';
+import { useLoading } from '../context/LoadingContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types/models';
 import { fetchPriceFromCardmarket } from '../services/PriceService';
-import * as StorageService from '../services/StorageService';
-import { useLoading } from '../context/LoadingContext';
+import { logger } from '../utils/logger';
 
-// Generischer Komponente zur Anzeige einer Kategoriesammlung
 const CategoryItemsList: React.FC = () => {
-  const { 
-    categories, 
-    // Entferne oder markiere als ungenutzt
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    items: allItems, 
-    getItemsByCategoryId, 
+  const {
+    categories,
+    getItemsByCategoryId,
     addItem,
     updateItem,
-    deleteItem, 
+    deleteItem,
     deleteMultipleItems,
     calculateItemValue,
-    addImageToItem,
-    removeImageFromItem,
-    addLinkToItem,
-    removeLinkFromItem,
-    cleanupItemLinks
   } = useCollection();
-  
-  const { isLoading, showLoading, hideLoading } = useLoading();
   
   const { categoryId } = useParams<{ categoryId: string }>();
   const navigate = useNavigate();
@@ -57,24 +46,22 @@ const CategoryItemsList: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingItem, setEditingItem] = useState<CollectionItem | null>(null);
-  const [editingAttributeId, setEditingAttributeId] = useState<string | null>(null);
-  const [popupImage, setPopupImage] = useState<string | null>(null);
-  
+
   // Zustände für UI
   const [selectedFilter, setSelectedFilter] = useState<string>('');
   const [showItemModal, setShowItemModal] = useState(false);
-  const [selectedTab, setSelectedTab] = useState<'table' | 'grid'>('table');
-  
+
   // Zustand für Bild-Popup
   const [showImagePopup, setShowImagePopup] = useState(false);
   const [currentImage, setCurrentImage] = useState<string | null>(null);
-  
+
   // Zustände für Hover-Bild
   const [hoverImage, setHoverImage] = useState<string | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{x: number, y: number} | null>(null);
-  
-  // State für Speicher-Fortschritt und Benachrichtigungen
-  const [isSaving, setIsSaving] = useState(false);
+
+  // setIsSaving triggert Re-Renders während asynchroner Speicheroperationen,
+  // der Wert selbst wird aktuell nirgends gerendert.
+  const [, setIsSaving] = useState(false);
   const [snackbar, setSnackbar] = useState<{
     open: boolean;
     message: string;
@@ -738,7 +725,7 @@ const CategoryItemsList: React.FC = () => {
                                     <div className="flex items-center">
                                       <button 
                                         onClick={() => {
-                                          console.log("Opening link:", linkUrl);
+                                          logger.debug("Opening link:", linkUrl);
                                           openExternalLink(linkUrl);
                                         }}
                                         className="text-pokemon-blue hover:text-blue-900 hover:underline flex items-center cursor-pointer"
@@ -761,7 +748,7 @@ const CategoryItemsList: React.FC = () => {
                                     <div className="flex items-center">
                                       <button
                                         onClick={() => {
-                                          console.log("Opening direct link:", linkUrl);
+                                          logger.debug("Opening direct link:", linkUrl);
                                           openExternalLink(linkUrl);
                                         }}
                                         className="text-pokemon-blue hover:text-blue-900 hover:underline flex items-center cursor-pointer"
@@ -980,7 +967,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     return category.attributes
       .filter(attr => !attr.isCalculated)
       .sort((a, b) => a.order - b.order);
-  }, [category, category.attributes]);
+  }, [category]);
   
   // State für Link-Dialog
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -1001,7 +988,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     const values: Record<string, any> = {};
     
     // Debugging: Ausgabe der aktuellen Item-Werte
-    console.log('Item für Formularinitialisierung:', item?.id, item?.values);
+    logger.debug('Item für Formularinitialisierung:', item?.id, item?.values);
     
     editableAttributes.forEach(attr => {
       if (item && item.values[attr.id] !== undefined) {
@@ -1028,7 +1015,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
       }
     });
     
-    console.log('Initialisierte Formularwerte:', values);
+    logger.debug('Initialisierte Formularwerte:', values);
     return values;
   }, [item, editableAttributes]);
   
@@ -1037,14 +1024,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
   
   // Aktualisiere Formularwerte, wenn sich item ändert
   useEffect(() => {
-    console.log('Item hat sich geändert, aktualisiere Formularwerte');
+    logger.debug('Item hat sich geändert, aktualisiere Formularwerte');
     setFormValues(initialValues);
   }, [initialValues, item]);
   
   // Initialisiere Links-Zustand wenn sich das Item ändert
   useEffect(() => {
     if (item && item.links) {
-      console.log('Initialisiere Links aus Item:', item.links);
+      logger.debug('Initialisiere Links aus Item:', item.links);
       // Deep copy um sicherzustellen, dass wir eine neue Referenz haben
       setItemLinks({...item.links});
     } else {
@@ -1062,21 +1049,13 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
         // Verwenden einer Deep-Comparison, um zu prüfen, ob sich etwas geändert hat
         const linksChanged = JSON.stringify(currentItem.links) !== JSON.stringify(itemLinks);
         if (linksChanged) {
-          console.log('Links haben sich geändert, aktualisiere UI:', currentItem.links);
+          logger.debug('Links haben sich geändert, aktualisiere UI:', currentItem.links);
           setItemLinks({...currentItem.links});
         }
       }
     }
   }, [item, items, itemLinks]);
-  
-  // Erzwinge Re-Rendering
-  const [, updateState] = useState({});
-  const forceUpdate = () => {
-    setTimeout(() => {
-      updateState({});
-    }, 50);
-  };
-  
+
   // Handling für Wertänderungen
   const handleChange = (
     attributeId: string, 
@@ -1139,7 +1118,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
         currentLinkValue = itemLinks[attributeId];
       }
       
-      console.log(`Öffne Link-Dialog für ${attributeId}, aktueller Wert:`, currentLinkValue);
+      logger.debug(`Öffne Link-Dialog für ${attributeId}, aktueller Wert:`, currentLinkValue);
       
       setLinkDialogDefaultValue(currentLinkValue);
       setLinkInputValue(currentLinkValue);
@@ -1161,33 +1140,33 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     showLoading('Änderungen werden gespeichert...');
     
     // Für Debugging
-    console.log('Submitting form values:', formValues);
+    logger.debug('Submitting form values:', formValues);
     
     // Speichern des Items
     const itemId = onSave(formValues);
     
     // Debugging: Prüfen ob ID zurückgegeben wurde
-    console.log('Saved item ID:', itemId);
+    logger.debug('Saved item ID:', itemId);
     
     // Separat Bilder und Links hinzufügen, wenn vorhanden
     if (item || itemId) {
       const targetItemId = item ? item.id : itemId;
       
       // Für Debugging
-      console.log('Target item ID for media:', targetItemId);
+      logger.debug('Target item ID for media:', targetItemId);
       
       // Bilder hinzufügen
       Object.entries(newImages).forEach(([attributeId, imageData]) => {
-        console.log('Adding image for attribute:', attributeId);
+        logger.debug('Adding image for attribute:', attributeId);
         addImageToItem(targetItemId, attributeId, imageData);
       });
       
       // Links hinzufügen - optimiert ohne cleanup
-      console.log('Links zum Speichern:', itemLinks);
+      logger.debug('Links zum Speichern:', itemLinks);
       
       Object.entries(itemLinks).forEach(([attributeId, url]) => {
         if (url) {
-          console.log('Adding link for attribute:', attributeId, url);
+          logger.debug('Adding link for attribute:', attributeId, url);
           addLinkToItem(targetItemId, attributeId, url);
         }
       });
@@ -1308,7 +1287,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
         setItemLinks(newLinks);
       } else {
         // Füge den Link hinzu oder aktualisiere ihn
-        console.log('Füge Link hinzu:', currentLinkAttributeId, trimmedLink);
+        logger.debug('Füge Link hinzu:', currentLinkAttributeId, trimmedLink);
         // Lokale Kopie sofort aktualisieren, um UI-Flackern zu vermeiden
         setItemLinks(prev => ({
           ...prev,
@@ -1326,7 +1305,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
         setItemLinks(newLinks);
       } else {
         // Füge den Link zum lokalen State hinzu
-        console.log('Füge Link zum lokalen State hinzu:', currentLinkAttributeId, trimmedLink);
+        logger.debug('Füge Link zum lokalen State hinzu:', currentLinkAttributeId, trimmedLink);
         setItemLinks(prev => ({
           ...prev,
           [currentLinkAttributeId]: trimmedLink

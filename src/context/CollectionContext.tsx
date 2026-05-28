@@ -8,6 +8,7 @@ import {
   AttributeDefinition,
   DEFAULT_CATEGORIES
 } from '../types/models';
+import { logger } from '../utils/logger';
 import * as StorageService from '../services/StorageService';
 
 // Typ für den Context
@@ -157,18 +158,18 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   const saveItemsToStorage = useCallback(async () => {
     // Nicht speichern, wenn ein direktes Update läuft
     if (directUpdateInProgress.value) {
-      console.log('Überspringe automatisches Speichern, da direktes Update läuft');
+      logger.debug('Überspringe automatisches Speichern, da direktes Update läuft');
       return;
     }
 
     // Speichere nur, wenn Items vorhanden sind
     if (items.length === 0) {
-      console.log('Keine Items zum Speichern vorhanden');
+      logger.debug('Keine Items zum Speichern vorhanden');
       return;
     }
 
     try {
-      console.log('Saving items to storage:', items.length);
+      logger.debug('Saving items to storage:', items.length);
       await StorageService.setData(StorageService.STORAGE_KEYS.ITEMS, items);
     } catch (error) {
       console.error('Fehler beim Speichern der Items:', error);
@@ -257,7 +258,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
             return categoryCopy;
           });
           
-          console.log('Saving categories to storage:', categoriesForStorage.length);
+          logger.debug('Saving categories to storage:', categoriesForStorage.length);
           await StorageService.setData(StorageService.STORAGE_KEYS.CATEGORIES, categoriesForStorage);
         } catch (error) {
           console.error('Fehler beim Speichern der Kategorien:', error);
@@ -450,7 +451,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
    */
   const updateItem = (id: string, values: { [key: string]: any }) => {
     // Debugging für den Update-Prozess
-    console.log(`[updateItem] Starte Update für Item ${id} mit Werten:`, values);
+    logger.debug(`[updateItem] Starte Update für Item ${id} mit Werten:`, values);
 
     // Sofortiges UI-Update für bessere User Experience
     setItems(prevItems => {
@@ -464,7 +465,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
             },
             updatedAt: new Date()
           };
-          console.log(`[updateItem] UI-Update für Item ${id} abgeschlossen:`, updatedItem.values);
+          logger.debug(`[updateItem] UI-Update für Item ${id} abgeschlossen:`, updatedItem.values);
           return updatedItem;
         }
         return item;
@@ -478,7 +479,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         // Flag setzen, um useEffect-Loops zu vermeiden
         directUpdateInProgress.value = true;
         
-        console.log(`[updateItem] Starte Storage-Update für Item ${id}`);
+        logger.debug(`[updateItem] Starte Storage-Update für Item ${id}`);
         
         // Atomares Update verwenden
         const success = await StorageService.atomicUpdateItem(id, (item) => {
@@ -491,12 +492,12 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
             updatedAt: new Date()
           };
           
-          console.log(`[updateItem] Storage-Update-Funktion für Item ${id}:`, updatedItem.values);
+          logger.debug(`[updateItem] Storage-Update-Funktion für Item ${id}:`, updatedItem.values);
           return updatedItem;
         });
         
         if (success) {
-          console.log(`[updateItem] Storage-Update für Item ${id} erfolgreich`);
+          logger.debug(`[updateItem] Storage-Update für Item ${id} erfolgreich`);
         } else {
           console.error(`[updateItem] Storage-Update für Item ${id} fehlgeschlagen`);
           
@@ -1339,7 +1340,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   
   const importData = (data: { categories: Category[], items: CollectionItem[] }) => {
     // Debug-Informationen
-    console.log('Importing data:', data);
+    logger.debug('Importing data:', data);
     
     // Batch-Verarbeitung für große Datenmengen
     const processBatch = (process: () => void) => {
@@ -1389,7 +1390,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
           return normalized;
         });
         
-        console.log('Normalized categories:', normalizedCategories);
+        logger.debug('Normalized categories:', normalizedCategories);
         
         // Kategorien setzen
         await processBatch(() => setCategories(normalizedCategories));
@@ -1455,7 +1456,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         
         // Wenn es zu viele Items gibt, verarbeite sie in Batches
         if (allNormalizedItems.length > BATCH_SIZE) {
-          console.log(`Importing ${allNormalizedItems.length} items in batches of ${BATCH_SIZE}`);
+          logger.debug(`Importing ${allNormalizedItems.length} items in batches of ${BATCH_SIZE}`);
           
           // Items in Batches verarbeiten
           const batches = Math.ceil(allNormalizedItems.length / BATCH_SIZE);
@@ -1465,7 +1466,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
             const end = Math.min((i + 1) * BATCH_SIZE, allNormalizedItems.length);
             const batchItems = allNormalizedItems.slice(start, end);
             
-            console.log(`Processing batch ${i+1}/${batches} (items ${start+1}-${end})`);
+            logger.debug(`Processing batch ${i+1}/${batches} (items ${start+1}-${end})`);
             
             // Batch verarbeiten und warten
             await processBatch(() => {
@@ -1480,7 +1481,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
           }
         } else {
           // Wenn wenige Items, verarbeite alle auf einmal
-          console.log(`Importing ${allNormalizedItems.length} items at once`);
+          logger.debug(`Importing ${allNormalizedItems.length} items at once`);
           await processBatch(() => setItems(allNormalizedItems));
         }
         
@@ -2060,11 +2061,11 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   };
   
   const addLinkToItem = (itemId: string, attributeId: string, url: string) => {
-    console.log(`addLinkToItem aufgerufen: itemId=${itemId}, attributeId=${attributeId}, url=${url}`);
+    logger.debug(`addLinkToItem aufgerufen: itemId=${itemId}, attributeId=${attributeId}, url=${url}`);
     
     // Wenn die URL leer ist, entferne den Link stattdessen
     if (!url || url.trim() === '') {
-      console.log('URL ist leer, entferne Link stattdessen');
+      logger.debug('URL ist leer, entferne Link stattdessen');
       return removeLinkFromItem(itemId, attributeId);
     }
     
@@ -2073,7 +2074,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     // Füge das Protokoll hinzu, wenn es fehlt
     if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
       processedUrl = 'https://' + processedUrl;
-      console.log(`Protokoll hinzugefügt: ${processedUrl}`);
+      logger.debug(`Protokoll hinzugefügt: ${processedUrl}`);
     }
     
     // Direkter Storage-Update-Ansatz, um Race Conditions zu vermeiden
@@ -2093,7 +2094,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
           return;
         }
         
-        console.log(`Item im Storage gefunden an Position ${itemIndex}`);
+        logger.debug(`Item im Storage gefunden an Position ${itemIndex}`);
         
         // Deep Clone des Items für Aktualisierung
         const itemToUpdate = JSON.parse(JSON.stringify(allItems[itemIndex]));
@@ -2105,7 +2106,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         
         // Link hinzufügen/aktualisieren
         itemToUpdate.links[attributeId] = processedUrl;
-        console.log(`Link gesetzt für ${attributeId}:`, processedUrl);
+        logger.debug(`Link gesetzt für ${attributeId}:`, processedUrl);
         
         // updatedAt aktualisieren
         itemToUpdate.updatedAt = new Date().toISOString();
@@ -2114,11 +2115,11 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         allItems[itemIndex] = itemToUpdate;
         
         // Alle Items zurück in den Storage schreiben
-        console.log('Speichere aktualisierte Items im Storage...');
+        logger.debug('Speichere aktualisierte Items im Storage...');
         await StorageService.setData(StorageService.STORAGE_KEYS.ITEMS, allItems);
         
         // State aktualisieren (nach Storage-Update) - nur einmal, ohne setTimeout
-        console.log('Aktualisiere State mit Storage-Daten...');
+        logger.debug('Aktualisiere State mit Storage-Daten...');
         setItems(prevItems => {
           const newItems = [...prevItems];
           const stateItemIndex = newItems.findIndex(item => item.id === itemId);
@@ -2156,7 +2157,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
               const verifiedItem = verifyItems?.find(item => item.id === itemId);
               
               if (verifiedItem?.links?.[attributeId] === processedUrl) {
-                console.log('Verifizierung erfolgreich: Link wurde korrekt gespeichert');
+                logger.debug('Verifizierung erfolgreich: Link wurde korrekt gespeichert');
               } else {
                 console.error('Verifizierung fehlgeschlagen: Link wurde nicht korrekt gespeichert', 
                   verifiedItem?.links?.[attributeId], 'statt', processedUrl);
@@ -2318,8 +2319,8 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
 
     // Logge zur Fehlersuche Informationen über alle Items
     if (targetId === 'sealed' && process.env.NODE_ENV === 'development') {
-      console.log(`Gesamtanzahl Items: ${items.length}`);
-      console.log(`Items mit categoryId 'sealed': ${items.filter(i => i.categoryId === 'sealed').length}`);
+      logger.debug(`Gesamtanzahl Items: ${items.length}`);
+      logger.debug(`Items mit categoryId 'sealed': ${items.filter(i => i.categoryId === 'sealed').length}`);
       
       // Sammle alle unterschiedlichen categoryIds
       const categoryIdCounts = new Map<string, number>();
@@ -2328,7 +2329,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         categoryIdCounts.set(item.categoryId, count + 1);
       });
       
-      console.log("Verteilung der categoryIds:", 
+      logger.debug("Verteilung der categoryIds:", 
         Array.from(categoryIdCounts.entries())
           .sort((a, b) => b[1] - a[1])
           .map(([id, count]) => `${id}: ${count}`)
@@ -2456,10 +2457,10 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
       });
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`Gefundene zu korrigierende Sealed-Produkte: ${itemsToCorrect.length}`);
+        logger.debug(`Gefundene zu korrigierende Sealed-Produkte: ${itemsToCorrect.length}`);
         // Für jeden Fund die Kategorie-ID und den Namen ausgeben
         itemsToCorrect.forEach(item => {
-          console.log(`ID: ${item.id}, KategorieID: ${item.categoryId}, Name: ${item.values.name || 'kein Name'}`);
+          logger.debug(`ID: ${item.id}, KategorieID: ${item.categoryId}, Name: ${item.values.name || 'kein Name'}`);
         });
       }
     } else {
@@ -2522,7 +2523,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         await StorageService.setData(StorageService.STORAGE_KEYS.ITEMS, updatedStorageItems);
         
         // Optional: Erneute Verifizierung
-        console.log(`${itemsToCorrect.length} Items wurden korrigiert und im Storage aktualisiert.`);
+        logger.debug(`${itemsToCorrect.length} Items wurden korrigiert und im Storage aktualisiert.`);
       } catch (error) {
         console.error('Fehler beim Storage-Update nach Kategorie-Korrektur:', error);
       }
