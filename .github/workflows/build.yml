@@ -34,6 +34,3 @@ jobs:
         run: npm run build
         env:
           CI: true
-          # CRA treats warnings as errors when CI=true. We have legacy
-          # unused-vars warnings that will be cleaned up separately.
-          DISABLE_ESLINT_PLUGIN: true
