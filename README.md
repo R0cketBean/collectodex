@@ -1,46 +1,61 @@
-# Getting Started with Create React App
+# CollectODex
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Desktop-Anwendung zur Verwaltung einer Pokémon-Kartensammlung. Kategorisierung, Bewertung und Bestandsführung für Sealed-Produkte, gegradete Karten, Einzelkarten und beliebige eigene Kategorien.
 
-## Available Scripts
+Gebaut mit React 19, TypeScript, Tailwind CSS und Electron. Daten werden lokal persistiert (Electron-Store, mit `localStorage`-Fallback im Browser).
 
-In the project directory, you can run:
+## Voraussetzungen
 
-### `npm start`
+- Node.js 18+
+- npm 9+
+- macOS, Windows oder Linux
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+## Erste Schritte
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+```bash
+npm install
+npm run electron-dev
+```
 
-### `npm test`
+Damit startet der React-Dev-Server und Electron in einem Schritt.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Optional kann die Web-Version ohne Electron-Wrapper gestartet werden:
 
-### `npm run build`
+```bash
+npm start
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Build
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm run electron-pack          # macOS (DMG + ZIP)
+npm run electron-pack-all      # macOS + Windows + Linux
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Die Artefakte landen unter `dist/`.
 
-### `npm run eject`
+## Architektur
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+- **`src/types/models.ts`** — Datenmodell. Kategorien definieren Attribute, Items speichern Werte unter Attribut-IDs. Dadurch sind beliebige eigene Kategorien möglich.
+- **`src/context/CollectionContext.tsx`** — Globaler Sammlungs-State (Kategorien, Items, abgeleitete Statistiken).
+- **`src/services/StorageService.ts`** — Persistenz-Abstraktion (Electron-Store ↔ localStorage).
+- **`src/services/PriceService.ts`** — Anbindung an den Preis-Backend-Server.
+- **`src/pages/`** — Dashboard, CategoryItemsList, CategoryManagement, ImportExport.
+- **`public/electron.js`**, **`public/preload.js`** — Electron-Hauptprozess und Preload.
+- **`server/`** — Optionaler Node-Server, der Cardmarket-Preise via Puppeteer scrapt. *Wird in einer kommenden Version durch die offizielle Cardmarket-OAuth-API ersetzt.*
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Datenspeicherung
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+Sammlungs- und Kategoriedaten werden im Electron-User-Data-Verzeichnis abgelegt (Schlüssel: `pokemon_collection_categories`, `pokemon_collection_items`).
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+## Status
 
-## Learn More
+Frühe Entwicklungsversion. Roadmap:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+1. **Phase 1 (jetzt):** Repository sauber aufgesetzt, GitHub-Anbindung, .gitignore, README.
+2. **Phase 2:** Migration von Create React App auf Vite, Aufspaltung der großen Komponenten, Tests.
+3. **Phase 3:** Cardmarket-OAuth-API, Auto-Update via electron-updater, iCloud-Backup, weitere Features.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Lizenz
+
+MIT — siehe `package.json`.
