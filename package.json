@@ -19,7 +19,6 @@
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.126",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@types/uuid": "^10.0.0",
@@ -32,7 +31,6 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.3.0",
-    "react-scripts": "5.0.1",
     "recharts": "^2.15.1",
     "serve": "^14.2.4",
     "svg2png": "^4.1.1",
@@ -41,10 +39,9 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build && cp public/electron.js build/electron.js",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "electron-dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron-pack": "electron-builder build --mac -c.extraMetadata.main=public/electron.js",
     "electron-pack-all": "electron-builder build --mac --win --linux -c.extraMetadata.main=build/electron.js",
@@ -52,12 +49,6 @@
     "preelectron-pack": "npm run build",
     "electron-build": "electron-builder -c.extraMetadata.main=build/electron.js",
     "convert-icon": "node scripts/convert-icon.js"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
   },
   "browserslist": {
     "production": [
@@ -73,11 +64,14 @@
   },
   "devDependencies": {
     "@types/file-saver": "^2.0.7",
+    "@types/node": "^20.19.41",
+    "@vitejs/plugin-react": "^6.0.2",
     "concurrently": "^8.2.2",
     "electron": "^28.2.0",
     "electron-builder": "^24.9.1",
     "png2icons": "^2.0.1",
     "tailwindcss": "^3.3.5",
+    "vite": "^8.0.14",
     "wait-on": "^7.2.0"
   },
   "build": {
@@ -111,12 +105,16 @@
       {
         "from": "build",
         "to": "build",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "build",
         "to": "app/build",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "mac": {
