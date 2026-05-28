@@ -2,7 +2,18 @@
   "name": "pokemon-sammlung",
   "version": "0.1.0",
   "private": true,
+  "homepage": "./",
+  "main": "public/electron.js",
+  "description": "Eine Desktop-Anwendung zur Verwaltung von Pokémon-Sammlungen mit umfangreichen Funktionen zur Kategorisierung, Bewertung und Bestandsverwaltung.",
+  "author": {
+    "name": "Andreas Bröder",
+    "email": "andreas.broeder@gmail.com"
+  },
+  "copyright": "Copyright © 2024 Andreas Bröder",
+  "license": "MIT",
   "dependencies": {
+    "@headlessui/react": "^2.2.0",
+    "@heroicons/react": "^2.0.18",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
@@ -11,17 +22,36 @@
     "@types/node": "^16.18.126",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "@types/uuid": "^10.0.0",
+    "autoprefixer": "^10.4.21",
+    "electron-is-dev": "^2.0.0",
+    "electron-store": "^8.1.0",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
+    "postcss": "^8.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-router-dom": "^7.3.0",
     "react-scripts": "5.0.1",
+    "recharts": "^2.15.1",
+    "serve": "^14.2.4",
+    "svg2png": "^4.1.1",
     "typescript": "^4.9.5",
+    "uuid": "^11.1.0",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && cp public/electron.js build/electron.js",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "electron-dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron-pack": "electron-builder build --mac -c.extraMetadata.main=public/electron.js",
+    "electron-pack-all": "electron-builder build --mac --win --linux -c.extraMetadata.main=build/electron.js",
+    "postinstall": "electron-builder install-app-deps",
+    "preelectron-pack": "npm run build",
+    "electron-build": "electron-builder -c.extraMetadata.main=build/electron.js",
+    "convert-icon": "node scripts/convert-icon.js"
   },
   "eslintConfig": {
     "extends": [
@@ -40,5 +70,95 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@types/file-saver": "^2.0.7",
+    "concurrently": "^8.2.2",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "png2icons": "^2.0.1",
+    "tailwindcss": "^3.3.5",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.collectodex.app",
+    "productName": "CollectODex",
+    "extraMetadata": {
+      "main": "public/electron.js"
+    },
+    "asar": false,
+    "files": [
+      "build/**/*",
+      "public/electron.js",
+      "public/preload.js",
+      "node_modules/**/*",
+      "!node_modules/**/*.{md,MD,txt,TXT}",
+      "!node_modules/**/LICENSE*",
+      "!node_modules/**/CHANGELOG*",
+      "!node_modules/**/README*",
+      "!node_modules/**/docs/**",
+      "!node_modules/**/test/**",
+      "!node_modules/**/tests/**",
+      "!node_modules/**/.nyc_output/**",
+      "!node_modules/**/coverage/**",
+      "!node_modules/**/__tests__/**",
+      "!node_modules/**/__test__/**"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "extraFiles": [
+      {
+        "from": "build",
+        "to": "build",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "build",
+        "to": "app/build",
+        "filter": ["**/*"]
+      }
+    ],
+    "mac": {
+      "icon": "assets/icon.png",
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        "nsis"
+      ],
+      "publisherName": "Andreas Bröder",
+      "verifyUpdateCodeSignature": false,
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "rfc3161TimeStampServer": "http://timestamp.digicert.com",
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "category": "Utility",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "allowElevation": true,
+      "runAfterFinish": true
+    }
   }
 }
