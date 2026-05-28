@@ -3,6 +3,8 @@
  * Abstrahiert die Speichermethoden je nach Laufzeitumgebung (Browser oder Electron)
  */
 
+import { logger } from '../utils/logger';
+
 // Prüfe, ob die App in Electron läuft
 const isElectron = () => {
   return 'electronAPI' in window;
@@ -172,7 +174,7 @@ const itemUpdateQueue = new Map<string, Promise<boolean>>();
 export const atomicUpdateItem = async (itemId: string, updateFunction: (item: any) => any): Promise<boolean> => {
   // Wenn bereits ein Update für dieses Item läuft, warte darauf
   if (itemUpdateQueue.has(itemId)) {
-    console.log(`[StorageService] Warte auf bereits laufendes Update für Item ${itemId}`);
+    logger.debug(`[StorageService] Warte auf bereits laufendes Update für Item ${itemId}`);
     const existingUpdate = itemUpdateQueue.get(itemId);
     return await existingUpdate || false;
   }
@@ -180,7 +182,7 @@ export const atomicUpdateItem = async (itemId: string, updateFunction: (item: an
   // Neues Update-Promise erstellen
   const updatePromise = new Promise<boolean>(async (resolve) => {
     try {
-      console.log(`[StorageService] Starte atomares Update für Item ${itemId}`);
+      logger.debug(`[StorageService] Starte atomares Update für Item ${itemId}`);
       
       // Aktuelle Items aus dem Storage laden
       const currentItems = await getData<any[]>(STORAGE_KEYS.ITEMS) || [];
@@ -206,7 +208,7 @@ export const atomicUpdateItem = async (itemId: string, updateFunction: (item: an
         const updatedValues = JSON.stringify(updatedItem.values);
         
         if (currentValues === updatedValues) {
-          console.log(`[StorageService] Keine Änderungen an Item ${itemId} erkannt, überspringe Update`);
+          logger.debug(`[StorageService] Keine Änderungen an Item ${itemId} erkannt, überspringe Update`);
           resolve(true);
           return;
         }
@@ -228,7 +230,7 @@ export const atomicUpdateItem = async (itemId: string, updateFunction: (item: an
         updatedItem.createdAt = updatedItem.createdAt.toISOString();
       }
       
-      console.log(`[StorageService] Atomic update speichert für Item ${itemId}:`, updatedItem.values);
+      logger.debug(`[StorageService] Atomic update speichert für Item ${itemId}:`, updatedItem.values);
       
       // Das aktualisierte Item in die Liste einfügen
       currentItems[index] = updatedItem;
@@ -236,7 +238,7 @@ export const atomicUpdateItem = async (itemId: string, updateFunction: (item: an
       // Speichern der aktualisierten Liste
       await setData(STORAGE_KEYS.ITEMS, currentItems);
       
-      console.log(`[StorageService] Atomic update für Item ${itemId} erfolgreich abgeschlossen`);
+      logger.debug(`[StorageService] Atomic update für Item ${itemId} erfolgreich abgeschlossen`);
       resolve(true);
     } catch (error) {
       console.error(`[StorageService] Fehler beim atomaren Update des Items ${itemId}:`, error);
@@ -282,13 +284,13 @@ export const getSingleItem = async (itemId: string): Promise<any | null> => {
  * @param updatedItem Das aktualisierte Item
  * @returns Ein Promise, das true zurückgibt, wenn das Update erfolgreich war
  */
-export const updateSingleItem = async <T>(itemId: string, updatedItem: any): Promise<boolean> => {
+export const updateSingleItem = async (itemId: string, updatedItem: any): Promise<boolean> => {
   try {
-    console.log(`[StorageService] Aktualisiere Item ${itemId} mit:`, updatedItem);
+    logger.debug(`[StorageService] Aktualisiere Item ${itemId} mit:`, updatedItem);
     
     // Aktuelle Items abrufen
     const currentItems = await getData<any[]>(STORAGE_KEYS.ITEMS) || [];
-    console.log(`[StorageService] ${currentItems.length} Items im Storage gefunden`);
+    logger.debug(`[StorageService] ${currentItems.length} Items im Storage gefunden`);
     
     // Index des zu aktualisierenden Items finden
     const index = currentItems.findIndex(item => item.id === itemId);
@@ -298,7 +300,7 @@ export const updateSingleItem = async <T>(itemId: string, updatedItem: any): Pro
       return false;
     }
     
-    console.log(`[StorageService] Item an Position ${index} gefunden`);
+    logger.debug(`[StorageService] Item an Position ${index} gefunden`);
     
     // WICHTIG: Erstelle eine tiefe Kopie des Items mit allen Properties
     const itemToSave = JSON.parse(JSON.stringify(updatedItem));
@@ -321,7 +323,7 @@ export const updateSingleItem = async <T>(itemId: string, updatedItem: any): Pro
     }
     
     // Werte vor dem Speichern ausgeben
-    console.log(`[StorageService] Zu speichernde Werte für Item ${itemId}:`, itemToSave.values);
+    logger.debug(`[StorageService] Zu speichernde Werte für Item ${itemId}:`, itemToSave.values);
     
     // Item in der Liste ersetzen
     currentItems[index] = itemToSave;
@@ -343,10 +345,10 @@ export const updateSingleItem = async <T>(itemId: string, updatedItem: any): Pro
     
     if (!valuesMatch) {
       console.error(`[StorageService] Verifizierung fehlgeschlagen: Werte stimmen nicht überein!`);
-      console.log('Gespeicherte Werte:', itemToSave.values);
-      console.log('Verifizierte Werte:', verifiedItem.values);
+      logger.debug('Gespeicherte Werte:', itemToSave.values);
+      logger.debug('Verifizierte Werte:', verifiedItem.values);
     } else {
-      console.log(`[StorageService] Item ${itemId} erfolgreich aktualisiert und verifiziert`);
+      logger.debug(`[StorageService] Item ${itemId} erfolgreich aktualisiert und verifiziert`);
     }
     
     return true;
