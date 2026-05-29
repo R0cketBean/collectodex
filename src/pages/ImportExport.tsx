@@ -15,11 +15,10 @@ const ImportExport: React.FC = () => {
   const { 
     categories, 
     exportData, 
-    importData, 
-    exportCategoryAsCSV, 
-    createCategoryTemplate, 
+    importData,
+    exportCategoryAsCSV,
+    createCategoryTemplate,
     importCSV,
-    importExcel,
     exportCategoryAsExcel,
     createExcelTemplate,
     exportCollectionAsExcel,
@@ -351,49 +350,6 @@ const ImportExport: React.FC = () => {
         setImportError("Fehler beim Lesen der Datei.");
         setIsLoading(false);
       };
-    }
-  };
-
-  // Excel-Import für eine bestimmte Kategorie
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleExcelImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedCategoryId) {
-      setImportError("Bitte wähle eine Kategorie aus.");
-      return;
-    }
-    
-    if (event.target.files && event.target.files.length > 0) {
-      setIsLoading(true);
-      
-      try {
-        const file = event.target.files[0];
-        const arrayBuffer = await file.arrayBuffer();
-        
-        const result = await importExcel(selectedCategoryId, arrayBuffer);
-        
-        if (result.success) {
-          setImportError(null);
-          setImportSuccess(`${result.count} Einträge wurden erfolgreich importiert.`);
-          
-          // Hinweis auf Warnungen anzeigen, falls vorhanden
-          if (result.errors.length > 0) {
-            setTimeout(() => {
-              setImportSuccess(null);
-              setImportError(`Import erfolgreich, aber mit ${result.errors.length} Warnungen:\n${result.errors.slice(0, 3).join('\n')}${result.errors.length > 3 ? `\n...und ${result.errors.length - 3} weitere` : ''}`);
-            }, 3000);
-          }
-        } else {
-          setImportError(`Excel-Import fehlgeschlagen: ${result.errors[0]}${result.errors.length > 1 ? ` (und ${result.errors.length - 1} weitere Fehler)` : ''}`);
-        }
-      } catch (error) {
-        console.error("Excel Import error:", error);
-        setImportError(`Fehler beim Excel-Import: ${(error as Error).message}`);
-      } finally {
-        setIsLoading(false);
-        setTimeout(() => {
-          if (importSuccess) setImportSuccess(null);
-        }, 3000);
-      }
     }
   };
 
