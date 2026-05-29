@@ -48,6 +48,53 @@ export const parseCSVRow = (row: string): string[] => {
 };
 
 /**
+ * Teilt einen kompletten CSV-Text in seine logischen Zeilen.
+ *
+ * Im Gegensatz zu `csvContent.split('\n')` werden Zeilenumbrüche
+ * INNERHALB gequoteter Felder erhalten — ein Feld wie `"Karton hat\nKnick"`
+ * bleibt eine einzelne logische Zeile. Erkennt sowohl `\n` als auch `\r\n`
+ * als Zeilentrenner und behandelt verdoppelte Anführungszeichen (`""`)
+ * innerhalb gequoteter Felder korrekt als wörtliches `"`.
+ *
+ * Eine abschließende leere Zeile (durch trailing `\n`) wird verworfen,
+ * damit der Import nicht über die letzte Zeile stolpert.
+ */
+export const splitCSVRows = (csvContent: string): string[] => {
+  const rows: string[] = [];
+  let currentRow = '';
+  let insideQuotes = false;
+
+  for (let i = 0; i < csvContent.length; i++) {
+    const char = csvContent[i];
+    const nextChar = i < csvContent.length - 1 ? csvContent[i + 1] : null;
+
+    if (char === '"') {
+      if (insideQuotes && nextChar === '"') {
+        currentRow += '""';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+        currentRow += char;
+      }
+    } else if (!insideQuotes && (char === '\n' || char === '\r')) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      rows.push(currentRow);
+      currentRow = '';
+    } else {
+      currentRow += char;
+    }
+  }
+
+  if (currentRow !== '') {
+    rows.push(currentRow);
+  }
+
+  return rows;
+};
+
+/**
  * Verpackt einen String in CSV-Anführungszeichen, falls er Kommas,
  * Anführungszeichen oder Zeilenumbrüche enthält. Innere Anführungs-
  * zeichen werden verdoppelt (`"` → `""`).

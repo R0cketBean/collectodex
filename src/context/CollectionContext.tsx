@@ -12,6 +12,7 @@ import { logger } from '../utils/logger';
 import { evaluateFormula } from '../utils/formula';
 import {
   parseCSVRow,
+  splitCSVRows,
   buildCategoryCSV,
   buildCategoryTemplateCSV,
 } from '../utils/csv';
@@ -64,7 +65,7 @@ interface CollectionContextType {
   exportData: () => { categories: Category[], items: CollectionItem[] };
   exportCategoryAsCSV: (categoryId: string) => { fileName: string, content: string } | null;
   createCategoryTemplate: (categoryId: string) => { fileName: string, content: string } | null;
-  importCSV: (categoryId: string, csvContent: string) => { success: boolean, count: number, errors: string[] };
+  importCSV: (categoryId: string, csvContent: string) => { success: boolean, count: number, errors: string[], imageInfoRowCount: number };
   importExcel: (categoryId: string, excelBuffer: ArrayBuffer) => Promise<{ success: boolean, count: number, errors: string[] }>;
   importData: (data: { categories: Category[], items: CollectionItem[] }) => void;
   resetToDefaults: () => void;
@@ -623,13 +624,14 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   const importCSV = (categoryId: string, csvContent: string) => {
     const category = categories.find(c => c.id === categoryId);
     if (!category) {
-      return { success: false, count: 0, errors: ['Kategorie nicht gefunden'] };
+      return { success: false, count: 0, errors: ['Kategorie nicht gefunden'], imageInfoRowCount: 0 };
     }
-    
-    // CSV in Zeilen aufteilen
-    const lines = csvContent.split('\n');
+
+    // CSV in logische Zeilen aufteilen — RFC-4180-konform, damit \n
+    // innerhalb gequoteter Felder die Zeile nicht zerreißt.
+    const lines = splitCSVRows(csvContent);
     if (lines.length < 2) {
-      return { success: false, count: 0, errors: ['CSV hat zu wenige Zeilen'] };
+      return { success: false, count: 0, errors: ['CSV hat zu wenige Zeilen'], imageInfoRowCount: 0 };
     }
     
     // Spaltenüberschriften extrahieren und parsen
@@ -674,17 +676,19 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     );
     
     if (missingRequired.length > 0) {
-      return { 
-        success: false, 
-        count: 0, 
-        errors: [`Fehlende erforderliche Spalten: ${missingRequired.map(attr => attr.name).join(', ')}`] 
+      return {
+        success: false,
+        count: 0,
+        errors: [`Fehlende erforderliche Spalten: ${missingRequired.map(attr => attr.name).join(', ')}`],
+        imageInfoRowCount: 0,
       };
     }
-    
+
     const results = {
       success: true,
       count: 0,
-      errors: [] as string[]
+      errors: [] as string[],
+      imageInfoRowCount: 0,
     };
     
     // Daten verarbeiten
@@ -769,6 +773,23 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
           }
         });
         
+        // Erkenne, ob die Quelldatei in den (Bild-Info)-Spalten einen
+        // Marker für ein vorhandenes Bild trägt. Bilddaten werden bewusst
+        // nicht im CSV serialisiert (Base64 zerstört Tabellen-Tools), also
+        // zählen wir nur die Zeilen, in denen vorher ein Bild war — die
+        // UI kann darauf hinweisen, dass JSON-Export den Round-Trip
+        // erhalten hätte.
+        const hasImageInfoMarker = Object.entries(imageHeaders).some(
+          ([header]) => {
+            const headerIndex = headers.indexOf(header);
+            if (headerIndex === -1 || headerIndex >= values.length) return false;
+            return values[headerIndex].trim() !== '';
+          }
+        );
+        if (hasImageInfoMarker) {
+          results.imageInfoRowCount++;
+        }
+
         // Verarbeite Link-Werte
         Object.entries(linkHeaders).forEach(([header, attrId]) => {
           const headerIndex = headers.indexOf(header);
@@ -805,10 +826,11 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     return {
       success: results.count > 0,
       count: results.count,
-      errors: results.errors
+      errors: results.errors,
+      imageInfoRowCount: results.imageInfoRowCount,
     };
   };
-  
+
   const importExcel = async (categoryId: string, excelBuffer: ArrayBuffer): Promise<{ success: boolean, count: number, errors: string[] }> => {
     try {
       const workbook = new ExcelJS.Workbook();
