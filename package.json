@@ -124,6 +124,13 @@
     "mac": {
       "icon": "assets/icon.png",
       "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "notarize": {
+        "teamId": "8QQHV834VF"
+      },
       "target": [
         "dmg",
         "zip"
