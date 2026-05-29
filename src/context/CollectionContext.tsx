@@ -9,6 +9,7 @@ import {
   DEFAULT_CATEGORIES
 } from '../types/models';
 import { logger } from '../utils/logger';
+import { evaluateFormula } from '../utils/formula';
 import * as StorageService from '../services/StorageService';
 
 // Typ für den Context
@@ -542,38 +543,12 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     return items.filter(item => item.categoryId === categoryId);
   };
   
-  // Berechnungsfunktionen
-  const calculateFormula = (formula: string, values: { [key: string]: any }): any => {
-    try {
-      // Einfache Formeln berechnen
-      // Ersetze Attributnamen durch ihre Werte
-      let evaluationString = formula;
-      
-      // Ersetze jeden Attributnamen durch seinen Wert
-      Object.keys(values).forEach(key => {
-        const regex = new RegExp(`\\b${key}\\b`, 'g');
-        const value = values[key];
-        
-        // Stelle sicher, dass numerische Werte nicht in Anführungszeichen gesetzt werden
-        if (typeof value === 'number') {
-          evaluationString = evaluationString.replace(regex, value.toString());
-        } else if (typeof value === 'string') {
-          evaluationString = evaluationString.replace(regex, `"${value}"`);
-        } else if (value === null || value === undefined) {
-          evaluationString = evaluationString.replace(regex, '0');
-        } else {
-          evaluationString = evaluationString.replace(regex, JSON.stringify(value));
-        }
-      });
-      
-      // Führe die Berechnung aus
-      // eslint-disable-next-line no-eval
-      return eval(evaluationString);
-    } catch (error) {
-      console.error('Fehler bei der Formelberechnung:', error);
-      return null;
-    }
-  };
+  // Delegiert an die reine Formel-Auswertung in src/utils/formula.ts
+  // (kann jetzt unabhängig vom React-Kontext getestet werden).
+  const calculateFormula = (
+    formula: string,
+    values: { [key: string]: any }
+  ): any => evaluateFormula(formula, values);
   
   const calculateItemValue = (item: CollectionItem): { [key: string]: any } => {
     const category = getCategoryById(item.categoryId);

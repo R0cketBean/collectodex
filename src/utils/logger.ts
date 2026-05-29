@@ -6,12 +6,18 @@
 // Vite replaces `import.meta.env.DEV` with a literal `true` / `false`
 // at build time, so the production bundle drops the no-op call sites
 // entirely after minification.
+//
+// The wrappers look up console.log/etc. on each call instead of binding
+// once at module load. That keeps the implementation testable — a
+// vi.spyOn(console, 'log') in a unit test still observes the call.
 
 const isDev = import.meta.env.DEV;
 
+const noop = () => {};
+
 export const logger = {
-  debug: isDev ? console.log.bind(console) : () => {},
-  info: isDev ? console.info.bind(console) : () => {},
-  warn: console.warn.bind(console),
-  error: console.error.bind(console),
+  debug: isDev ? (...args: unknown[]) => console.log(...args) : noop,
+  info: isDev ? (...args: unknown[]) => console.info(...args) : noop,
+  warn: (...args: unknown[]) => console.warn(...args),
+  error: (...args: unknown[]) => console.error(...args),
 };
