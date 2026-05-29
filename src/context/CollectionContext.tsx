@@ -10,6 +10,11 @@ import {
 } from '../types/models';
 import { logger } from '../utils/logger';
 import { evaluateFormula } from '../utils/formula';
+import {
+  parseCSVRow,
+  buildCategoryCSV,
+  buildCategoryTemplateCSV,
+} from '../utils/csv';
 import * as StorageService from '../services/StorageService';
 
 // Typ für den Context
@@ -30,7 +35,14 @@ interface CollectionContextType {
   deleteAttribute: (categoryId: string, attributeId: string) => void;
   
   // Item-Funktionen
-  addItem: (categoryId: string, values: { [key: string]: any }) => string;
+  addItem: (
+    categoryId: string,
+    values: { [key: string]: any },
+    options?: {
+      links?: { [attributeId: string]: string };
+      images?: { [attributeId: string]: string };
+    }
+  ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
   deleteItem: (id: string) => void;
   deleteMultipleItems: (ids: string[]) => void;
@@ -430,17 +442,30 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   };
   
   // Funktionen für Items
-  const addItem = (categoryId: string, values: { [key: string]: any }): string => {
+  const addItem = (
+    categoryId: string,
+    values: { [key: string]: any },
+    options?: {
+      links?: { [attributeId: string]: string };
+      images?: { [attributeId: string]: string };
+    }
+  ): string => {
     const id = `item_${uuidv4()}`;
-    
+
     const newItem: CollectionItem = {
       id,
       categoryId,
       values,
+      ...(options?.links && Object.keys(options.links).length > 0
+        ? { links: options.links }
+        : {}),
+      ...(options?.images && Object.keys(options.images).length > 0
+        ? { images: options.images }
+        : {}),
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-    
+
     setItems(prev => [...prev, newItem]);
     return id;
   };
@@ -586,148 +611,13 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   const exportCategoryAsCSV = (categoryId: string) => {
     const category = getCategoryById(categoryId);
     if (!category) return null;
-    
-    // Alle Items dieser Kategorie finden
-    const categoryItems = getItemsByCategoryId(categoryId);
-    
-    // Sichtbare und editierbare Attribute für den CSV-Export ermitteln
-    const exportAttributes = category.attributes
-      .filter(attr => attr.isVisible && !attr.isCalculated)
-      .sort((a, b) => a.order - b.order);
-    
-    // Prüfen, welche Attribute Links oder Bilder haben
-    const attributesWithLinks = new Set<string>();
-    const attributesWithImages = new Set<string>();
-    
-    categoryItems.forEach(item => {
-      // Links prüfen
-      if (item.links) {
-        Object.keys(item.links).forEach(attrId => {
-          attributesWithLinks.add(attrId);
-        });
-      }
-      
-      // Bilder prüfen
-      if (item.images) {
-        Object.keys(item.images).forEach(attrId => {
-          attributesWithImages.add(attrId);
-        });
-      }
-    });
-    
-    // Header-Zeile erstellen mit zusätzlichen Spalten für Links
-    const headers = [...exportAttributes.map(attr => attr.name)];
-    
-    // Füge Spalten für Links hinzu
-    exportAttributes.filter(attr => attributesWithLinks.has(attr.id))
-      .forEach(attr => {
-        headers.push(`${attr.name} (Link)`);
-      });
-    
-    // Füge Spalten für Bild-Hinweise hinzu
-    exportAttributes.filter(attr => attributesWithImages.has(attr.id))
-      .forEach(attr => {
-        headers.push(`${attr.name} (Bild-Info)`);
-      });
-    
-    // Daten-Zeilen erstellen
-    const rows = categoryItems.map(item => {
-      const rowData: string[] = [];
-      
-      // Normale Attributwerte hinzufügen
-      exportAttributes.forEach(attr => {
-        let value = item.values[attr.id];
-        
-        // Formatiere je nach Attribut-Typ
-        if (value === null || value === undefined) {
-          rowData.push('');
-        } else if (attr.type === 'number') {
-          rowData.push(String(value));
-        } else if (attr.type === 'boolean') {
-          rowData.push(value ? 'Ja' : 'Nein');
-        } else if (attr.type === 'date' && value instanceof Date) {
-          rowData.push(value.toISOString().split('T')[0]); // YYYY-MM-DD Format
-        } else {
-          // Escape Kommas und Anführungszeichen für CSV
-          const stringValue = String(value)
-            .replace(/"/g, '""'); // Doppelte Anführungszeichen escapen
-          
-          // Wenn der Wert Kommas, Anführungszeichen oder Zeilenumbrüche enthält, in Anführungszeichen einschließen
-          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-            rowData.push(`"${stringValue}"`);
-          } else {
-            rowData.push(stringValue);
-          }
-        }
-      });
-      
-      // Link-Werte hinzufügen
-      exportAttributes.filter(attr => attributesWithLinks.has(attr.id))
-        .forEach(attr => {
-          const link = item.links && item.links[attr.id] ? item.links[attr.id] : '';
-          rowData.push(link);
-        });
-      
-      // Bild-Informationen hinzufügen (nur Hinweise, da Base64 in CSV nicht praktikabel ist)
-      exportAttributes.filter(attr => attributesWithImages.has(attr.id))
-        .forEach(attr => {
-          const hasImage = item.images && item.images[attr.id];
-          rowData.push(hasImage ? 'Bild verfügbar (nur in JSON-Export)' : '');
-        });
-      
-      return rowData;
-    });
-    
-    // CSV-Header und Zeilen kombinieren
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n');
-    
-    return {
-      fileName: `${category.name.replace(/\s+/g, '-').toLowerCase()}-export.csv`,
-      content: csvContent
-    };
+    return buildCategoryCSV(category, getItemsByCategoryId(categoryId));
   };
   
   const createCategoryTemplate = (categoryId: string) => {
     const category = getCategoryById(categoryId);
     if (!category) return null;
-    
-    // Editierbare Attribute für das Template ermitteln
-    const templateAttributes = category.attributes
-      .filter(attr => !attr.isCalculated)
-      .sort((a, b) => a.order - b.order);
-    
-    // Header-Zeile erstellen
-    const headers = templateAttributes.map(attr => attr.name);
-    
-    // Eine leere Beispielzeile erstellen
-    const exampleRow = templateAttributes.map(attr => {
-      // Beispielwerte je nach Attribut-Typ
-      if (attr.type === 'number') {
-        return attr.id === 'quantity' ? '1' : '0';
-      } else if (attr.type === 'boolean') {
-        return 'Ja';
-      } else if (attr.type === 'date') {
-        return new Date().toISOString().split('T')[0]; // YYYY-MM-DD Format
-      } else if (attr.type === 'dropdown' && attr.options && attr.options.length > 0) {
-        return attr.options[0];
-      } else {
-        return 'Beispiel';
-      }
-    });
-    
-    // CSV-Header und Beispielzeile kombinieren
-    const csvContent = [
-      headers.join(','),
-      exampleRow.join(',')
-    ].join('\n');
-    
-    return {
-      fileName: `${category.name.replace(/\s+/g, '-').toLowerCase()}-template.csv`,
-      content: csvContent
-    };
+    return buildCategoryTemplateCSV(category);
   };
   
   const importCSV = (categoryId: string, csvContent: string) => {
@@ -770,9 +660,16 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
       }
     });
     
-    // Prüfe, ob erforderliche Attribute vorhanden sind
-    const requiredAttributes = category.attributes.filter(attr => attr.required);
-    const missingRequired = requiredAttributes.filter(attr => 
+    // Prüfe, ob erforderliche Attribute vorhanden sind.
+    // Berechnete Attribute (totalCost, totalValue, profitLoss) sind
+    // zwar als required deklariert, werden vom Export aber bewusst
+    // ausgelassen (sie werden zur Laufzeit aus den Eingabewerten
+    // abgeleitet). Sie hier mitzuprüfen würde jeden Round-Trip
+    // CSV-Export → CSV-Import unmöglich machen.
+    const requiredAttributes = category.attributes.filter(
+      attr => attr.required && !attr.isCalculated
+    );
+    const missingRequired = requiredAttributes.filter(attr =>
       !Object.values(standardHeaders).includes(attr.id)
     );
     
@@ -850,28 +747,20 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
               }
             }
           } else if (attr.type === 'dropdown') {
-            // Dropdown-Wert
+            // Dropdown-Wert. Der bisherige Code war ein Copy-Paste der
+            // date-Branch und versuchte Werte wie "deutsch" als Datum
+            // zu parsen, was bei jedem Import 4–6 Pseudo-Warnungen
+            // erzeugte und den Wert auf null setzte. Stattdessen den
+            // String direkt übernehmen; eine weiche Warnung gibt es
+            // nur, wenn der Wert nicht in der Auswahlliste steht.
             if (value === '') {
               itemValues[attrId] = null;
             } else {
-              const date = new Date(value);
-              if (isNaN(date.getTime())) {
-                // Versuche deutsches Format (DD.MM.YYYY)
-                const parts = value.split('.');
-                if (parts.length === 3) {
-                  const germanDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                  if (!isNaN(germanDate.getTime())) {
-                    itemValues[attrId] = germanDate.toISOString();
-                  } else {
-                    results.errors.push(`Zeile ${i+1}, Spalte ${header}: Ungültiges Datum "${value}"`);
-                    itemValues[attrId] = null;
-                  }
-                } else {
-                  results.errors.push(`Zeile ${i+1}, Spalte ${header}: Ungültiges Datum "${value}"`);
-                  itemValues[attrId] = null;
-                }
-              } else {
-                itemValues[attrId] = date.toISOString();
+              itemValues[attrId] = value;
+              if (attr.options && !attr.options.includes(value)) {
+                results.errors.push(
+                  `Zeile ${i+1}, Spalte ${header}: Wert "${value}" nicht in der Auswahlliste — wird trotzdem importiert`
+                );
               }
             }
           } else {
@@ -896,17 +785,14 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
           }
         });
         
-        // Item zur Sammlung hinzufügen
+        // Item inklusive Links in einem Rutsch hinzufügen. Vorher gab
+        // es eine Race Condition: addItem queued ein setItems(...),
+        // addLinkToItem las direkt vom Storage und fand das neue Item
+        // dort noch nicht — die Links gingen lautlos verloren.
         try {
-          const newItemId = addItem(categoryId, itemValues);
-          
-          // Links separat hinzufügen, falls vorhanden
-          if (Object.keys(itemLinks).length > 0) {
-            Object.entries(itemLinks).forEach(([attrId, url]) => {
-              addLinkToItem(newItemId, attrId, url);
-            });
-          }
-          
+          addItem(categoryId, itemValues, {
+            links: Object.keys(itemLinks).length > 0 ? itemLinks : undefined,
+          });
           results.count++;
         } catch (error) {
           results.errors.push(`Zeile ${i+1}: ${(error as Error).message}`);
@@ -921,41 +807,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
       count: results.count,
       errors: results.errors
     };
-  };
-  
-  // Hilfsfunktion zum Parsen einer CSV-Zeile unter Berücksichtigung von Anführungszeichen
-  const parseCSVRow = (row: string): string[] => {
-    const result: string[] = [];
-    let insideQuotes = false;
-    let currentValue = '';
-    
-    for (let i = 0; i < row.length; i++) {
-      const char = row[i];
-      const nextChar = i < row.length - 1 ? row[i + 1] : null;
-      
-      if (char === '"') {
-        if (insideQuotes && nextChar === '"') {
-          // Doppelte Anführungszeichen innerhalb von Anführungszeichen -> einzelnes Anführungszeichen
-          currentValue += '"';
-          i++; // Überspringe das nächste Anführungszeichen
-        } else {
-          // Umschalten des insideQuotes-Status
-          insideQuotes = !insideQuotes;
-        }
-      } else if (char === ',' && !insideQuotes) {
-        // Komma außerhalb von Anführungszeichen -> neuer Wert
-        result.push(currentValue);
-        currentValue = '';
-      } else {
-        // Normales Zeichen
-        currentValue += char;
-      }
-    }
-    
-    // Letzten Wert hinzufügen
-    result.push(currentValue);
-    
-    return result;
   };
   
   const importExcel = async (categoryId: string, excelBuffer: ArrayBuffer): Promise<{ success: boolean, count: number, errors: string[] }> => {
