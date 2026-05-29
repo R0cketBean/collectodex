@@ -27,286 +27,217 @@ const ImportExport: React.FC = () => {
   } = useCollection();
   
   const { showLoading, hideLoading } = useLoading();
-  
+
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('export');
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
-  
+
+  // Wickelt einen asynchronen Export so, dass das Overlay erst nach
+  // OVERLAY_DELAY_MS sichtbar wird — schnelle Operationen (kleine
+  // Sammlung, JSON-Stringify) zeigen also gar nichts, anstatt einmal
+  // kurz aufzublitzen. `setPhase` aktualisiert den Overlay-Text, falls
+  // das Overlay bis dahin angezeigt wurde, sonst nur die Botschaft,
+  // die beim Erstauftritt verwendet wird. `setIsLoading(true)` läuft
+  // sofort, damit Buttons in der UI ohne Delay deaktiviert sind.
+  const OVERLAY_DELAY_MS = 200;
+  const runWithLoading = async <T,>(
+    initialMessage: string,
+    task: (setPhase: (msg: string) => void) => Promise<T>,
+  ): Promise<T> => {
+    let shown = false;
+    let pendingMessage = initialMessage;
+    setIsLoading(true);
+    const timer = window.setTimeout(() => {
+      shown = true;
+      showLoading(pendingMessage);
+    }, OVERLAY_DELAY_MS);
+
+    const setPhase = (msg: string) => {
+      pendingMessage = msg;
+      if (shown) showLoading(msg);
+    };
+
+    try {
+      return await task(setPhase);
+    } finally {
+      window.clearTimeout(timer);
+      if (shown) hideLoading();
+      setIsLoading(false);
+    }
+  };
+
+  // Stößt den Download eines Blobs im Browser an und räumt die
+  // ObjectURL und den temporären <a>-Tag wieder weg.
+  const downloadBlob = (blob: Blob, fileName: string) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', fileName);
+    document.body.appendChild(link);
+    link.click();
+    if (link.parentNode) {
+      link.parentNode.removeChild(link);
+    }
+    window.URL.revokeObjectURL(url);
+  };
+
+  const flashSuccess = (msg: string) => {
+    setImportError(null);
+    setImportSuccess(msg);
+    setTimeout(() => setImportSuccess(null), 3000);
+  };
+
+  const flashError = (msg: string) => {
+    setImportSuccess(null);
+    setImportError(msg);
+    setTimeout(() => setImportError(null), 3000);
+  };
+
   // Toggle Kategorie-Sichtbarkeit
   const toggleCategoryVisibility = (categoryId: string) => {
-    setHiddenCategories(prev => 
-      prev.includes(categoryId) 
-        ? prev.filter(id => id !== categoryId) 
+    setHiddenCategories(prev =>
+      prev.includes(categoryId)
+        ? prev.filter(id => id !== categoryId)
         : [...prev, categoryId]
     );
   };
-  
+
   // JSON-Export der gesamten Sammlung
   const handleJsonExport = async () => {
     try {
-      setIsLoading(true);
-      showLoading('Exportiere Sammlung als JSON...');
-      
-      // Kurze Verzögerung, um sicherzustellen, dass der Loading-Indikator angezeigt wird
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Verwende einen Web Worker für den Export
-      const exportWorker = () => {
-        return new Promise<string>((resolve) => {
-          setTimeout(() => {
-            // Daten aus dem Context holen
-            const data = exportData();
-            
-            // JSON mit hübscher Formatierung erstellen
-            const dataStr = JSON.stringify(data, null, 2);
-            resolve(dataStr);
-          }, 0);
-        });
-      };
-      
-      showLoading('Konvertiere Daten...');
-      const dataStr = await exportWorker();
-      
-      showLoading('Erstelle Download...');
-      // Verzögerung für UI-Aktualisierung
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Erstelle einen Download-Link
-      const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-      const exportFileDefaultName = 'pokemon-sammlung-export.json';
-      
-      const linkElement = document.createElement('a');
-      linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', exportFileDefaultName);
-      
-      // Führe den Download aus
-      linkElement.click();
-      
-      // Fertigmeldung anzeigen
-      hideLoading();
-      setIsLoading(false);
-      setImportSuccess("Die Sammlung wurde erfolgreich als JSON exportiert.");
-      setTimeout(() => setImportSuccess(null), 3000);
-      
+      await runWithLoading('Sammle Daten...', async (setPhase) => {
+        const data = exportData();
+        setPhase('Erstelle Datei...');
+        const dataStr = JSON.stringify(data, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
+        setPhase('Speichere...');
+        downloadBlob(blob, 'pokemon-sammlung-export.json');
+      });
+      flashSuccess('Die Sammlung wurde erfolgreich als JSON exportiert.');
     } catch (error) {
       console.error('Fehler beim JSON-Export:', error);
-      hideLoading();
-      setIsLoading(false);
-      setImportError("Fehler beim Exportieren der Sammlung.");
-      setTimeout(() => setImportError(null), 3000);
+      flashError('Fehler beim Exportieren der Sammlung.');
     }
   };
-  
+
   // Excel-Export der gesamten Sammlung
   const handleExcelExport = async () => {
     try {
-      setIsLoading(true);
-      showLoading('Erstelle Excel-Export. Die Generierung großer Exporte kann etwas dauern...');
-      
-      // Kurze Verzögerung für UI-Update
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Excel-Export in separatem Task ausführen
-      const exportWorker = () => {
-        return new Promise<Blob | null>(async (resolve) => {
-          try {
-            showLoading('Verarbeite Daten und erstelle Excel-Datei...');
-            const blob = await exportCollectionAsExcel();
-            resolve(blob);
-          } catch (error) {
-            console.error("Excel export worker error:", error);
-            resolve(null);
-          }
-        });
-      };
-      
-      const blob = await exportWorker();
-      
+      const blob = await runWithLoading('Excel-Export wird erstellt...', async (setPhase) => {
+        setPhase('Sammle Daten...');
+        const result = await exportCollectionAsExcel();
+        setPhase('Speichere...');
+        return result;
+      });
       if (blob) {
-        showLoading('Excel-Export fertig. Erstelle Download...');
-        // Verzögerung für UI-Update
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', 'pokemon-sammlung-export.xlsx');
-        document.body.appendChild(link);
-        link.click();
-        
-        // Aufräumen
-        if (link.parentNode) {
-          link.parentNode.removeChild(link);
-        }
-        window.URL.revokeObjectURL(url);
-        
-        hideLoading();
-        setIsLoading(false);
-        setImportSuccess("Die Sammlung wurde erfolgreich als Excel-Datei exportiert. Hinweis: Bilder sind nicht enthalten.");
+        downloadBlob(blob, 'pokemon-sammlung-export.xlsx');
+        flashSuccess('Die Sammlung wurde erfolgreich als Excel-Datei exportiert. Hinweis: Bilder sind nicht enthalten.');
       } else {
-        hideLoading();
-        setIsLoading(false);
-        setImportError("Fehler beim Excel-Export.");
+        flashError('Fehler beim Excel-Export.');
       }
     } catch (error) {
-      console.error("Excel export error:", error);
-      hideLoading();
-      setIsLoading(false);
-      setImportError("Fehler beim Excel-Export.");
-    } finally {
-      setTimeout(() => {
-        setImportSuccess(null);
-        setImportError(null);
-      }, 3000);
+      console.error('Excel export error:', error);
+      flashError('Fehler beim Excel-Export.');
     }
   };
-  
+
   // CSV-Export für eine bestimmte Kategorie
-  const handleCsvExport = (categoryId: string) => {
-    const csvData = exportCategoryAsCSV(categoryId);
-    if (csvData) {
-      const dataUri = 'data:text/csv;charset=utf-8,'+ encodeURIComponent(csvData.content);
-      
-      const linkElement = document.createElement('a');
-      linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', csvData.fileName);
-      linkElement.click();
-      
-      setImportSuccess(`Die Kategorie wurde erfolgreich als CSV exportiert. Hinweis: Links und Bilder sind nicht enthalten.`);
-      setTimeout(() => setImportSuccess(null), 3000);
-    } else {
-      setImportError("Fehler beim CSV-Export. Kategorie nicht gefunden.");
+  const handleCsvExport = async (categoryId: string) => {
+    try {
+      const csvData = await runWithLoading('CSV-Export wird erstellt...', async (setPhase) => {
+        setPhase('Sammle Daten...');
+        const result = exportCategoryAsCSV(categoryId);
+        setPhase('Speichere...');
+        return result;
+      });
+      if (csvData) {
+        const blob = new Blob([csvData.content], { type: 'text/csv;charset=utf-8' });
+        downloadBlob(blob, csvData.fileName);
+        flashSuccess('Die Kategorie wurde erfolgreich als CSV exportiert. Hinweis: Links und Bilder sind nicht enthalten.');
+      } else {
+        flashError('Fehler beim CSV-Export. Kategorie nicht gefunden.');
+      }
+    } catch (error) {
+      console.error('CSV export error:', error);
+      flashError('Fehler beim CSV-Export.');
     }
   };
-  
+
   // Excel-Export für eine bestimmte Kategorie
   const handleCategoryExcelExport = async (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) {
+      flashError('Fehler beim Excel-Export. Kategorie nicht gefunden.');
+      return;
+    }
     try {
-      setIsLoading(true);
-      showLoading('Erstelle Excel-Export für die Kategorie...');
-      
-      // Kategorie-Namen ermitteln
-      const category = categories.find(c => c.id === categoryId);
-      if (!category) {
-        throw new Error("Kategorie nicht gefunden");
-      }
-      
-      // Kurze Verzögerung für UI-Update
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Excel-Export in separatem Task ausführen
-      const exportWorker = () => {
-        return new Promise<Blob | null>(async (resolve) => {
-          try {
-            showLoading(`Verarbeite Daten für Kategorie "${category.name}"...`);
-            const blob = await exportCategoryAsExcel(categoryId);
-            resolve(blob);
-          } catch (error) {
-            console.error("Excel category export worker error:", error);
-            resolve(null);
-          }
-        });
-      };
-      
-      const blob = await exportWorker();
-      
+      const blob = await runWithLoading(
+        `Excel-Export für "${category.name}" wird erstellt...`,
+        async (setPhase) => {
+          setPhase('Sammle Daten...');
+          const result = await exportCategoryAsExcel(categoryId);
+          setPhase('Speichere...');
+          return result;
+        },
+      );
       if (blob) {
-        showLoading('Excel-Export fertig. Erstelle Download...');
-        // Verzögerung für UI-Update
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
         const fileName = `${category.name.replace(/\s+/g, '-').toLowerCase() || 'kategorie'}-export.xlsx`;
-        
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-        link.click();
-        
-        // Aufräumen
-        if (link.parentNode) {
-          link.parentNode.removeChild(link);
-        }
-        window.URL.revokeObjectURL(url);
-        
-        hideLoading();
-        setIsLoading(false);
-        setImportSuccess(`Die Kategorie wurde erfolgreich als Excel-Datei exportiert. Links sind als Hyperlinks enthalten.`);
+        downloadBlob(blob, fileName);
+        flashSuccess('Die Kategorie wurde erfolgreich als Excel-Datei exportiert. Links sind als Hyperlinks enthalten.');
       } else {
-        hideLoading();
-        setIsLoading(false);
-        setImportError("Fehler beim Excel-Export. Kategorie nicht gefunden.");
+        flashError('Fehler beim Excel-Export. Kategorie nicht gefunden.');
       }
     } catch (error) {
-      console.error("Excel category export error:", error);
-      hideLoading();
-      setIsLoading(false);
-      setImportError("Fehler beim Excel-Export.");
-    } finally {
-      setTimeout(() => {
-        setImportSuccess(null);
-        setImportError(null);
-      }, 3000);
+      console.error('Excel category export error:', error);
+      flashError('Fehler beim Excel-Export.');
     }
   };
-  
+
   // CSV-Template für eine bestimmte Kategorie generieren
-  const handleCsvTemplateDownload = (categoryId: string) => {
-    const templateData = createCategoryTemplate(categoryId);
-    if (templateData) {
-      const dataUri = 'data:text/csv;charset=utf-8,'+ encodeURIComponent(templateData.content);
-      
-      const linkElement = document.createElement('a');
-      linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', templateData.fileName);
-      linkElement.click();
-      
-      setImportSuccess(`Das CSV-Template wurde erfolgreich heruntergeladen.`);
-      setTimeout(() => setImportSuccess(null), 3000);
-    } else {
-      setImportError("Fehler beim Template-Download. Kategorie nicht gefunden.");
+  const handleCsvTemplateDownload = async (categoryId: string) => {
+    try {
+      const templateData = await runWithLoading('CSV-Vorlage wird erstellt...', async (setPhase) => {
+        setPhase('Sammle Daten...');
+        const result = createCategoryTemplate(categoryId);
+        setPhase('Speichere...');
+        return result;
+      });
+      if (templateData) {
+        const blob = new Blob([templateData.content], { type: 'text/csv;charset=utf-8' });
+        downloadBlob(blob, templateData.fileName);
+        flashSuccess('Das CSV-Template wurde erfolgreich heruntergeladen.');
+      } else {
+        flashError('Fehler beim Template-Download. Kategorie nicht gefunden.');
+      }
+    } catch (error) {
+      console.error('CSV template error:', error);
+      flashError('Fehler beim CSV-Template-Download.');
     }
   };
-  
+
   // Excel-Template für eine bestimmte Kategorie generieren
   const handleExcelTemplateDownload = async (categoryId: string) => {
     try {
-      setIsLoading(true);
-      const blob = await createExcelTemplate(categoryId);
+      const blob = await runWithLoading('Excel-Vorlage wird erstellt...', async (setPhase) => {
+        setPhase('Sammle Daten...');
+        const result = await createExcelTemplate(categoryId);
+        setPhase('Speichere...');
+        return result;
+      });
       if (blob) {
         const category = categories.find(c => c.id === categoryId);
         const fileName = `${category?.name.replace(/\s+/g, '-').toLowerCase() || 'kategorie'}-vorlage.xlsx`;
-        
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-        link.click();
-        
-        // Aufräumen
-        if (link.parentNode) {
-          link.parentNode.removeChild(link);
-        }
-        window.URL.revokeObjectURL(url);
-        
-        setImportSuccess(`Die Excel-Vorlage wurde erfolgreich heruntergeladen.`);
+        downloadBlob(blob, fileName);
+        flashSuccess('Die Excel-Vorlage wurde erfolgreich heruntergeladen.');
       } else {
-        setImportError("Fehler beim Excel-Template-Download. Kategorie nicht gefunden.");
+        flashError('Fehler beim Excel-Template-Download. Kategorie nicht gefunden.');
       }
     } catch (error) {
-      console.error("Excel template error:", error);
-      setImportError("Fehler beim Excel-Template-Download.");
-    } finally {
-      setIsLoading(false);
-      setTimeout(() => {
-        setImportSuccess(null);
-        setImportError(null);
-      }, 3000);
+      console.error('Excel template error:', error);
+      flashError('Fehler beim Excel-Template-Download.');
     }
   };
   
