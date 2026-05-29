@@ -10,6 +10,7 @@ import type {
   Category,
   CollectionItem,
 } from '../types/models';
+import { resolveItemLink } from './itemLinks';
 
 /**
  * Parst eine einzelne CSV-Zeile in ihre einzelnen Felder.
@@ -173,13 +174,19 @@ export const buildCategoryCSV = (
 ): { fileName: string; content: string } => {
   const exportAttributes = visibleEditableAttributes(category.attributes);
 
-  const attributesWithLinks = new Set<string>();
-  const attributesWithImages = new Set<string>();
+  // Eine Link-Spalte wird genau dann angelegt, wenn irgendein Item für
+  // das jeweilige Export-Attribut einen Link auflöst — inkl. des
+  // links.product → Name-Fallbacks. Vorher kam attributesWithLinks aus
+  // Object.keys(item.links), wodurch ein Item mit nur 'product' keine
+  // Spalte erzeugte (weil 'product' kein eigenes Attribut ist).
+  const attributesWithLinks = new Set<string>(
+    exportAttributes
+      .filter((attr) => items.some((item) => resolveItemLink(item, attr)))
+      .map((attr) => attr.id)
+  );
 
+  const attributesWithImages = new Set<string>();
   items.forEach((item) => {
-    if (item.links) {
-      Object.keys(item.links).forEach((attrId) => attributesWithLinks.add(attrId));
-    }
     if (item.images) {
       Object.keys(item.images).forEach((attrId) => attributesWithImages.add(attrId));
     }
@@ -205,7 +212,7 @@ export const buildCategoryCSV = (
     exportAttributes
       .filter((attr) => attributesWithLinks.has(attr.id))
       .forEach((attr) => {
-        rowData.push(item.links?.[attr.id] ?? '');
+        rowData.push(resolveItemLink(item, attr) ?? '');
       });
 
     exportAttributes

@@ -24,6 +24,7 @@ import type {
   CollectionItem,
   CollectionSummary,
 } from '../types/models';
+import { resolveItemLink } from '../utils/itemLinks';
 
 type CalculateValues = (
   item: CollectionItem
@@ -92,28 +93,6 @@ const styleHeaderRow = (row: ExcelJS.Row, bgArgb = POKEMON_BLUE) => {
       bottom: { style: 'thin', color: { argb: HEADER_BORDER_BLACK } },
     };
   });
-};
-
-/**
- * Welcher Link aus item.links gehört zu welcher Spalte? Spiegelt die
- * Logik aus CategoryItemsList.tsx: in der Name-Spalte hat der dedizierte
- * Cardmarket-Produkt-Link (item.links.product) Vorrang vor item.links.name.
- * Für alle anderen Spalten wird wie bisher item.links[attr.id] verwendet.
- *
- * Vor diesem Helper hat der Excel-Export bei Items, deren Link unter
- * 'product' (statt 'name') abgelegt war, gar keinen Hyperlink gesetzt —
- * also genau die Stelle, an der die Export-Links für neu hinzugefügte
- * Items "verschwunden" sind.
- */
-const resolveItemLink = (
-  item: CollectionItem,
-  attr: AttributeDefinition
-): string | undefined => {
-  if (!item.links) return undefined;
-  if (attr.id === 'name' && item.links.product) {
-    return item.links.product;
-  }
-  return item.links[attr.id] || undefined;
 };
 
 const applyHyperlinkAndImageHints = (
