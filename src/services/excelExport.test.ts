@@ -142,6 +142,133 @@ describe('buildCategoryExcel', () => {
     expect(value.hyperlink).toBe('https://example.com/etb');
   });
 
+  // Regression: die Name-Spalte zeigt in der UI den Cardmarket-Link
+  // aus item.links.product. Früher hat der Excel-Export nur
+  // item.links[attr.id] geprüft und für Items, die ihren Link unter
+  // 'product' (statt 'name') gespeichert hatten, gar keinen Hyperlink
+  // gesetzt — siehe CategoryItemsList.tsx, das für attr.id==='name'
+  // explizit auf links.product zurückfällt.
+  it('zieht für die Name-Spalte den Link aus links.product, wenn vorhanden', async () => {
+    const category = buildCategory([
+      attr({ id: 'name', name: 'Name', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'a',
+        categoryId: 'sealed',
+        values: { name: 'ETB Ewige Rivalen' },
+        // Kein links.name — der Link sitzt unter links.product
+        links: { product: 'https://www.cardmarket.com/de/Pokemon/Products/etb' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    const blob = await buildCategoryExcel(category, items, noopCalculate);
+    const wb = await loadWorkbook(blob);
+    const sheet = wb.getWorksheet(1)!;
+    const cell = sheet.getRow(2).getCell(1);
+    const value = cell.value as { text?: string; hyperlink?: string };
+    expect(value.hyperlink).toBe(
+      'https://www.cardmarket.com/de/Pokemon/Products/etb'
+    );
+  });
+
+  it('bevorzugt für die Name-Spalte links.product gegenüber links.name', async () => {
+    const category = buildCategory([
+      attr({ id: 'name', name: 'Name', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'a',
+        categoryId: 'sealed',
+        values: { name: 'X' },
+        links: {
+          name: 'https://example.com/old-name-link',
+          product: 'https://example.com/product-link',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    const blob = await buildCategoryExcel(category, items, noopCalculate);
+    const wb = await loadWorkbook(blob);
+    const sheet = wb.getWorksheet(1)!;
+    const cell = sheet.getRow(2).getCell(1);
+    const value = cell.value as { text?: string; hyperlink?: string };
+    expect(value.hyperlink).toBe('https://example.com/product-link');
+  });
+
+  it('setzt Hyperlinks auch für Number-Attribute', async () => {
+    const category = buildCategory([
+      attr({ id: 'price', name: 'Preis', type: 'number', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'a',
+        categoryId: 'sealed',
+        values: { price: 42 },
+        links: { price: 'https://example.com/price' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    const blob = await buildCategoryExcel(category, items, noopCalculate);
+    const wb = await loadWorkbook(blob);
+    const sheet = wb.getWorksheet(1)!;
+    const cell = sheet.getRow(2).getCell(1);
+    const value = cell.value as { text?: string; hyperlink?: string };
+    expect(value.hyperlink).toBe('https://example.com/price');
+  });
+
+  it('setzt Hyperlinks auch für Zellen mit leerem Wert', async () => {
+    const category = buildCategory([
+      attr({ id: 'name', name: 'Name', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'a',
+        categoryId: 'sealed',
+        values: {},
+        links: { name: 'https://example.com/empty' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    const blob = await buildCategoryExcel(category, items, noopCalculate);
+    const wb = await loadWorkbook(blob);
+    const sheet = wb.getWorksheet(1)!;
+    const cell = sheet.getRow(2).getCell(1);
+    const value = cell.value as { text?: string; hyperlink?: string };
+    expect(value.hyperlink).toBe('https://example.com/empty');
+  });
+
+  it('setzt Hyperlinks auch für Boolean-Attribute', async () => {
+    const category = buildCategory([
+      attr({ id: 'sealed', name: 'Sealed', type: 'boolean', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'a',
+        categoryId: 'sealed',
+        values: { sealed: true },
+        links: { sealed: 'https://example.com/sealed' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    const blob = await buildCategoryExcel(category, items, noopCalculate);
+    const wb = await loadWorkbook(blob);
+    const sheet = wb.getWorksheet(1)!;
+    const cell = sheet.getRow(2).getCell(1);
+    const value = cell.value as { text?: string; hyperlink?: string };
+    expect(value.hyperlink).toBe('https://example.com/sealed');
+  });
+
   it('benutzt den calculateValues-Callback für berechnete Attribute', async () => {
     const category = buildCategory([
       attr({ id: 'quantity', name: 'Anzahl', type: 'number', order: 0 }),
@@ -350,5 +477,52 @@ describe('buildCollectionExcel', () => {
     expect(overview.getRow(4).getCell(1).value).toBe('GESAMT');
     expect(overview.getRow(4).getCell(2).value).toBe(3);
     expect(overview.getRow(4).getCell(3).value).toBe(100);
+  });
+
+  // Regression: derselbe links.product-Fallback wie beim Einzel-Kategorie-
+  // Export muss auch im Gesamt-Sammlungs-Export greifen, sonst fehlen
+  // Hyperlinks in den per-Kategorie-Tabs.
+  it('benutzt links.product für die Name-Spalte in den Kategorie-Tabs', async () => {
+    const itemsWithProductLink: CollectionItem[] = [
+      {
+        id: 's1',
+        categoryId: 'sealed',
+        values: { name: 'ETB Ewige Rivalen' },
+        links: {
+          product: 'https://www.cardmarket.com/de/Pokemon/Products/etb-ewige',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const minimalSummary: CollectionSummary = {
+      totalItems: 1,
+      totalValue: 0,
+      totalCost: 0,
+      profitLoss: 0,
+      categorySummaries: {
+        sealed: {
+          name: 'Sealed Produkte',
+          count: 1,
+          value: 0,
+          cost: 0,
+          profitLoss: 0,
+        },
+      },
+    };
+
+    const blob = await buildCollectionExcel(
+      [categories[0]],
+      itemsWithProductLink,
+      minimalSummary,
+      noopCalculate
+    );
+    const wb = await loadWorkbook(blob);
+    const sheet = wb.getWorksheet('Sealed Produkte')!;
+    const cell = sheet.getRow(2).getCell(1);
+    const value = cell.value as { text?: string; hyperlink?: string };
+    expect(value.hyperlink).toBe(
+      'https://www.cardmarket.com/de/Pokemon/Products/etb-ewige'
+    );
   });
 });

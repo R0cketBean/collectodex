@@ -94,6 +94,28 @@ const styleHeaderRow = (row: ExcelJS.Row, bgArgb = POKEMON_BLUE) => {
   });
 };
 
+/**
+ * Welcher Link aus item.links gehört zu welcher Spalte? Spiegelt die
+ * Logik aus CategoryItemsList.tsx: in der Name-Spalte hat der dedizierte
+ * Cardmarket-Produkt-Link (item.links.product) Vorrang vor item.links.name.
+ * Für alle anderen Spalten wird wie bisher item.links[attr.id] verwendet.
+ *
+ * Vor diesem Helper hat der Excel-Export bei Items, deren Link unter
+ * 'product' (statt 'name') abgelegt war, gar keinen Hyperlink gesetzt —
+ * also genau die Stelle, an der die Export-Links für neu hinzugefügte
+ * Items "verschwunden" sind.
+ */
+const resolveItemLink = (
+  item: CollectionItem,
+  attr: AttributeDefinition
+): string | undefined => {
+  if (!item.links) return undefined;
+  if (attr.id === 'name' && item.links.product) {
+    return item.links.product;
+  }
+  return item.links[attr.id] || undefined;
+};
+
 const applyHyperlinkAndImageHints = (
   worksheet: ExcelJS.Worksheet,
   row: ExcelJS.Row,
@@ -102,12 +124,13 @@ const applyHyperlinkAndImageHints = (
 ) => {
   attrs.forEach((attr, colIndex) => {
     const cell = row.getCell(colIndex + 1);
+    const link = resolveItemLink(item, attr);
 
-    if (item.links && item.links[attr.id]) {
-      const linkText = cell.text || item.links[attr.id];
+    if (link) {
+      const linkText = cell.text || link;
       worksheet.getCell(cell.address).value = {
         text: linkText,
-        hyperlink: item.links[attr.id],
+        hyperlink: link,
       };
       cell.font = { color: { argb: LINK_BLUE }, underline: true };
     }
@@ -116,7 +139,7 @@ const applyHyperlinkAndImageHints = (
       cell.note = 'Enthält Bild (nur beim JSON-Export erhalten)';
       if (!cell.font) cell.font = {};
       cell.font.italic = true;
-      if (!item.links || !item.links[attr.id]) {
+      if (!link) {
         cell.font.color = { argb: IMAGE_HINT_GREY };
       }
     }
