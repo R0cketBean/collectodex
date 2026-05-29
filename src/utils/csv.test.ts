@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseCSVRow,
+  splitCSVRows,
   escapeCSVCell,
   formatCellForCSV,
   exampleCellForAttribute,
@@ -37,6 +38,54 @@ describe('parseCSVRow', () => {
 
   it('behält Zeilenumbrüche innerhalb von Anführungszeichen', () => {
     expect(parseCSVRow('"a\nb",c')).toEqual(['a\nb', 'c']);
+  });
+});
+
+describe('splitCSVRows', () => {
+  it('teilt eine einfache Mehrzeilen-CSV an \\n', () => {
+    expect(splitCSVRows('a,b\nc,d')).toEqual(['a,b', 'c,d']);
+  });
+
+  it('behält \\n innerhalb eines gequoteten Felds', () => {
+    expect(splitCSVRows('a,"b\nc"\nd,e')).toEqual(['a,"b\nc"', 'd,e']);
+  });
+
+  it('behandelt CRLF wie LF', () => {
+    expect(splitCSVRows('a,b\r\nc,d\r\n')).toEqual(['a,b', 'c,d']);
+  });
+
+  it('behält CRLF innerhalb gequoteter Felder', () => {
+    expect(splitCSVRows('"a\r\nb",c\nd,e')).toEqual(['"a\r\nb",c', 'd,e']);
+  });
+
+  it('respektiert verdoppelte Anführungszeichen innerhalb gequoteter Felder', () => {
+    // Eine gequotete Zelle "a""b\nc" mit \n drin — die "" darf nicht als
+    // Feld-Ende interpretiert werden, sonst würde der \n die Zeile trennen.
+    expect(splitCSVRows('"a""b\nc",d\ne,f')).toEqual([
+      '"a""b\nc",d',
+      'e,f',
+    ]);
+  });
+
+  it('verwirft trailing leere Zeile', () => {
+    expect(splitCSVRows('a,b\nc,d\n')).toEqual(['a,b', 'c,d']);
+  });
+
+  it('behält Zeilen mit leeren Feldern', () => {
+    expect(splitCSVRows('a,,b\n,c,')).toEqual(['a,,b', ',c,']);
+  });
+
+  it('liefert leeres Array für leeren String', () => {
+    expect(splitCSVRows('')).toEqual([]);
+  });
+
+  it('Round-Trip parseCSVRow auf jeder gesplitteten Zeile liefert die Originalwerte', () => {
+    const csv = 'Name,Note\n"Karton hat\nKnick",ok\n"Foo",bar';
+    const rows = splitCSVRows(csv);
+    expect(rows).toHaveLength(3);
+    expect(parseCSVRow(rows[0])).toEqual(['Name', 'Note']);
+    expect(parseCSVRow(rows[1])).toEqual(['Karton hat\nKnick', 'ok']);
+    expect(parseCSVRow(rows[2])).toEqual(['Foo', 'bar']);
   });
 });
 

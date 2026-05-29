@@ -386,14 +386,20 @@ const ImportExport: React.FC = () => {
             
             if (result.success) {
               setImportError(null);
-              setImportSuccess(`${result.count} Einträge wurden erfolgreich importiert.`);
-              
+              const imageHint = result.imageInfoRowCount > 0
+                ? ` Hinweis: ${result.imageInfoRowCount} Eintrag/Einträge hatten ursprünglich Bilder, die im JSON-Export erhalten geblieben wären.`
+                : '';
+              setImportSuccess(`${result.count} Einträge wurden erfolgreich importiert.${imageHint}`);
+
               // Hinweis auf Warnungen anzeigen, falls vorhanden
               if (result.errors.length > 0) {
                 setTimeout(() => {
                   setImportSuccess(null);
                   setImportError(`Import erfolgreich, aber mit ${result.errors.length} Warnungen:\n${result.errors.slice(0, 3).join('\n')}${result.errors.length > 3 ? `\n...und ${result.errors.length - 3} weitere` : ''}`);
                 }, 3000);
+              } else if (result.imageInfoRowCount > 0) {
+                // Längere Anzeige, damit der User den Hinweis lesen kann.
+                setTimeout(() => setImportSuccess(null), 8000);
               }
             } else {
               setImportError(`Import fehlgeschlagen: ${result.errors[0]}${result.errors.length > 1 ? ` (und ${result.errors.length - 1} weitere Fehler)` : ''}`);
@@ -545,7 +551,12 @@ const ImportExport: React.FC = () => {
             </div>
             
             <div className="mt-6 border-t border-blue-100 pt-5">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Kategorie-Export</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-2">Kategorie-Export</h3>
+              <p className="text-xs text-gray-500 mb-3">
+                CSV und Excel enthalten keine Bilder — Tabellen-Tools verkraften
+                keine Base64-Blobs. Für einen vollständigen Round-Trip mit Bildern
+                bitte den JSON-Export oben verwenden.
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {categories.map((category) => (
                   <div key={category.id} className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
@@ -701,6 +712,8 @@ const ImportExport: React.FC = () => {
                 <h3 className="font-medium mb-2 text-sm">CSV Import</h3>
                 <p className="text-xs text-gray-500 mb-3">
                   Importiert Daten aus einer CSV-Datei in eine ausgewählte Kategorie.
+                  Bilder sind im CSV-Format nicht enthalten — für vollständige
+                  Sicherungen den JSON-Import nutzen.
                 </p>
                 <div className="flex flex-col space-y-2">
                   <select
