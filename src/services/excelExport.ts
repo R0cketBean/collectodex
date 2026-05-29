@@ -24,6 +24,7 @@ import type {
   CollectionItem,
   CollectionSummary,
 } from '../types/models';
+import { resolveItemLink } from '../utils/itemLinks';
 
 type CalculateValues = (
   item: CollectionItem
@@ -102,12 +103,13 @@ const applyHyperlinkAndImageHints = (
 ) => {
   attrs.forEach((attr, colIndex) => {
     const cell = row.getCell(colIndex + 1);
+    const link = resolveItemLink(item, attr);
 
-    if (item.links && item.links[attr.id]) {
-      const linkText = cell.text || item.links[attr.id];
+    if (link) {
+      const linkText = cell.text || link;
       worksheet.getCell(cell.address).value = {
         text: linkText,
-        hyperlink: item.links[attr.id],
+        hyperlink: link,
       };
       cell.font = { color: { argb: LINK_BLUE }, underline: true };
     }
@@ -116,7 +118,7 @@ const applyHyperlinkAndImageHints = (
       cell.note = 'Enthält Bild (nur beim JSON-Export erhalten)';
       if (!cell.font) cell.font = {};
       cell.font.italic = true;
-      if (!item.links || !item.links[attr.id]) {
+      if (!link) {
         cell.font.color = { argb: IMAGE_HINT_GREY };
       }
     }

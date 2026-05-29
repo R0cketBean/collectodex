@@ -264,6 +264,78 @@ describe('buildCategoryCSV', () => {
     );
   });
 
+  // Regression: dieselbe links.product-Spezialregel wie im Excel-Export.
+  // Vorher hat csv.ts attributesWithLinks aus Object.keys(item.links)
+  // befüllt und in der Datenzeile item.links[attr.id] gelesen — Items,
+  // deren Link nur unter links.product saß, kamen ohne "Name (Link)"-
+  // Spalte und ohne URL durch den Export.
+  it('liest für die Name-Spalte den Link aus links.product, wenn nur dort vorhanden', () => {
+    const category = buildCategory([
+      attr({ id: 'name', name: 'Name', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'i1',
+        categoryId: 'sealed',
+        values: { name: 'ETB Ewige Rivalen' },
+        // kein links.name — der Link sitzt unter links.product
+        links: { product: 'https://www.cardmarket.com/de/Pokemon/Products/etb' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const result = buildCategoryCSV(category, items);
+    expect(result.content).toBe(
+      [
+        'Name,Name (Link)',
+        'ETB Ewige Rivalen,https://www.cardmarket.com/de/Pokemon/Products/etb',
+      ].join('\n')
+    );
+  });
+
+  it('bevorzugt für die Name-Spalte links.product gegenüber links.name', () => {
+    const category = buildCategory([
+      attr({ id: 'name', name: 'Name', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'i1',
+        categoryId: 'sealed',
+        values: { name: 'X' },
+        links: {
+          name: 'https://example.com/old-name-link',
+          product: 'https://example.com/product-link',
+        },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const result = buildCategoryCSV(category, items);
+    expect(result.content).toBe(
+      ['Name,Name (Link)', 'X,https://example.com/product-link'].join('\n')
+    );
+  });
+
+  it('legt keine Link-Spalte an, wenn nur fremde links-Keys gesetzt sind', () => {
+    // Item hat links.product, aber die Kategorie kennt 'product' nicht und
+    // 'name' ist auch nicht in der Kategorie → keine Link-Spalte.
+    const category = buildCategory([
+      attr({ id: 'quantity', name: 'Anzahl', type: 'number', order: 0 }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'i1',
+        categoryId: 'sealed',
+        values: { quantity: 1 },
+        links: { product: 'https://example.com/p' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const result = buildCategoryCSV(category, items);
+    expect(result.content).toBe(['Anzahl', '1'].join('\n'));
+  });
+
   it('slugt den Kategorienamen für den Dateinamen', () => {
     const category = buildCategory(
       [attr({ id: 'name', name: 'Name', order: 0 })],
