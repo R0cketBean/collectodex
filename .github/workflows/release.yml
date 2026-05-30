@@ -43,7 +43,11 @@ jobs:
         # Signs with the Developer ID cert from CSC_LINK and notarizes via
         # notarytool using the APPLE_* credentials. Produces a signed,
         # notarized DMG + ZIP under dist/.
-        run: npx electron-builder --mac -c.extraMetadata.main=build/electron.js
+        # main MUST be public/electron.js: that file is what ends up under
+        # Resources/app/ in the bundle. Pointing main at build/electron.js
+        # makes electron-builder look for an entry file that never gets
+        # packaged there ("Application entry file ... does not exist").
+        run: npx electron-builder --mac -c.extraMetadata.main=public/electron.js
         env:
           CSC_LINK: ${{ secrets.CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
