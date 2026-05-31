@@ -721,7 +721,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
           
           // Wert entsprechend des Datentyps konvertieren
           if (attr.type === 'number') {
-            itemValues[attrId] = value === '' ? 0 : parseFloat(value);
+            itemValues[attrId] = value === '' ? 0 : parseDecimal(value);
             if (isNaN(itemValues[attrId])) {
               results.errors.push(`Zeile ${i+1}, Spalte ${header}: Ungültiger Zahlenwert "${value}"`);
               itemValues[attrId] = 0;
