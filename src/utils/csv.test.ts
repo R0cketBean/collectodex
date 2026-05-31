@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   parseCSVRow,
+  parseCSVNumber,
   splitCSVRows,
   escapeCSVCell,
   formatCellForCSV,
@@ -86,6 +87,29 @@ describe('splitCSVRows', () => {
     expect(parseCSVRow(rows[0])).toEqual(['Name', 'Note']);
     expect(parseCSVRow(rows[1])).toEqual(['Karton hat\nKnick', 'ok']);
     expect(parseCSVRow(rows[2])).toEqual(['Foo', 'bar']);
+  });
+});
+
+describe('parseCSVNumber', () => {
+  it('parst Punkt-Dezimalzahlen', () => {
+    expect(parseCSVNumber('1.50')).toBe(1.5);
+    expect(parseCSVNumber('.75')).toBe(0.75);
+  });
+
+  it('parst Komma-Dezimalzahlen', () => {
+    expect(parseCSVNumber('1,50')).toBe(1.5);
+    expect(parseCSVNumber(' 0,99 ')).toBe(0.99);
+  });
+
+  it('verwirft Werte mit Tausendertrennzeichen', () => {
+    expect(parseCSVNumber('1,500')).toBeNaN();
+    expect(parseCSVNumber('1.500,50')).toBeNaN();
+    expect(parseCSVNumber('1,500.50')).toBeNaN();
+  });
+
+  it('verwirft teilweise numerische Werte statt sie abzuschneiden', () => {
+    expect(parseCSVNumber('1,50 EUR')).toBeNaN();
+    expect(parseCSVNumber('1.2.3')).toBeNaN();
   });
 });
 

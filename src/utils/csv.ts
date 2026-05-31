@@ -96,6 +96,24 @@ export const splitCSVRows = (csvContent: string): string[] => {
 };
 
 /**
+ * Parst Zahlen aus CSV-Zellen ohne tausender-getrennte Werte stillschweigend
+ * als Dezimalwerte zu interpretieren.
+ */
+export const parseCSVNumber = (value: string): number => {
+  const trimmed = value.trim();
+
+  if (/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+
+  if (/^[+-]?\d+,\d{1,2}$/.test(trimmed)) {
+    return Number(trimmed.replace(',', '.'));
+  }
+
+  return NaN;
+};
+
+/**
  * Verpackt einen String in CSV-Anführungszeichen, falls er Kommas,
  * Anführungszeichen oder Zeilenumbrüche enthält. Innere Anführungs-
  * zeichen werden verdoppelt (`"` → `""`).
