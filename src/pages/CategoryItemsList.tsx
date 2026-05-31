@@ -19,6 +19,13 @@ import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types
 import { fetchPriceFromCardmarket } from '../services/PriceService';
 import { logger } from '../utils/logger';
 
+// Der "Preis abrufen"-Button ruft den lokalen Scraping-Server unter
+// localhost:3001 auf (PriceService). Den gibt es in der gepackten App
+// nicht, der Abruf schlägt dort also immer fehl (#27). Bis die offizielle
+// Cardmarket-API angebunden ist (#15, v0.4), blenden wir den Button aus.
+// Zum Reaktivieren einfach auf `true` setzen.
+const PRICE_FETCH_ENABLED = false;
+
 const CategoryItemsList: React.FC = () => {
   const {
     categories,
@@ -1417,19 +1424,21 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                       <span>Link bearbeiten</span>
                                     </button>
                                     
-                                    <button
-                                      type="button"
-                                      onClick={fetchAndUpdatePrice}
-                                      disabled={isLoadingPrice}
-                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-blue-50 hover:text-blue-900 disabled:opacity-50"
-                                    >
-                                      <ArrowPathIcon className={`h-4 w-4 mr-2 ${isLoadingPrice ? 'animate-spin' : ''}`} />
-                                      <span>Preis abrufen</span>
-                                    </button>
+                                    {PRICE_FETCH_ENABLED && (
+                                      <button
+                                        type="button"
+                                        onClick={fetchAndUpdatePrice}
+                                        disabled={isLoadingPrice}
+                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-blue-50 hover:text-blue-900 disabled:opacity-50"
+                                      >
+                                        <ArrowPathIcon className={`h-4 w-4 mr-2 ${isLoadingPrice ? 'animate-spin' : ''}`} />
+                                        <span>Preis abrufen</span>
+                                      </button>
+                                    )}
                                   </div>
-                                  
+
                                   {/* Fehleranzeige für Preisabruf */}
-                                  {priceError && (
+                                  {PRICE_FETCH_ENABLED && priceError && (
                                     <div className="text-xs text-red-500 mt-1">{priceError}</div>
                                   )}
                                 </>
