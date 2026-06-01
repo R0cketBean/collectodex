@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { useCollection } from '../context/CollectionContext';
 import { moveAndRenumber } from '../utils/reorder';
+import {
+  ICON_OPTIONS,
+  colorClassForOrder,
+  renderCategoryIcon,
+} from '../utils/categoryVisuals';
 import { Category, AttributeDefinition, AttributeDataType, CORE_ATTRIBUTES } from '../types/models';
 import { 
   PlusIcon, 
@@ -23,6 +28,10 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, onSave, onCance
     description: category?.description || '',
     icon: category?.icon || 'collection',
   });
+
+  // Farbe richtet sich (wie im Dashboard) nach der order der Kategorie.
+  // Bei einer neuen Kategorie gibt es noch keine — 0 als Vorschau-Default.
+  const previewOrder = category?.order ?? 0;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -83,20 +92,31 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, onSave, onCance
                       <label htmlFor="icon" className="block text-sm font-medium text-gray-700">
                         Icon
                       </label>
-                      <select
-                        name="icon"
-                        id="icon"
-                        value={formData.icon}
-                        onChange={handleChange}
-                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
-                      >
-                        <option value="collection">Sammlung</option>
-                        <option value="archive">Archiv</option>
-                        <option value="star">Stern</option>
-                        <option value="cube">Würfel</option>
-                        <option value="document">Dokument</option>
-                        <option value="photograph">Foto</option>
-                      </select>
+                      <div className="mt-1 flex items-center gap-3">
+                        {/* Vorschau: Icon in der Farbe, die die Kategorie
+                            auch im Dashboard/der Liste bekommt (#52). */}
+                        <div
+                          className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${colorClassForOrder(
+                            previewOrder
+                          )}`}
+                          aria-label="Icon-Vorschau"
+                        >
+                          {renderCategoryIcon(formData.icon)}
+                        </div>
+                        <select
+                          name="icon"
+                          id="icon"
+                          value={formData.icon}
+                          onChange={handleChange}
+                          className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                        >
+                          {ICON_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
