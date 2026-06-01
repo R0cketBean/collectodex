@@ -11,13 +11,6 @@ import { logger } from '../utils/logger';
 import { coerceValueToType } from '../utils/attributeValues';
 import { evaluateFormula } from '../utils/formula';
 import {
-  parseCSVRow,
-  splitCSVRows,
-  buildCategoryCSV,
-  buildCategoryTemplateCSV,
-  parseDecimal,
-} from '../utils/csv';
-import {
   buildCategoryExcel,
   buildCategoryExcelTemplate,
   buildCollectionExcel,
@@ -70,9 +63,6 @@ interface CollectionContextType {
   
   // Datenverwaltung
   exportData: () => { categories: Category[], items: CollectionItem[] };
-  exportCategoryAsCSV: (categoryId: string) => { fileName: string, content: string } | null;
-  createCategoryTemplate: (categoryId: string) => { fileName: string, content: string } | null;
-  importCSV: (categoryId: string, csvContent: string) => { success: boolean, count: number, errors: string[], imageInfoRowCount: number };
   importData: (data: { categories: Category[], items: CollectionItem[] }) => void;
   resetToDefaults: () => void;
   
@@ -696,229 +686,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
       items
     };
   };
-  
-  const exportCategoryAsCSV = (categoryId: string) => {
-    const category = getCategoryById(categoryId);
-    if (!category) return null;
-    return buildCategoryCSV(category, getItemsByCategoryId(categoryId));
-  };
-  
-  const createCategoryTemplate = (categoryId: string) => {
-    const category = getCategoryById(categoryId);
-    if (!category) return null;
-    return buildCategoryTemplateCSV(category);
-  };
-  
-  const importCSV = (categoryId: string, csvContent: string) => {
-    const category = categories.find(c => c.id === categoryId);
-    if (!category) {
-      return { success: false, count: 0, errors: ['Kategorie nicht gefunden'], imageInfoRowCount: 0 };
-    }
-
-    // CSV in logische Zeilen aufteilen — RFC-4180-konform, damit \n
-    // innerhalb gequoteter Felder die Zeile nicht zerreißt.
-    const lines = splitCSVRows(csvContent);
-    if (lines.length < 2) {
-      return { success: false, count: 0, errors: ['CSV hat zu wenige Zeilen'], imageInfoRowCount: 0 };
-    }
-    
-    // Spaltenüberschriften extrahieren und parsen
-    const headers = parseCSVRow(lines[0]);
-    
-    // Analysiere die Spaltenüberschriften, um normale Attribute, Link-Spalten und Bild-Info-Spalten zu identifizieren
-    const standardHeaders: { [key: string]: string } = {}; // Header-Name -> Attribut-ID
-    const linkHeaders: { [key: string]: string } = {}; // Link-Header-Name -> Attribut-ID
-    const imageHeaders: { [key: string]: string } = {}; // Bild-Info-Header-Name -> Attribut-ID
-    
-    category.attributes.forEach(attr => {
-      // Suche nach dem regulären Attributnamen
-      const headerIndex = headers.findIndex(h => h === attr.name);
-      if (headerIndex !== -1) {
-        standardHeaders[headers[headerIndex]] = attr.id;
-      }
-      
-      // Suche nach Link-Spalten (z.B. "Name (Link)")
-      const linkHeaderIndex = headers.findIndex(h => h === `${attr.name} (Link)`);
-      if (linkHeaderIndex !== -1) {
-        linkHeaders[headers[linkHeaderIndex]] = attr.id;
-      }
-      
-      // Suche nach Bild-Info-Spalten (z.B. "Name (Bild-Info)")
-      const imageHeaderIndex = headers.findIndex(h => h === `${attr.name} (Bild-Info)`);
-      if (imageHeaderIndex !== -1) {
-        imageHeaders[headers[imageHeaderIndex]] = attr.id;
-      }
-    });
-    
-    // Prüfe, ob erforderliche Attribute vorhanden sind.
-    // Berechnete Attribute (totalCost, totalValue, profitLoss) sind
-    // zwar als required deklariert, werden vom Export aber bewusst
-    // ausgelassen (sie werden zur Laufzeit aus den Eingabewerten
-    // abgeleitet). Sie hier mitzuprüfen würde jeden Round-Trip
-    // CSV-Export → CSV-Import unmöglich machen.
-    const requiredAttributes = category.attributes.filter(
-      attr => attr.required && !attr.isCalculated
-    );
-    const missingRequired = requiredAttributes.filter(attr =>
-      !Object.values(standardHeaders).includes(attr.id)
-    );
-    
-    if (missingRequired.length > 0) {
-      return {
-        success: false,
-        count: 0,
-        errors: [`Fehlende erforderliche Spalten: ${missingRequired.map(attr => attr.name).join(', ')}`],
-        imageInfoRowCount: 0,
-      };
-    }
-
-    const results = {
-      success: true,
-      count: 0,
-      errors: [] as string[],
-      imageInfoRowCount: 0,
-    };
-    
-    // Daten verarbeiten
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue; // Leere Zeilen überspringen
-      
-      try {
-        // Parse die CSV-Zeile mit Unterstützung für Anführungszeichen und Kommas in Werten
-        const values = parseCSVRow(lines[i]);
-        
-        if (values.length < Object.keys(standardHeaders).length) {
-          results.errors.push(`Zeile ${i+1}: Zu wenige Werte (${values.length}, erwartet mindestens ${Object.keys(standardHeaders).length})`);
-          continue;
-        }
-        
-        const itemValues: { [key: string]: any } = {};
-        const itemLinks: { [key: string]: string } = {};
-        
-        // Verarbeite reguläre Attributwerte
-        Object.entries(standardHeaders).forEach(([header, attrId]) => {
-          const headerIndex = headers.indexOf(header);
-          if (headerIndex === -1 || headerIndex >= values.length) return;
-          
-          const value = values[headerIndex].trim();
-          const attr = category.attributes.find(a => a.id === attrId);
-          if (!attr) return;
-          
-          // Wert entsprechend des Datentyps konvertieren
-          if (attr.type === 'number') {
-            itemValues[attrId] = value === '' ? 0 : parseDecimal(value);
-            if (isNaN(itemValues[attrId])) {
-              results.errors.push(`Zeile ${i+1}, Spalte ${header}: Ungültiger Zahlenwert "${value}"`);
-              itemValues[attrId] = 0;
-            }
-          } else if (attr.type === 'boolean') {
-            const lowerValue = value.toLowerCase();
-            itemValues[attrId] = lowerValue === 'true' || lowerValue === 'ja' || lowerValue === '1';
-          } else if (attr.type === 'date') {
-            if (value === '') {
-              itemValues[attrId] = null;
-            } else {
-              const date = new Date(value);
-              if (isNaN(date.getTime())) {
-                // Versuche deutsches Format (DD.MM.YYYY)
-                const parts = value.split('.');
-                if (parts.length === 3) {
-                  const germanDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                  if (!isNaN(germanDate.getTime())) {
-                    itemValues[attrId] = germanDate.toISOString();
-                  } else {
-                    results.errors.push(`Zeile ${i+1}, Spalte ${header}: Ungültiges Datum "${value}"`);
-                    itemValues[attrId] = null;
-                  }
-                } else {
-                  results.errors.push(`Zeile ${i+1}, Spalte ${header}: Ungültiges Datum "${value}"`);
-                  itemValues[attrId] = null;
-                }
-              } else {
-                itemValues[attrId] = date.toISOString();
-              }
-            }
-          } else if (attr.type === 'dropdown') {
-            // Dropdown-Wert. Der bisherige Code war ein Copy-Paste der
-            // date-Branch und versuchte Werte wie "deutsch" als Datum
-            // zu parsen, was bei jedem Import 4–6 Pseudo-Warnungen
-            // erzeugte und den Wert auf null setzte. Stattdessen den
-            // String direkt übernehmen; eine weiche Warnung gibt es
-            // nur, wenn der Wert nicht in der Auswahlliste steht.
-            if (value === '') {
-              itemValues[attrId] = null;
-            } else {
-              itemValues[attrId] = value;
-              if (attr.options && !attr.options.includes(value)) {
-                results.errors.push(
-                  `Zeile ${i+1}, Spalte ${header}: Wert "${value}" nicht in der Auswahlliste — wird trotzdem importiert`
-                );
-              }
-            }
-          } else {
-            // Text, Dropdown, etc.
-            itemValues[attrId] = value;
-          }
-        });
-        
-        // Erkenne, ob die Quelldatei in den (Bild-Info)-Spalten einen
-        // Marker für ein vorhandenes Bild trägt. Bilddaten werden bewusst
-        // nicht im CSV serialisiert (Base64 zerstört Tabellen-Tools), also
-        // zählen wir nur die Zeilen, in denen vorher ein Bild war — die
-        // UI kann darauf hinweisen, dass JSON-Export den Round-Trip
-        // erhalten hätte.
-        const hasImageInfoMarker = Object.entries(imageHeaders).some(
-          ([header]) => {
-            const headerIndex = headers.indexOf(header);
-            if (headerIndex === -1 || headerIndex >= values.length) return false;
-            return values[headerIndex].trim() !== '';
-          }
-        );
-        if (hasImageInfoMarker) {
-          results.imageInfoRowCount++;
-        }
-
-        // Verarbeite Link-Werte
-        Object.entries(linkHeaders).forEach(([header, attrId]) => {
-          const headerIndex = headers.indexOf(header);
-          if (headerIndex === -1 || headerIndex >= values.length) return;
-          
-          const link = values[headerIndex].trim();
-          if (link) {
-            // Stelle sicher, dass der Link ein Protokoll hat
-            let processedLink = link;
-            if (!processedLink.startsWith('http://') && !processedLink.startsWith('https://')) {
-              processedLink = 'https://' + processedLink;
-            }
-            itemLinks[attrId] = processedLink;
-          }
-        });
-        
-        // Item inklusive Links in einem Rutsch hinzufügen. Vorher gab
-        // es eine Race Condition: addItem queued ein setItems(...),
-        // addLinkToItem las direkt vom Storage und fand das neue Item
-        // dort noch nicht — die Links gingen lautlos verloren.
-        try {
-          addItem(categoryId, itemValues, {
-            links: Object.keys(itemLinks).length > 0 ? itemLinks : undefined,
-          });
-          results.count++;
-        } catch (error) {
-          results.errors.push(`Zeile ${i+1}: ${(error as Error).message}`);
-        }
-      } catch (error) {
-        results.errors.push(`Zeile ${i+1}: Fehler beim Parsen der CSV-Zeile - ${(error as Error).message}`);
-      }
-    }
-    
-    return {
-      success: results.count > 0,
-      count: results.count,
-      errors: results.errors,
-      imageInfoRowCount: results.imageInfoRowCount,
-    };
-  };
-
   
   const importData = (data: { categories: Category[], items: CollectionItem[] }) => {
     // Debug-Informationen
@@ -1682,9 +1449,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     calculateFormula,
     
     exportData,
-    exportCategoryAsCSV,
-    createCategoryTemplate,
-    importCSV,
     importData,
     resetToDefaults,
     

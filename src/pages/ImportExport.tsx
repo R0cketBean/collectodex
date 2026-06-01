@@ -14,12 +14,9 @@ import { wrapBackup, validateBackup } from '../utils/backup';
 
 const ImportExport: React.FC = () => {
   const { 
-    categories, 
-    exportData, 
+    categories,
+    exportData,
     importData,
-    exportCategoryAsCSV,
-    createCategoryTemplate,
-    importCSV,
     exportCategoryAsExcel,
     createExcelTemplate,
     exportCollectionAsExcel,
@@ -30,7 +27,6 @@ const ImportExport: React.FC = () => {
 
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('export');
   const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
@@ -146,28 +142,6 @@ const ImportExport: React.FC = () => {
     }
   };
 
-  // CSV-Export für eine bestimmte Kategorie
-  const handleCsvExport = async (categoryId: string) => {
-    try {
-      const csvData = await runWithLoading('CSV-Export wird erstellt...', async (setPhase) => {
-        setPhase('Sammle Daten...');
-        const result = exportCategoryAsCSV(categoryId);
-        setPhase('Speichere...');
-        return result;
-      });
-      if (csvData) {
-        const blob = new Blob([csvData.content], { type: 'text/csv;charset=utf-8' });
-        downloadBlob(blob, csvData.fileName);
-        flashSuccess('Die Kategorie wurde erfolgreich als CSV exportiert. Hinweis: Links und Bilder sind nicht enthalten.');
-      } else {
-        flashError('Fehler beim CSV-Export. Kategorie nicht gefunden.');
-      }
-    } catch (error) {
-      console.error('CSV export error:', error);
-      flashError('Fehler beim CSV-Export.');
-    }
-  };
-
   // Excel-Export für eine bestimmte Kategorie
   const handleCategoryExcelExport = async (categoryId: string) => {
     const category = categories.find(c => c.id === categoryId);
@@ -195,28 +169,6 @@ const ImportExport: React.FC = () => {
     } catch (error) {
       console.error('Excel category export error:', error);
       flashError('Fehler beim Excel-Export.');
-    }
-  };
-
-  // CSV-Template für eine bestimmte Kategorie generieren
-  const handleCsvTemplateDownload = async (categoryId: string) => {
-    try {
-      const templateData = await runWithLoading('CSV-Vorlage wird erstellt...', async (setPhase) => {
-        setPhase('Sammle Daten...');
-        const result = createCategoryTemplate(categoryId);
-        setPhase('Speichere...');
-        return result;
-      });
-      if (templateData) {
-        const blob = new Blob([templateData.content], { type: 'text/csv;charset=utf-8' });
-        downloadBlob(blob, templateData.fileName);
-        flashSuccess('Das CSV-Template wurde erfolgreich heruntergeladen.');
-      } else {
-        flashError('Fehler beim Template-Download. Kategorie nicht gefunden.');
-      }
-    } catch (error) {
-      console.error('CSV template error:', error);
-      flashError('Fehler beim CSV-Template-Download.');
     }
   };
 
@@ -325,63 +277,6 @@ const ImportExport: React.FC = () => {
     }
   };
   
-  // CSV-Import für eine bestimmte Kategorie
-  const handleCsvImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedCategoryId) {
-      setImportError("Bitte wähle eine Kategorie aus.");
-      return;
-    }
-    
-    const fileReader = new FileReader();
-    if (event.target.files && event.target.files.length > 0) {
-      setIsLoading(true);
-      
-      fileReader.readAsText(event.target.files[0], "UTF-8");
-      fileReader.onload = e => {
-        try {
-          if (e.target && e.target.result) {
-            const csvContent = e.target.result as string;
-            const result = importCSV(selectedCategoryId, csvContent);
-            
-            if (result.success) {
-              setImportError(null);
-              const imageHint = result.imageInfoRowCount > 0
-                ? ` Hinweis: ${result.imageInfoRowCount} Eintrag/Einträge hatten ursprünglich Bilder, die im JSON-Export erhalten geblieben wären.`
-                : '';
-              setImportSuccess(`${result.count} Einträge wurden erfolgreich importiert.${imageHint}`);
-
-              // Hinweis auf Warnungen anzeigen, falls vorhanden
-              if (result.errors.length > 0) {
-                setTimeout(() => {
-                  setImportSuccess(null);
-                  setImportError(`Import erfolgreich, aber mit ${result.errors.length} Warnungen:\n${result.errors.slice(0, 3).join('\n')}${result.errors.length > 3 ? `\n...und ${result.errors.length - 3} weitere` : ''}`);
-                }, 3000);
-              } else if (result.imageInfoRowCount > 0) {
-                // Längere Anzeige, damit der User den Hinweis lesen kann.
-                setTimeout(() => setImportSuccess(null), 8000);
-              }
-            } else {
-              setImportError(`Import fehlgeschlagen: ${result.errors[0]}${result.errors.length > 1 ? ` (und ${result.errors.length - 1} weitere Fehler)` : ''}`);
-            }
-          }
-        } catch (error) {
-          console.error("CSV Import error:", error);
-          setImportError(`Fehler beim CSV-Import: ${(error as Error).message}`);
-        } finally {
-          setIsLoading(false);
-          setTimeout(() => {
-            if (importSuccess) setImportSuccess(null);
-          }, 3000);
-        }
-      };
-      
-      fileReader.onerror = () => {
-        setImportError("Fehler beim Lesen der Datei.");
-        setIsLoading(false);
-      };
-    }
-  };
-
   return (
     <div className="w-full px-4 py-6">
       <h1 className="text-2xl font-semibold text-gray-900 mb-6">Import / Export</h1>
@@ -469,8 +364,8 @@ const ImportExport: React.FC = () => {
             <div className="mt-6 border-t border-blue-100 pt-5">
               <h3 className="text-sm font-medium text-gray-900 mb-2">Kategorie-Export</h3>
               <p className="text-xs text-gray-500 mb-3">
-                CSV und Excel enthalten keine Bilder — Tabellen-Tools verkraften
-                keine Base64-Blobs. Für einen vollständigen Round-Trip mit Bildern
+                Excel enthält keine Bilder — Tabellen-Tools verkraften keine
+                Base64-Blobs. Für einen vollständigen Round-Trip mit Bildern
                 bitte den JSON-Export oben verwenden.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -488,14 +383,6 @@ const ImportExport: React.FC = () => {
                       >
                         <ArrowUpTrayIcon className="h-4 w-4 mr-1.5" />
                         Als Excel exportieren
-                      </button>
-                      <button
-                        onClick={() => handleCsvExport(category.id)}
-                        disabled={isLoading}
-                        className="w-full flex justify-center items-center px-2 py-1.5 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-pokemon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
-                      >
-                        <ArrowUpTrayIcon className="h-4 w-4 mr-1.5" />
-                        Als CSV exportieren
                       </button>
                     </div>
                   </div>
@@ -517,14 +404,6 @@ const ImportExport: React.FC = () => {
                       >
                         <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
                         Excel-Vorlage
-                      </button>
-                      <button
-                        onClick={() => handleCsvTemplateDownload(category.id)}
-                        disabled={isLoading}
-                        className="w-full flex justify-center items-center px-2 py-1.5 border border-gray-200 rounded-md shadow-sm text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
-                      >
-                        <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
-                        CSV-Vorlage
                       </button>
                     </div>
                   </div>
@@ -592,17 +471,17 @@ const ImportExport: React.FC = () => {
           <div className="mb-6 p-3 sm:p-4 bg-yellow-50 rounded-lg border border-yellow-100">
             <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Daten importieren</h2>
             <p className="text-sm text-gray-600 mb-1">
-              Importiere deine Sammlung aus einer vorherigen Sicherung oder CSV-Datei.
+              Stelle deine Sammlung aus einer vorherigen JSON-Sicherung wieder her.
             </p>
             <p className="text-xs text-gray-500 mb-3">
               <strong>Hinweis:</strong> Ein Import überschreibt eventuell vorhandene Daten. Erstelle vorher eine Sicherung!
             </p>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-4">
+
+            <div className="mt-4">
               <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
                 <h3 className="font-medium mb-2 text-sm">JSON Import (Vollständig)</h3>
                 <p className="text-xs text-gray-500 mb-3">
-                  Stellt eine komplette Sicherung inklusive Bilder wieder her.
+                  Stellt eine komplette Sicherung inklusive Bilder und Links wieder her.
                 </p>
                 <div className="mt-2">
                   <label
@@ -620,49 +499,6 @@ const ImportExport: React.FC = () => {
                     className="sr-only"
                     onChange={handleJsonImport}
                     disabled={isLoading}
-                  />
-                </div>
-              </div>
-              
-              <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
-                <h3 className="font-medium mb-2 text-sm">CSV Import</h3>
-                <p className="text-xs text-gray-500 mb-3">
-                  Importiert Daten aus einer CSV-Datei in eine ausgewählte Kategorie.
-                  Bilder sind im CSV-Format nicht enthalten — für vollständige
-                  Sicherungen den JSON-Import nutzen.
-                </p>
-                <div className="flex flex-col space-y-2">
-                  <select
-                    id="category-select"
-                    className="block w-full pl-3 pr-10 py-2 text-sm border-gray-300 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue rounded-md"
-                    value={selectedCategoryId}
-                    onChange={(e) => setSelectedCategoryId(e.target.value)}
-                  >
-                    <option value="">Kategorie wählen</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                  
-                  <label
-                    htmlFor="csv-file-upload"
-                    className={`${
-                      !selectedCategoryId ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
-                    } w-full inline-flex justify-center items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pokemon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue`}
-                  >
-                    <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-                    CSV Datei auswählen
-                  </label>
-                  <input
-                    id="csv-file-upload"
-                    name="csv-file-upload"
-                    type="file"
-                    accept=".csv"
-                    className="sr-only"
-                    onChange={handleCsvImport}
-                    disabled={!selectedCategoryId || isLoading}
                   />
                 </div>
               </div>
