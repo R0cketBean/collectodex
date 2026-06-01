@@ -7,12 +7,14 @@ import {
   renderCategoryIcon,
 } from '../utils/categoryVisuals';
 import { Category, AttributeDefinition, AttributeDataType, CORE_ATTRIBUTES } from '../types/models';
-import { 
-  PlusIcon, 
-  PencilIcon, 
-  TrashIcon, 
+import {
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
   ArrowUpIcon,
-  ArrowDownIcon
+  ArrowDownIcon,
+  EyeIcon,
+  EyeSlashIcon
 } from '@heroicons/react/24/outline';
 
 // Modal-Komponente für das Hinzufügen/Bearbeiten von Kategorien
@@ -546,9 +548,28 @@ const CategoryManagement: React.FC = () => {
                   >
                     <div className="px-4 py-4 sm:px-6 flex items-center">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium">{category.name}</p>
+                        <p className={`truncate font-medium ${category.hidden ? 'text-gray-400' : ''}`}>
+                          {category.name}
+                          {category.hidden && (
+                            <span className="ml-2 text-xs font-normal text-gray-400">(ausgeblendet)</span>
+                          )}
+                        </p>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updateCategory(category.id, { hidden: !category.hidden });
+                          }}
+                          title={category.hidden ? 'In der Navigation einblenden' : 'Aus der Navigation ausblenden'}
+                          className="p-1 rounded-full hover:bg-gray-200"
+                        >
+                          {category.hidden ? (
+                            <EyeSlashIcon className="h-4 w-4 text-gray-400" />
+                          ) : (
+                            <EyeIcon className="h-4 w-4 text-gray-500" />
+                          )}
+                        </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
