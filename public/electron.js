@@ -4,6 +4,51 @@ const isDev = require('electron-is-dev');
 const Store = require('electron-store');
 const fs = require('fs');
 
+// Einmalige Migration des Datenverzeichnisses (#21).
+//
+// Früher hieß die App intern "pokemon-sammlung" (package.json "name"),
+// wodurch electron ihren userData-Ordner unter
+// .../Application Support/pokemon-sammlung/ anlegte. Mit der Umbenennung
+// auf "collectodex" wechselt dieser Pfad — ohne Migration würde der
+// Nutzer seine gesamte Sammlung "verlieren", weil die App im neuen,
+// leeren Ordner sucht.
+//
+// Daher kopieren wir die Store-Datei einmalig vom alten in den neuen
+// userData-Ordner, sofern dort noch keine existiert. Der alte Ordner
+// bleibt als Sicherheit unangetastet. Muss VOR `new Store()` laufen,
+// damit der Store die migrierte Datei direkt liest.
+const STORE_FILE = 'collectodex-data.json';
+function migrateLegacyUserData() {
+  try {
+    const newUserData = app.getPath('userData');
+    const newStorePath = path.join(newUserData, STORE_FILE);
+
+    // Schon migriert (oder frische Installation mit neuem Namen)?
+    if (fs.existsSync(newStorePath)) return;
+
+    // Alten Pfad ableiten: gleiches Eltern­verzeichnis, alter App-Name.
+    const legacyUserData = path.join(
+      path.dirname(newUserData),
+      'pokemon-sammlung'
+    );
+    const legacyStorePath = path.join(legacyUserData, STORE_FILE);
+
+    if (fs.existsSync(legacyStorePath)) {
+      fs.mkdirSync(newUserData, { recursive: true });
+      fs.copyFileSync(legacyStorePath, newStorePath);
+      console.log(
+        `Datenmigration: ${legacyStorePath} -> ${newStorePath} kopiert.`
+      );
+    }
+  } catch (error) {
+    console.error('Fehler bei der Datenmigration:', error);
+    // Bei Fehler nicht abbrechen — die App startet dann eben mit
+    // leerem Store, statt gar nicht zu starten.
+  }
+}
+
+migrateLegacyUserData();
+
 // Initialisiere persistenten Speicher
 const store = new Store({
   name: 'collectodex-data',
