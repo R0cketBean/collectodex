@@ -8,6 +8,7 @@ import {
   DEFAULT_CATEGORIES
 } from '../types/models';
 import { logger } from '../utils/logger';
+import { coerceValueToType } from '../utils/attributeValues';
 import { evaluateFormula } from '../utils/formula';
 import {
   parseCSVRow,
@@ -415,34 +416,98 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   };
   
   const updateAttribute = (categoryId: string, attributeId: string, attributeData: Partial<AttributeDefinition>) => {
-    setCategories(prev => 
-      prev.map(cat => 
-        cat.id === categoryId 
-          ? { 
-              ...cat, 
-              attributes: cat.attributes.map(attr => 
-                attr.id === attributeId 
-                  ? { ...attr, ...attributeData } 
+    // Alten Attribut-Zustand ermitteln, um einen Typwechsel zu erkennen.
+    const oldAttr = categories
+      .find(cat => cat.id === categoryId)
+      ?.attributes.find(attr => attr.id === attributeId);
+    const newType = attributeData.type;
+    const typeChanged = !!newType && !!oldAttr && newType !== oldAttr.type;
+    const newOptions = attributeData.options ?? oldAttr?.options;
+
+    setCategories(prev =>
+      prev.map(cat =>
+        cat.id === categoryId
+          ? {
+              ...cat,
+              attributes: cat.attributes.map(attr =>
+                attr.id === attributeId
+                  ? { ...attr, ...attributeData }
                   : attr
               ),
-              updatedAt: new Date() 
-            } 
+              updatedAt: new Date()
+            }
           : cat
       )
     );
+
+    // Bei einem Typwechsel die vorhandenen Item-Werte migrieren, damit kein
+    // z. B. Text-Wert in einem nun als Zahl deklarierten Feld liegen bleibt (#28).
+    if (typeChanged && newType) {
+      setItems(prev =>
+        prev.map(item => {
+          if (item.categoryId !== categoryId || !(attributeId in item.values)) {
+            return item;
+          }
+          const coerced = coerceValueToType(item.values[attributeId], newType, newOptions);
+          const newValues = { ...item.values };
+          if (coerced === undefined) {
+            delete newValues[attributeId];
+          } else {
+            newValues[attributeId] = coerced;
+          }
+          return { ...item, values: newValues, updatedAt: new Date() };
+        })
+      );
+    }
   };
-  
+
   const deleteAttribute = (categoryId: string, attributeId: string) => {
-    setCategories(prev => 
-      prev.map(cat => 
-        cat.id === categoryId 
-          ? { 
-              ...cat, 
+    setCategories(prev =>
+      prev.map(cat =>
+        cat.id === categoryId
+          ? {
+              ...cat,
               attributes: cat.attributes.filter(attr => attr.id !== attributeId),
-              updatedAt: new Date() 
-            } 
+              updatedAt: new Date()
+            }
           : cat
       )
+    );
+
+    // Verwaiste Item-Daten dieses Attributs aus allen Items der Kategorie
+    // entfernen — sonst bleiben Werte/Links/Bilder unsichtbar im Store liegen
+    // und tauchen bei gleicher neuer Attribut-ID wieder auf (#28).
+    setItems(prev =>
+      prev.map(item => {
+        if (item.categoryId !== categoryId) return item;
+        const hasValue = !!item.values && attributeId in item.values;
+        const hasLink = !!item.links && attributeId in item.links;
+        const hasImage = !!item.images && attributeId in item.images;
+        if (!hasValue && !hasLink && !hasImage) return item;
+
+        const newValues = { ...item.values };
+        delete newValues[attributeId];
+
+        let newLinks = item.links;
+        if (hasLink) {
+          newLinks = { ...item.links };
+          delete newLinks![attributeId];
+        }
+
+        let newImages = item.images;
+        if (hasImage) {
+          newImages = { ...item.images };
+          delete newImages![attributeId];
+        }
+
+        return {
+          ...item,
+          values: newValues,
+          links: newLinks,
+          images: newImages,
+          updatedAt: new Date(),
+        };
+      })
     );
   };
   
