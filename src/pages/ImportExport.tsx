@@ -10,6 +10,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useCollection } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
+import { wrapBackup, validateBackup } from '../utils/backup';
 
 const ImportExport: React.FC = () => {
   const { 
@@ -110,7 +111,9 @@ const ImportExport: React.FC = () => {
       await runWithLoading('Sammle Daten...', async (setPhase) => {
         const data = exportData();
         setPhase('Erstelle Datei...');
-        const dataStr = JSON.stringify(data, null, 2);
+        // In eine versionierte Hülle verpacken, damit künftige
+        // Formatänderungen migrierbar bleiben (#30).
+        const dataStr = JSON.stringify(wrapBackup(data), null, 2);
         const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
         setPhase('Speichere...');
         downloadBlob(blob, 'pokemon-sammlung-export.json');
@@ -258,14 +261,40 @@ const ImportExport: React.FC = () => {
             await new Promise(resolve => setTimeout(resolve, 100));
             
             const jsonStr = e.target.result as string;
-            const data = JSON.parse(jsonStr);
-            
+            const parsed = JSON.parse(jsonStr);
+
+            // Struktur validieren, bevor irgendetwas in den State
+            // geschrieben wird — eine versehentlich gewählte fremde oder
+            // kaputte Datei darf die Sammlung nicht beschädigen (#30).
+            const validation = validateBackup(parsed);
+            if (!validation.ok) {
+              hideLoading();
+              setIsLoading(false);
+              setImportError(`Die Datei ist keine gültige Sicherung: ${validation.error}`);
+              return;
+            }
+
+            // Der Import ersetzt die aktuelle Sammlung vollständig —
+            // vorher bestätigen lassen.
+            hideLoading();
+            const confirmed = window.confirm(
+              `Achtung: Der Import ersetzt deine aktuelle Sammlung ` +
+                `(${categories.length} Kategorien) durch die Sicherung ` +
+                `(${validation.data.categories.length} Kategorien, ` +
+                `${validation.data.items.length} Einträge).\n\n` +
+                `Dieser Schritt kann nicht rückgängig gemacht werden. Fortfahren?`
+            );
+            if (!confirmed) {
+              setIsLoading(false);
+              return;
+            }
+
             showLoading('Importiere Daten in die Sammlung...');
-            
+
             // Import in separatem Task ausführen, um UI nicht zu blockieren
             setTimeout(() => {
               try {
-                importData(data);
+                importData(validation.data);
                 hideLoading();
                 setIsLoading(false);
                 setImportError(null);
