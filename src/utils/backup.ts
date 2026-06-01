@@ -44,27 +44,52 @@ export type ValidationResult =
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
-const validateCategory = (cat: unknown, index: number): string | null => {
-  if (!isObject(cat)) return `Kategorie #${index + 1} ist kein Objekt`;
-  if (typeof cat.id !== 'string') return `Kategorie #${index + 1} hat keine gültige id`;
-  if (typeof cat.name !== 'string') return `Kategorie "${cat.id}" hat keinen Namen`;
-  if (!Array.isArray(cat.attributes)) return `Kategorie "${cat.id}" hat kein attributes-Array`;
-  return null;
+/**
+ * Repariert eine einzelne Kategorie aus einem Backup, statt sie bei
+ * kleinen Mängeln komplett abzulehnen. Liefert `null`, wenn der Eintrag
+ * unrettbar ist (kein Objekt oder ohne id) — solche Einträge werden beim
+ * Import übersprungen.
+ *
+ * Hintergrund: Echte, über Monate gewachsene Sammlungen enthalten teils
+ * unvollständige Kategorien (z. B. eine ohne `attributes`-Array, weil sie
+ * früher unvollständig angelegt wurde). Eine zu strenge Validierung würde
+ * die eigene Sicherung des Nutzers ablehnen — das Backup muss aber gerade
+ * solche Daten wiederherstellen können.
+ */
+const coerceCategory = (cat: unknown): Category | null => {
+  if (!isObject(cat) || typeof cat.id !== 'string') return null;
+  return {
+    ...(cat as Record<string, unknown>),
+    id: cat.id,
+    name: typeof cat.name === 'string' ? cat.name : 'Unbenannte Kategorie',
+    attributes: Array.isArray(cat.attributes) ? cat.attributes : [],
+    order: typeof cat.order === 'number' ? cat.order : 0,
+  } as Category;
 };
 
-const validateItem = (item: unknown, index: number): string | null => {
-  if (!isObject(item)) return `Eintrag #${index + 1} ist kein Objekt`;
-  if (typeof item.id !== 'string') return `Eintrag #${index + 1} hat keine gültige id`;
-  if (typeof item.categoryId !== 'string') return `Eintrag "${item.id}" hat keine categoryId`;
-  if (!isObject(item.values)) return `Eintrag "${item.id}" hat kein values-Objekt`;
-  return null;
+const coerceItem = (item: unknown): CollectionItem | null => {
+  if (!isObject(item) || typeof item.id !== 'string') return null;
+  if (typeof item.categoryId !== 'string') return null;
+  return {
+    ...(item as Record<string, unknown>),
+    id: item.id,
+    categoryId: item.categoryId,
+    values: isObject(item.values) ? item.values : {},
+  } as CollectionItem;
 };
 
 /**
  * Prüft eine geparste JSON-Struktur und liefert die enthaltenen
  * Sammlungsdaten zurück. Akzeptiert sowohl die neue versionierte Hülle
  * als auch das alte bare `{ categories, items }`-Format (frühere
- * Exporte), damit bestehende Sicherungen weiterhin importierbar sind.
+ * Exporte).
+ *
+ * Philosophie: Abgelehnt wird nur, wenn die **Grundstruktur** fehlt (kein
+ * Objekt, keine categories/items-Arrays) — das fängt versehentlich
+ * gewählte fremde Dateien ab. Einzelne unvollständige Kategorien/Items
+ * werden dagegen repariert (fehlende Felder aufgefüllt) bzw. übersprungen,
+ * damit die eigene, ggf. über die Zeit "verbeulte" Sicherung des Nutzers
+ * importierbar bleibt.
  */
 export const validateBackup = (parsed: unknown): ValidationResult => {
   if (!isObject(parsed)) {
@@ -90,20 +115,18 @@ export const validateBackup = (parsed: unknown): ValidationResult => {
     return { ok: false, error: 'Im Backup fehlt ein gültiges items-Array.' };
   }
 
-  for (let i = 0; i < categories.length; i++) {
-    const err = validateCategory(categories[i], i);
-    if (err) return { ok: false, error: `Ungültige Kategorie: ${err}` };
-  }
-  for (let i = 0; i < items.length; i++) {
-    const err = validateItem(items[i], i);
-    if (err) return { ok: false, error: `Ungültiger Eintrag: ${err}` };
-  }
+  const coercedCategories = categories
+    .map(coerceCategory)
+    .filter((c): c is Category => c !== null);
+  const coercedItems = items
+    .map(coerceItem)
+    .filter((i): i is CollectionItem => i !== null);
 
   return {
     ok: true,
     data: {
-      categories: categories as Category[],
-      items: items as CollectionItem[],
+      categories: coercedCategories,
+      items: coercedItems,
     },
   };
 };
