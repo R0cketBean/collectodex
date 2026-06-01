@@ -116,7 +116,39 @@ const CategoryItemsList: React.FC = () => {
   
   // Filterwert
   const [filterValue, setFilterValue] = useState<string>('');
-  
+
+  // #25: Beim Sprung von den Dashboard-Top-Performern wird ?highlight=<id>
+  // übergeben. Wir scrollen zum betreffenden Item und heben es kurz hervor.
+  const highlightParam = searchParams.get('highlight');
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!highlightParam) return;
+    setHighlightedItemId(highlightParam);
+
+    // Nach dem Rendern zum Item scrollen.
+    const scrollTimer = window.setTimeout(() => {
+      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+
+    // Hervorhebung nach einigen Sekunden ausblenden und den Param aus der
+    // URL entfernen, damit ein Reload nicht erneut highlightet.
+    const clearTimer = window.setTimeout(() => {
+      setHighlightedItemId(null);
+      const next = new URLSearchParams(searchParams);
+      next.delete('highlight');
+      setSearchParams(next, { replace: true });
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(clearTimer);
+    };
+    // Nur auf Änderung des highlight-Params reagieren.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightParam]);
+
   // Handhabung der Sortierung
   const handleSort = (attributeId: string) => {
     if (sortBy === attributeId) {
@@ -1004,38 +1036,6 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkDialogRef = useRef<HTMLDivElement>(null);
-
-  // #25: Beim Sprung von den Dashboard-Top-Performern wird ?highlight=<id>
-  // übergeben. Wir scrollen zum betreffenden Item und heben es kurz hervor.
-  const highlightParam = searchParams.get('highlight');
-  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
-  const highlightRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!highlightParam) return;
-    setHighlightedItemId(highlightParam);
-
-    // Nach dem Rendern zum Item scrollen.
-    const scrollTimer = window.setTimeout(() => {
-      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
-
-    // Hervorhebung nach einigen Sekunden ausblenden und den Param aus der
-    // URL entfernen, damit ein Reload nicht erneut highlightet.
-    const clearTimer = window.setTimeout(() => {
-      setHighlightedItemId(null);
-      const next = new URLSearchParams(searchParams);
-      next.delete('highlight');
-      setSearchParams(next, { replace: true });
-    }, 3000);
-
-    return () => {
-      window.clearTimeout(scrollTimer);
-      window.clearTimeout(clearTimer);
-    };
-    // Nur auf Änderung des highlight-Params reagieren.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [highlightParam]);
 
   // Initialisiere Formularwerte aus dem Item oder mit Standardwerten
   const initialValues = useMemo(() => {
