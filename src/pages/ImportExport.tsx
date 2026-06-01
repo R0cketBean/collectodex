@@ -116,7 +116,7 @@ const ImportExport: React.FC = () => {
         const dataStr = JSON.stringify(wrapBackup(data), null, 2);
         const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
         setPhase('Speichere...');
-        downloadBlob(blob, 'pokemon-sammlung-export.json');
+        downloadBlob(blob, 'collectodex-export.json');
       });
       flashSuccess('Die Sammlung wurde erfolgreich als JSON exportiert.');
     } catch (error) {
@@ -135,7 +135,7 @@ const ImportExport: React.FC = () => {
         return result;
       });
       if (blob) {
-        downloadBlob(blob, 'pokemon-sammlung-export.xlsx');
+        downloadBlob(blob, 'collectodex-export.xlsx');
         flashSuccess('Die Sammlung wurde erfolgreich als Excel-Datei exportiert. Hinweis: Bilder sind nicht enthalten.');
       } else {
         flashError('Fehler beim Excel-Export.');
