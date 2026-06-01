@@ -14,6 +14,7 @@ import {
   splitCSVRows,
   buildCategoryCSV,
   buildCategoryTemplateCSV,
+  parseDecimal,
 } from '../utils/csv';
 import {
   buildCategoryExcel,
