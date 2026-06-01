@@ -959,7 +959,12 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         await processBatch(() => setCategories(normalizedCategories));
       }
       
-      if (data.items) {
+      if (!data.items || data.items.length === 0) {
+        // Restore einer leeren Sammlung: vorhandene Items wirklich leeren,
+        // sonst blieben beim Wiederherstellen alte Einträge zurück (#30).
+        await processBatch(() => setItems([]));
+        await StorageService.setData(StorageService.STORAGE_KEYS.ITEMS, []);
+      } else {
         // Verarbeite Items in Batches, wenn es viele gibt
         const BATCH_SIZE = 100; // Anzahl der Items pro Batch
         
