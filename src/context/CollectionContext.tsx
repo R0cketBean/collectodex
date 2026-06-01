@@ -9,9 +9,10 @@ import {
 } from '../types/models';
 import { logger } from '../utils/logger';
 import { coerceValueToType } from '../utils/attributeValues';
-import { evaluateFormula } from '../utils/formula';
 import * as StorageService from '../services/StorageService';
 import { useImportExport } from '../hooks/useImportExport';
+import { useItemValue } from '../hooks/useItemValue';
+import { useCollectionSummary } from '../hooks/useCollectionSummary';
 
 // Typ für den Context
 interface CollectionContextType {
@@ -71,15 +72,6 @@ interface CollectionContextType {
   correctItemCategories: (sourceIdOrItemId: string, targetId: string, isSingleItem?: boolean) => { success: boolean, correctedCount: number, error: string | null };
 }
 
-// Anfangswerte für den Context
-const initialSummary: CollectionSummary = {
-  totalItems: 0,
-  totalValue: 0,
-  totalCost: 0,
-  profitLoss: 0,
-  categorySummaries: {}
-};
-
 // Context erstellen
 const CollectionContext = createContext<CollectionContextType | undefined>(undefined);
 
@@ -109,7 +101,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   // State für die Daten
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<CollectionItem[]>([]);
-  const [summary, setSummary] = useState<CollectionSummary>(initialSummary);
 
   // Initialisiere Anwendung mit Standardkategorien, wenn keine vorhanden sind
   useEffect(() => {
@@ -274,70 +265,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     saveCategories();
   }, [categories]);
   
-  // Berechne die Zusammenfassung, wenn sich Daten ändern
-  useEffect(() => {
-    const calculateSummary = () => {
-      const newSummary: CollectionSummary = {
-        totalItems: 0,
-        totalValue: 0,
-        totalCost: 0,
-        profitLoss: 0,
-        categorySummaries: {}
-      };
-      
-      // Initialisiere Kategoriezusammenfassungen
-      categories.forEach(category => {
-        newSummary.categorySummaries[category.id] = {
-          name: category.name,
-          count: 0,
-          value: 0,
-          cost: 0,
-          profitLoss: 0
-        };
-      });
-      
-      // Berechne Werte für jedes Item
-      items.forEach(item => {
-        // Skip, wenn Kategorie nicht existiert
-        if (!newSummary.categorySummaries[item.categoryId]) return;
-        
-        const category = categories.find(c => c.id === item.categoryId);
-        if (!category) return;
-        
-        // Berechne alle Formeln für das Item
-        const calculatedValues = calculateItemValue(item);
-        
-        // Hole berechnete Werte oder Standardwerte
-        const totalValue = typeof calculatedValues.totalValue === 'number' 
-          ? calculatedValues.totalValue 
-          : 0;
-          
-        const totalCost = typeof calculatedValues.totalCost === 'number' 
-          ? calculatedValues.totalCost 
-          : 0;
-          
-        const profitLoss = totalValue - totalCost;
-
-        // Aktualisiere Kategoriezusammenfassung
-        newSummary.categorySummaries[item.categoryId].count += 1;
-        newSummary.categorySummaries[item.categoryId].value += totalValue;
-        newSummary.categorySummaries[item.categoryId].cost += totalCost;
-        newSummary.categorySummaries[item.categoryId].profitLoss += profitLoss;
-        
-        // Aktualisiere Gesamtzusammenfassung
-        newSummary.totalItems += 1;
-        newSummary.totalValue += totalValue;
-        newSummary.totalCost += totalCost;
-        newSummary.profitLoss += profitLoss;
-      });
-      
-      setSummary(newSummary);
-    };
-    
-    calculateSummary();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories, items]); // calculateItemValue als implizite Abhängigkeit, wird durch ESLint-Regel deaktiviert
-
   // Hilfsfunktion: Finde eine Kategorie anhand ihrer ID
   const getCategoryById = (id: string): Category | undefined => {
     return categories.find(cat => cat.id === id);
@@ -643,34 +570,15 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     return items.filter(item => item.categoryId === categoryId);
   };
   
-  // Delegiert an die reine Formel-Auswertung in src/utils/formula.ts
-  // (kann jetzt unabhängig vom React-Kontext getestet werden).
-  const calculateFormula = (
-    formula: string,
-    values: { [key: string]: any }
-  ): any => evaluateFormula(formula, values);
-  
-  const calculateItemValue = (item: CollectionItem): { [key: string]: any } => {
-    const category = getCategoryById(item.categoryId);
-    if (!category) return item.values;
-    
-    // Kopiere die aktuellen Werte
-    const calculatedValues = { ...item.values };
-    
-    // Finde berechnete Attribute
-    const calculatedAttributes = category.attributes.filter(attr => attr.isCalculated);
-    
-    // Berechne jedes berechnete Attribut
-    calculatedAttributes.forEach(attr => {
-      if (attr.formula) {
-        calculatedValues[attr.id] = calculateFormula(attr.formula, calculatedValues);
-      }
-    });
-    
-    return calculatedValues;
-  };
-  
-  
+  // Berechnungs-Layer (#18): calculateFormula/calculateItemValue hängen nur
+  // an den Kategorien und leben jetzt in einem eigenen Hook.
+  const { calculateFormula, calculateItemValue } = useItemValue({ getCategoryById });
+
+  // Abgeleitete Zusammenfassung (#18): wird aus categories + items via
+  // calculateItemValue im eigenen Hook berechnet.
+  const summary = useCollectionSummary({ categories, items, calculateItemValue });
+
+
   // Import/Export/Reset- und Excel-Orchestrierung lebt jetzt in einem
   // eigenen Hook (#14), damit der Context schlanker bleibt und Daten-State
   // von I/O getrennt ist. Die benötigten State-Teile/Setter werden übergeben.
