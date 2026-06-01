@@ -297,6 +297,42 @@ describe('buildCategoryExcel', () => {
     const sheet = wb.getWorksheet(1)!;
     expect(sheet.getRow(2).getCell(2).value).toBe('99');
   });
+
+  // #64: Auch berechnete Geld-Spalten (Typ 'formula') sollen als Währung
+  // formatiert werden; reine Anzahl-Spalten bleiben Ganzzahl.
+  it('formatiert berechnete Geld-Spalten (Formel) als Währung', async () => {
+    const category = buildCategory([
+      attr({ id: 'name', name: 'Name', order: 0 }),
+      attr({ id: 'quantity', name: 'Anzahl', type: 'number', order: 1 }),
+      attr({
+        id: 'totalValue',
+        name: 'Gesamtwert',
+        type: 'formula',
+        isCalculated: true,
+        order: 2,
+      }),
+    ]);
+    const items: CollectionItem[] = [
+      {
+        id: 'a',
+        categoryId: 'sealed',
+        values: { name: 'X', quantity: 2 },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const calc = (_item: CollectionItem) => ({
+      name: 'X',
+      quantity: 2,
+      totalValue: 1234.5,
+    });
+    const blob = await buildCategoryExcel(category, items, calc);
+    const wb = await loadWorkbook(blob);
+    const sheet = wb.getWorksheet(1)!;
+    expect(sheet.getColumn(3).numFmt).toBe('€#,##0.00;-€#,##0.00');
+    // Anzahl bleibt Ganzzahl
+    expect(sheet.getColumn(2).numFmt).toBe('0');
+  });
 });
 
 describe('buildCategoryExcelTemplate', () => {
