@@ -71,15 +71,22 @@ const editableAttributesSorted = (
  * generische Zahlen und dd.mm.yyyy für Datums-Spalten.
  */
 const numFmtForAttribute = (attr: AttributeDefinition): string | undefined => {
-  if (attr.type === 'number') {
+  // Auch berechnete Geld-Spalten (Gesamtkosten/Gesamtwert/Gewinn-Verlust) sind
+  // vom Typ 'formula' — sie sollen ebenso als Währung formatiert werden (#64).
+  if (attr.type === 'number' || attr.type === 'formula') {
     const nameLower = attr.name.toLowerCase();
     if (
       attr.id === 'price' ||
       attr.id === 'value' ||
       attr.id === 'cost' ||
+      attr.id === 'totalCost' ||
+      attr.id === 'totalValue' ||
+      attr.id === 'profitLoss' ||
       nameLower.includes('preis') ||
       nameLower.includes('wert') ||
-      nameLower.includes('kosten')
+      nameLower.includes('kosten') ||
+      nameLower.includes('gewinn') ||
+      nameLower.includes('verlust')
     ) {
       return '€#,##0.00;-€#,##0.00';
     }
