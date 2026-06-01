@@ -35,6 +35,7 @@ interface CollectionContextType {
   addCategory: (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => string;
   updateCategory: (id: string, category: Partial<Omit<Category, 'id'>>) => void;
   deleteCategory: (id: string) => void;
+  reorderCategories: (orderedIds: string[]) => void;
   
   // Attribut-Funktionen
   addAttributeToCategory: (categoryId: string, attribute: Omit<AttributeDefinition, 'id'>) => string;
@@ -387,9 +388,27 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   const deleteCategory = (id: string) => {
     // Entferne die Kategorie
     setCategories(prev => prev.filter(cat => cat.id !== id));
-    
+
     // Entferne auch alle Items dieser Kategorie
     setItems(prev => prev.filter(item => item.categoryId !== id));
+  };
+
+  /**
+   * Setzt die Reihenfolge der Kategorien anhand der übergebenen ID-Liste
+   * und nummeriert `order` lückenlos neu (0,1,2,…). In EINEM State-Update,
+   * damit kein Doppel-Update sich gegenseitig überschreibt, und robust
+   * gegen vorher kaputte/doppelte order-Werte (#29-Folgefix).
+   */
+  const reorderCategories = (orderedIds: string[]) => {
+    setCategories(prev => {
+      const rank = new Map(orderedIds.map((id, i) => [id, i]));
+      return prev
+        .map(cat => {
+          const newOrder = rank.get(cat.id);
+          return newOrder === undefined ? cat : { ...cat, order: newOrder };
+        })
+        .sort((a, b) => a.order - b.order);
+    });
   };
   
   // Funktionen für Attribute
@@ -1640,6 +1659,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     addCategory,
     updateCategory,
     deleteCategory,
+    reorderCategories,
     
     addAttributeToCategory,
     updateAttribute,

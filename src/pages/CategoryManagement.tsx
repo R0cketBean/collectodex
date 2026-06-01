@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCollection } from '../context/CollectionContext';
+import { moveAndRenumber } from '../utils/reorder';
 import { Category, AttributeDefinition, AttributeDataType, CORE_ATTRIBUTES } from '../types/models';
 import { 
   PlusIcon, 
@@ -362,8 +363,9 @@ const CategoryManagement: React.FC = () => {
   const { 
     categories, 
     addCategory, 
-    updateCategory, 
+    updateCategory,
     deleteCategory,
+    reorderCategories,
     addAttributeToCategory,
     updateAttribute,
     deleteAttribute,
@@ -421,59 +423,28 @@ const CategoryManagement: React.FC = () => {
     }
   };
   
-  // Handling für die Änderung der Reihenfolge von Attributen
+  // Handling für die Änderung der Reihenfolge von Attributen.
+  // moveAndRenumber (utils/reorder.ts, getestet) verschiebt um genau eine
+  // Position und nummeriert order lückenlos neu — robust gegen vorher
+  // kaputte order-Werte (#29-Folgefix).
   const handleMoveAttribute = (attributeId: string, direction: 'up' | 'down') => {
     if (!selectedCategoryId || !selectedCategory) return;
-
-    // Nach order sortieren, damit "hoch/runter" der angezeigten
-    // Reihenfolge entspricht (die UI rendert ebenfalls order-sortiert).
-    const sorted = [...selectedCategory.attributes].sort(
-      (a, b) => a.order - b.order
+    const renumbered = moveAndRenumber(
+      selectedCategory.attributes,
+      attributeId,
+      direction
     );
-    const index = sorted.findIndex(a => a.id === attributeId);
-    if (index === -1) return;
-
-    const newIndex =
-      direction === 'up'
-        ? Math.max(0, index - 1)
-        : Math.min(sorted.length - 1, index + 1);
-    if (newIndex === index) return;
-
-    // order-Werte der beiden betroffenen Attribute tauschen — OHNE die
-    // State-Objekte zu mutieren (#29: vorher wurde via flacher Kopie
-    // direkt in die State-Referenzen geschrieben). Neue Objekte erzeugen.
-    const orderA = sorted[index].order;
-    const orderB = sorted[newIndex].order;
-    const newAttributes = selectedCategory.attributes.map(attr => {
-      if (attr.id === sorted[index].id) return { ...attr, order: orderB };
-      if (attr.id === sorted[newIndex].id) return { ...attr, order: orderA };
-      return attr;
-    });
-
-    updateCategory(selectedCategoryId, { attributes: newAttributes });
+    if (!renumbered) return; // schon am Rand / nichts zu tun
+    updateCategory(selectedCategoryId, { attributes: renumbered });
   };
-  
-  // Handling für die Änderung der Reihenfolge von Kategorien
+
+  // Handling für die Änderung der Reihenfolge von Kategorien.
   const handleMoveCategory = (categoryId: string, direction: 'up' | 'down') => {
-    // Nach order sortieren, damit "hoch/runter" der angezeigten
-    // Reihenfolge entspricht.
-    const sorted = [...categories].sort((a, b) => a.order - b.order);
-    const index = sorted.findIndex(c => c.id === categoryId);
-    if (index === -1) return;
-
-    const newIndex =
-      direction === 'up'
-        ? Math.max(0, index - 1)
-        : Math.min(sorted.length - 1, index + 1);
-    if (newIndex === index) return;
-
-    // order-Werte der beiden betroffenen Kategorien tauschen. Zwei
-    // funktionale updateCategory-Aufrufe sind sicher, da der Context
-    // setCategories(prev => …) nutzt und beide IDs verschieden sind.
-    const orderA = sorted[index].order;
-    const orderB = sorted[newIndex].order;
-    updateCategory(sorted[index].id, { order: orderB });
-    updateCategory(sorted[newIndex].id, { order: orderA });
+    const renumbered = moveAndRenumber(categories, categoryId, direction);
+    if (!renumbered) return;
+    // In EINEM Update neu durchnummerieren (kein Doppel-updateCategory,
+    // das sich gegenseitig überschreiben konnte).
+    reorderCategories(renumbered.map(c => c.id));
   };
   
   // Kategorie speichern

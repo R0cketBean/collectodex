@@ -29,60 +29,29 @@ export interface ValueDatum {
 }
 
 /** Tortendiagramm: Verteilung des Sammlungswerts auf die Kategorien. */
-// Prozent-Label nur innerhalb des Segments rendern (statt außenliegender
-// Labels mit Führungslinien). Außenliegende Labels mit "\n" wurden in SVG
-// nicht sauber umbrochen und sprangen bei jedem Resize — Ursache der
-// unsauberen Darstellung (#24). Das Prozentlabel sitzt jetzt mittig im
-// Ring; die Namen erklärt der Tooltip beim Hovern.
-const renderPercentLabel = ({
-  cx,
-  cy,
-  midAngle,
-  innerRadius,
-  outerRadius,
-  percent,
-}: {
-  cx: number;
-  cy: number;
-  midAngle: number;
-  innerRadius: number;
-  outerRadius: number;
-  percent: number;
-}) => {
-  if (percent < 0.05) return null; // winzige Segmente nicht beschriften
-  const RADIAN = Math.PI / 180;
-  const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
-  const x = cx + radius * Math.cos(-midAngle * RADIAN);
-  const y = cy + radius * Math.sin(-midAngle * RADIAN);
-  return (
-    <text
-      x={x}
-      y={y}
-      fill="#fff"
-      textAnchor="middle"
-      dominantBaseline="central"
-      fontSize={11}
-      fontWeight={600}
-    >
-      {`${(percent * 100).toFixed(0)}%`}
-    </text>
-  );
-};
-
 export const ValueDistributionChart: React.FC<{
   pieData: PieDatum[];
   colors: string[];
 }> = ({ pieData, colors }) => (
-  // debounce glättet das Neu-Layouten beim Fenster-Resize (#24).
+  // Die außenliegenden, farbigen Labels (Name + %) bleiben unverändert
+  // wie zuvor — Andy mag diese Darstellung. Gegen das Ruckeln/Springen
+  // beim Fenster-Resize wirken hier nur zwei nicht-visuelle Stellschrauben
+  // (#24): debounce am Container glättet das Neu-Layouten, und
+  // isAnimationActive=false verhindert die Re-Animation bei jedem
+  // Re-Render. Aussehen und Labels selbst sind identisch zu vorher.
   <ResponsiveContainer width="100%" height="100%" debounce={150}>
     <PieChart>
       <Pie
         data={pieData}
         cx="50%"
         cy="50%"
-        labelLine={false}
-        label={pieData.length > 0 ? renderPercentLabel : undefined}
-        outerRadius="80%"
+        labelLine={pieData.length > 3}
+        label={
+          pieData.length > 0
+            ? (entry) => `${entry.name}\n${(entry.percent * 100).toFixed(0)}%`
+            : undefined
+        }
+        outerRadius={pieData.length > 0 ? 80 : 0}
         fill="#8884d8"
         dataKey="value"
         startAngle={0}
@@ -90,8 +59,6 @@ export const ValueDistributionChart: React.FC<{
         paddingAngle={0}
         innerRadius={0}
         strokeWidth={0}
-        // Re-Animation bei jedem Resize/Re-Render unterdrücken — sie war
-        // mitverantwortlich für das Ruckeln.
         isAnimationActive={false}
       >
         {pieData.map((entry, index) => (
