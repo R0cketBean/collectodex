@@ -4,9 +4,7 @@ import {
   ArrowDownTrayIcon, 
   CheckCircleIcon,
   ExclamationCircleIcon,
-  ArrowUpTrayIcon,
-  EyeSlashIcon,
-  EyeIcon
+  ArrowUpTrayIcon
 } from '@heroicons/react/24/outline';
 import { useCollection } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
@@ -29,7 +27,6 @@ const ImportExport: React.FC = () => {
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<string>('export');
-  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]);
 
   // Wickelt einen asynchronen Export so, dass das Overlay erst nach
   // OVERLAY_DELAY_MS sichtbar wird — schnelle Operationen (kleine
@@ -90,15 +87,6 @@ const ImportExport: React.FC = () => {
     setImportSuccess(null);
     setImportError(msg);
     setTimeout(() => setImportError(null), 3000);
-  };
-
-  // Toggle Kategorie-Sichtbarkeit
-  const toggleCategoryVisibility = (categoryId: string) => {
-    setHiddenCategories(prev =>
-      prev.includes(categoryId)
-        ? prev.filter(id => id !== categoryId)
-        : [...prev, categoryId]
-    );
   };
 
   // JSON-Export der gesamten Sammlung
@@ -304,16 +292,6 @@ const ImportExport: React.FC = () => {
           >
             Import
           </button>
-          <button
-            className={`${
-              activeTab === 'categories'
-                ? 'border-pokemon-blue text-pokemon-blue'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
-            onClick={() => setActiveTab('categories')}
-          >
-            Kategorien
-          </button>
         </nav>
       </div>
 
@@ -409,57 +387,6 @@ const ImportExport: React.FC = () => {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Kategorien Tab */}
-      {activeTab === 'categories' && (
-        <div>
-          <div className="mb-6 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4">Kategorien verwalten</h2>
-            
-            <div className="space-y-3">
-              {categories.map((category) => (
-                <div 
-                  key={category.id} 
-                  className="flex flex-col sm:flex-row sm:items-center justify-between bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm"
-                >
-                  <div className="mb-2 sm:mb-0">
-                    <h3 className="font-medium text-sm">{category.name}</h3>
-                    <p className="text-xs text-gray-500">
-                      {getItemsByCategoryId(category.id).length} Einträge
-                    </p>
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => toggleCategoryVisibility(category.id)}
-                      className={`
-                        inline-flex items-center px-2 py-1 border rounded-md text-xs font-medium
-                        ${
-                          hiddenCategories.includes(category.id)
-                            ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                            : 'border-green-300 bg-green-50 text-green-700 hover:bg-green-100'
-                        }
-                      `}
-                    >
-                      {hiddenCategories.includes(category.id) ? (
-                        <>
-                          <EyeSlashIcon className="h-4 w-4 mr-1" />
-                          Versteckt
-                        </>
-                      ) : (
-                        <>
-                          <EyeIcon className="h-4 w-4 mr-1" />
-                          Sichtbar
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

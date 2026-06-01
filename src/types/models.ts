@@ -26,6 +26,7 @@ export interface Category {
   attributes: AttributeDefinition[];
   order: number;         // Reihenfolge im UI
   isDefault?: boolean;   // Ist es eine Standardkategorie?
+  hidden?: boolean;      // Aus der Navigation ausgeblendet (Werte zählen weiter)
   createdAt: Date;
   updatedAt: Date;
 }
