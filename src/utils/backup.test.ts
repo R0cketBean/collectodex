@@ -68,20 +68,57 @@ describe('validateBackup', () => {
     expect(validateBackup({ categories: [] }).ok).toBe(false);
   });
 
-  it('lehnt kaputte Kategorien ab', () => {
+  it('repariert unvollständige Kategorien statt sie abzulehnen (Regression: eigene Sicherung)', () => {
+    // Eine real existierende Kategorie ohne attributes-Array (kommt in
+    // gewachsenen Sammlungen vor) muss importierbar bleiben.
     const result = validateBackup({
-      categories: [{ id: 'x' /* kein name, keine attributes */ }],
+      categories: [{ id: 'cat_x', name: 'Alt', /* kein attributes */ }],
       items: [],
     });
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.categories).toHaveLength(1);
+      expect(result.data.categories[0].attributes).toEqual([]);
+      expect(result.data.categories[0].id).toBe('cat_x');
+    }
   });
 
-  it('lehnt kaputte Items ab', () => {
+  it('füllt fehlenden Kategorienamen mit Platzhalter', () => {
+    const result = validateBackup({
+      categories: [{ id: 'cat_y' }],
+      items: [],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.categories[0].name).toBe('Unbenannte Kategorie');
+    }
+  });
+
+  it('überspringt unrettbare Kategorien (kein Objekt / keine id)', () => {
+    const result = validateBackup({
+      categories: [null, 'kaputt', { id: 'cat_ok', name: 'OK', attributes: [] }],
+      items: [],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.categories).toHaveLength(1);
+      expect(result.data.categories[0].id).toBe('cat_ok');
+    }
+  });
+
+  it('repariert Items mit fehlendem values, überspringt Items ohne categoryId', () => {
     const result = validateBackup({
       categories: [sampleCategory()],
-      items: [{ id: 'i1' /* keine categoryId/values */ }],
+      items: [
+        { id: 'i1', categoryId: 'cat_1' /* kein values */ },
+        { id: 'i2' /* keine categoryId -> übersprungen */ },
+      ],
     });
-    expect(result.ok).toBe(false);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data.items).toHaveLength(1);
+      expect(result.data.items[0].values).toEqual({});
+    }
   });
 
   it('liefert bei Fehler eine beschreibende Meldung', () => {
