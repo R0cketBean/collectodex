@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { Link } from 'react-router-dom';
-import { 
-  ChartBarIcon, 
-  CurrencyEuroIcon, 
-  ArchiveBoxIcon 
+import {
+  ChartBarIcon,
+  CurrencyEuroIcon,
+  ArchiveBoxIcon
 } from '@heroicons/react/24/solid';
-import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { useCollection } from '../context/CollectionContext';
+
+// recharts (~1 MB) wird verzögert geladen, damit es nicht im Start-Bundle
+// liegt (#19). Bis die Charts geladen sind, zeigt Suspense einen Platzhalter.
+const ValueDistributionChart = lazy(() =>
+  import('../components/dashboard/DashboardCharts').then((m) => ({
+    default: m.ValueDistributionChart,
+  }))
+);
+const ValueHistoryChart = lazy(() =>
+  import('../components/dashboard/DashboardCharts').then((m) => ({
+    default: m.ValueHistoryChart,
+  }))
+);
+
+const ChartFallback: React.FC = () => (
+  <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+    Diagramm wird geladen…
+  </div>
+);
 import { SquaresPlusIcon, ArchiveBoxIcon as ArchiveBoxOutlineIcon, StarIcon, CubeIcon, DocumentIcon, PhotoIcon } from '@heroicons/react/24/outline';
 
 // Map von Icon-Namen zu Icon-Komponenten
@@ -386,30 +404,9 @@ const Dashboard: React.FC = () => {
         <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 text-center sm:text-left">Verteilung des Sammlungswerts</h2>
           <div className="h-56 sm:h-64 px-0 sm:px-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={pieData.length > 3}
-                  label={pieData.length > 0 ? (entry) => `${entry.name}\n${(entry.percent * 100).toFixed(0)}%` : undefined}
-                  outerRadius={pieData.length > 0 ? 80 : 0}
-                  fill="#8884d8"
-                  dataKey="value"
-                  startAngle={0}
-                  endAngle={360}
-                  paddingAngle={0}
-                  innerRadius={0}
-                  strokeWidth={0}
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value) => `${Number(value).toFixed(2)}€`} />
-              </PieChart>
-            </ResponsiveContainer>
+            <Suspense fallback={<ChartFallback />}>
+              <ValueDistributionChart pieData={pieData} colors={COLORS} />
+            </Suspense>
           </div>
           {pieData.length === 0 && (
             <div className="text-center mt-4 text-gray-500">
@@ -456,33 +453,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           <div className="h-56 sm:h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={valueData}
-                margin={{
-                  top: 5,
-                  right: 20,
-                  left: 5,
-                  bottom: 5,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis tickFormatter={(value) => `${Math.round(value)}€`} tick={{ fontSize: 10 }} width={40} />
-                <Tooltip 
-                  formatter={(value) => [`${Number(value).toFixed(2)}€`, "Gesamtwert"]}
-                  labelFormatter={(label) => `${label}`}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="wert"
-                  stroke="#3B4CCA"
-                  activeDot={{ r: 8 }}
-                  name="Gesamtwert"
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <Suspense fallback={<ChartFallback />}>
+              <ValueHistoryChart valueData={valueData} />
+            </Suspense>
           </div>
         </div>
       </div>
