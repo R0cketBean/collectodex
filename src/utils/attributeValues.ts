@@ -6,7 +6,7 @@
 // verfälscht Anzeige, Sortierung und Formelauswertung (#28).
 
 import { AttributeDataType } from '../types/models';
-import { parseDecimal } from './csv';
+import { parseDecimal } from './number';
 
 /**
  * Wandelt einen vorhandenen Item-Wert in den durch `type` geforderten
