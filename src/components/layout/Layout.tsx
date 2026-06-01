@@ -36,8 +36,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
   const { categories } = useCollection();
   
-  // Sortiere Kategorien nach Reihenfolge
-  const sortedCategories = [...categories].sort((a, b) => a.order - b.order);
+  // Sortiere Kategorien nach Reihenfolge; ausgeblendete (#66) erscheinen
+  // nicht in der Navigation (ihre Werte zählen im Dashboard weiterhin).
+  const sortedCategories = [...categories]
+    .filter(category => !category.hidden)
+    .sort((a, b) => a.order - b.order);
 
   // Statische Navigationselemente
   const staticNavigation = [
