@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   PlusIcon, 
   PencilIcon, 
@@ -38,6 +38,7 @@ const CategoryItemsList: React.FC = () => {
   } = useCollection();
   
   const { categoryId } = useParams<{ categoryId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const category = useMemo(() => {
     return categories.find(cat => cat.id === categoryId);
@@ -475,9 +476,14 @@ const CategoryItemsList: React.FC = () => {
                     const mainImage = hasImage ? item.images?.[imageKeys[0]] : null;
                     
                     return (
-                      <li 
+                      <li
                         key={item.id}
-                        className="px-4 py-3 flex items-center justify-between hover:bg-gray-50"
+                        ref={(el) => {
+                          if (item.id === highlightedItemId) highlightRef.current = el;
+                        }}
+                        className={`px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors duration-500 ${
+                          item.id === highlightedItemId ? 'bg-yellow-100' : ''
+                        }`}
                         onClick={() => handleEditItem(item)}
                       >
                         <div className="min-w-0 flex-1">
@@ -605,9 +611,18 @@ const CategoryItemsList: React.FC = () => {
                         const calculatedValues = calculateItemValue(item);
                         
                         return (
-                          <tr 
+                          <tr
                             key={item.id}
-                            className={selectedItems.includes(item.id) ? 'bg-blue-50' : ''}
+                            ref={(el) => {
+                              if (item.id === highlightedItemId) highlightRef.current = el;
+                            }}
+                            className={`transition-colors duration-500 ${
+                              item.id === highlightedItemId
+                                ? 'bg-yellow-100'
+                                : selectedItems.includes(item.id)
+                                ? 'bg-blue-50'
+                                : ''
+                            }`}
                           >
                             {/* Checkbox für einzelne Zeile */}
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -989,7 +1004,39 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkDialogRef = useRef<HTMLDivElement>(null);
-  
+
+  // #25: Beim Sprung von den Dashboard-Top-Performern wird ?highlight=<id>
+  // übergeben. Wir scrollen zum betreffenden Item und heben es kurz hervor.
+  const highlightParam = searchParams.get('highlight');
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!highlightParam) return;
+    setHighlightedItemId(highlightParam);
+
+    // Nach dem Rendern zum Item scrollen.
+    const scrollTimer = window.setTimeout(() => {
+      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+
+    // Hervorhebung nach einigen Sekunden ausblenden und den Param aus der
+    // URL entfernen, damit ein Reload nicht erneut highlightet.
+    const clearTimer = window.setTimeout(() => {
+      setHighlightedItemId(null);
+      const next = new URLSearchParams(searchParams);
+      next.delete('highlight');
+      setSearchParams(next, { replace: true });
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(clearTimer);
+    };
+    // Nur auf Änderung des highlight-Params reagieren.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightParam]);
+
   // Initialisiere Formularwerte aus dem Item oder mit Standardwerten
   const initialValues = useMemo(() => {
     const values: Record<string, any> = {};

@@ -33,14 +33,15 @@ export const ValueDistributionChart: React.FC<{
   pieData: PieDatum[];
   colors: string[];
 }> = ({ pieData, colors }) => (
-  // Die außenliegenden, farbigen Labels (Name + %) bleiben unverändert
-  // wie zuvor — Andy mag diese Darstellung. Gegen das Ruckeln/Springen
-  // beim Fenster-Resize wirken hier nur zwei nicht-visuelle Stellschrauben
-  // (#24): debounce am Container glättet das Neu-Layouten, und
-  // isAnimationActive=false verhindert die Re-Animation bei jedem
-  // Re-Render. Aussehen und Labels selbst sind identisch zu vorher.
+  // Außenliegende, farbige Labels (Name + %) wie gewohnt. Zwei nicht-
+  // visuelle Stellschrauben gegen Ruckeln (#24): debounce + keine
+  // Re-Animation.
+  // #51: outerRadius prozentual ("62%") statt fix 80px — der Kreis
+  // skaliert mit dem Container, sodass links/rechts immer genug Rand für
+  // die Labels bleibt und sie auch bei schmalem Fenster nicht
+  // abgeschnitten werden.
   <ResponsiveContainer width="100%" height="100%" debounce={150}>
-    <PieChart>
+    <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
       <Pie
         data={pieData}
         cx="50%"
@@ -51,7 +52,7 @@ export const ValueDistributionChart: React.FC<{
             ? (entry) => `${entry.name}\n${(entry.percent * 100).toFixed(0)}%`
             : undefined
         }
-        outerRadius={pieData.length > 0 ? 80 : 0}
+        outerRadius={pieData.length > 0 ? '62%' : 0}
         fill="#8884d8"
         dataKey="value"
         startAngle={0}
@@ -65,7 +66,12 @@ export const ValueDistributionChart: React.FC<{
           <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
         ))}
       </Pie>
-      <Tooltip formatter={(value) => `${Number(value).toFixed(2)}€`} />
+      {/* #23: Tooltip soll den Diagramm-Bereich nicht verlassen, damit er
+          nicht über den Bildschirmrand hinausragt. */}
+      <Tooltip
+        formatter={(value) => `${Number(value).toFixed(2)}€`}
+        allowEscapeViewBox={{ x: false, y: false }}
+      />
     </PieChart>
   </ResponsiveContainer>
 );
