@@ -28,19 +28,14 @@ export interface ValueDatum {
   wert: number;
 }
 
-// Sehr lange Kategorienamen würden über den Diagrammrand hinauslaufen.
-// Wir kürzen sie fürs Label mit Ellipsis; der volle Name steht im Tooltip.
-const truncateLabel = (name: string, max = 14): string =>
-  name.length > max ? `${name.slice(0, max - 1)}…` : name;
-
 const RADIAN = Math.PI / 180;
 
 // Eigenes Label statt der Default-Beschriftung: SVG-<text> ignoriert "\n",
 // d.h. der vorige String "Name\nProzent" wurde als EINE lange Zeile
 // gerendert und lief deshalb über den Rand. Hier rendern wir zwei echte
-// Zeilen (tspan) und richten den Textanker je nach Seite nach außen aus,
-// sodass die Labels deutlich schmaler sind und nicht mehr abgeschnitten
-// werden (#23/#51).
+// Zeilen (tspan: voller Name + Prozent) und richten den Textanker je nach
+// Seite nach außen aus, sodass die Labels schmal bleiben und der volle Name
+// sichtbar ist (#23/#51).
 const renderPieLabel = ({
   cx,
   cy,
@@ -70,7 +65,7 @@ const renderPieLabel = ({
       fill="#374151"
     >
       <tspan x={x} dy="-0.45em">
-        {truncateLabel(name)}
+        {name}
       </tspan>
       <tspan x={x} dy="1.1em">
         {(percent * 100).toFixed(0)}%
