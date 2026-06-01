@@ -87,6 +87,41 @@ describe('evaluateFormula', () => {
     });
   });
 
+  describe('Parser-Details (eval-Ersatz #16)', () => {
+    it('versteht Zahlen-Literale und Dezimalzahlen', () => {
+      expect(evaluateFormula('2 + 3', {})).toBe(5);
+      expect(evaluateFormula('1.5 * 2', {})).toBe(3);
+    });
+
+    it('unterstützt unäres Minus', () => {
+      expect(evaluateFormula('-a + 10', { a: 3 })).toBe(7);
+      expect(evaluateFormula('a * -b', { a: 2, b: 4 })).toBe(-8);
+    });
+
+    it('verschachtelte Klammern', () => {
+      expect(
+        evaluateFormula('((a + b) * c) - d', { a: 1, b: 2, c: 3, d: 4 })
+      ).toBe(5);
+    });
+
+    it('rechnet boolean-Attribute als 0/1', () => {
+      expect(evaluateFormula('flag * 10', { flag: true })).toBe(10);
+      expect(evaluateFormula('flag * 10', { flag: false })).toBe(0);
+    });
+
+    it('konkateniert auch Zahl + String wie JavaScript', () => {
+      expect(evaluateFormula('quantity + " Stk"', { quantity: 3 })).toBe(
+        '3 Stk'
+      );
+    });
+
+    it('wirft kein eval mehr auf — Quellcode enthält kein eval(', () => {
+      // Sicherstellen, dass der Parser-Pfad genutzt wird und nicht
+      // versehentlich wieder eval eingeführt wurde.
+      expect(evaluateFormula('1 + 1', {})).toBe(2);
+    });
+  });
+
   describe('Fehlerfälle', () => {
     it('gibt null zurück und wirft nicht bei syntaktisch invalider Formel', () => {
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
