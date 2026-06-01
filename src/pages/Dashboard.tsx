@@ -348,10 +348,10 @@ const Dashboard: React.FC = () => {
               <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
                 {renderIcon('currency')}
               </div>
-              <div className="ml-4 w-0 flex-1">
+              <div className="ml-4 min-w-0 flex-1">
                 <h3 className="text-base font-medium text-gray-900 truncate">Gesamtwert</h3>
                 <p className="mt-1 text-lg sm:text-xl font-semibold text-gray-900">
-                  {summary.totalValue.toFixed(2)}€
+                  <span className="whitespace-nowrap">{summary.totalValue.toFixed(2)}€</span>
                 </p>
               </div>
             </div>
@@ -365,12 +365,12 @@ const Dashboard: React.FC = () => {
               <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
                 {renderIcon('trending')}
               </div>
-              <div className="ml-4 w-0 flex-1">
+              <div className="ml-4 min-w-0 flex-1">
                 <h3 className="text-base font-medium text-gray-900 truncate">Gewinn/Verlust</h3>
                 <p className={`mt-1 text-lg sm:text-xl font-semibold ${summary.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {summary.profitLoss >= 0 ? '+' : ''}{summary.profitLoss.toFixed(2)}€ 
+                  {summary.profitLoss >= 0 ? '+' : ''}{summary.profitLoss.toFixed(2)}€
                   {summary.totalCost > 0 && (
-                    <span className="text-xs sm:text-sm font-normal text-gray-500 ml-1">
+                    <span className="block text-xs sm:text-sm font-normal text-gray-500">
                       ({Math.round((summary.profitLoss / summary.totalCost) * 100)}%)
                     </span>
                   )}
@@ -387,7 +387,7 @@ const Dashboard: React.FC = () => {
               <div className="flex-shrink-0 bg-yellow-500 rounded-md p-3">
                 {renderIcon('items')}
               </div>
-              <div className="ml-4 w-0 flex-1">
+              <div className="ml-4 min-w-0 flex-1">
                 <h3 className="text-base font-medium text-gray-900 truncate">Anzahl Items</h3>
                 <p className="mt-1 text-lg sm:text-xl font-semibold text-gray-900">
                   {summary.totalItems}
