@@ -424,48 +424,56 @@ const CategoryManagement: React.FC = () => {
   // Handling für die Änderung der Reihenfolge von Attributen
   const handleMoveAttribute = (attributeId: string, direction: 'up' | 'down') => {
     if (!selectedCategoryId || !selectedCategory) return;
-    
-    const attributes = [...selectedCategory.attributes];
-    const index = attributes.findIndex(a => a.id === attributeId);
-    
+
+    // Nach order sortieren, damit "hoch/runter" der angezeigten
+    // Reihenfolge entspricht (die UI rendert ebenfalls order-sortiert).
+    const sorted = [...selectedCategory.attributes].sort(
+      (a, b) => a.order - b.order
+    );
+    const index = sorted.findIndex(a => a.id === attributeId);
     if (index === -1) return;
-    
-    // Berechne den neuen Index
-    const newIndex = direction === 'up' ? Math.max(0, index - 1) : Math.min(attributes.length - 1, index + 1);
-    
-    // Wenn der Index gleich bleibt, nichts tun
+
+    const newIndex =
+      direction === 'up'
+        ? Math.max(0, index - 1)
+        : Math.min(sorted.length - 1, index + 1);
     if (newIndex === index) return;
-    
-    // Attribute tauschen
-    const newAttributes = [...attributes];
-    [newAttributes[index].order, newAttributes[newIndex].order] = 
-      [newAttributes[newIndex].order, newAttributes[index].order];
-    
-    // Kategorie aktualisieren
-    updateCategory(selectedCategoryId, { 
-      attributes: newAttributes 
+
+    // order-Werte der beiden betroffenen Attribute tauschen — OHNE die
+    // State-Objekte zu mutieren (#29: vorher wurde via flacher Kopie
+    // direkt in die State-Referenzen geschrieben). Neue Objekte erzeugen.
+    const orderA = sorted[index].order;
+    const orderB = sorted[newIndex].order;
+    const newAttributes = selectedCategory.attributes.map(attr => {
+      if (attr.id === sorted[index].id) return { ...attr, order: orderB };
+      if (attr.id === sorted[newIndex].id) return { ...attr, order: orderA };
+      return attr;
     });
+
+    updateCategory(selectedCategoryId, { attributes: newAttributes });
   };
   
   // Handling für die Änderung der Reihenfolge von Kategorien
   const handleMoveCategory = (categoryId: string, direction: 'up' | 'down') => {
-    const index = categories.findIndex(c => c.id === categoryId);
-    
+    // Nach order sortieren, damit "hoch/runter" der angezeigten
+    // Reihenfolge entspricht.
+    const sorted = [...categories].sort((a, b) => a.order - b.order);
+    const index = sorted.findIndex(c => c.id === categoryId);
     if (index === -1) return;
-    
-    // Berechne den neuen Index
-    const newIndex = direction === 'up' ? Math.max(0, index - 1) : Math.min(categories.length - 1, index + 1);
-    
-    // Wenn der Index gleich bleibt, nichts tun
+
+    const newIndex =
+      direction === 'up'
+        ? Math.max(0, index - 1)
+        : Math.min(sorted.length - 1, index + 1);
     if (newIndex === index) return;
-    
-    // Kategorien tauschen
-    const category = categories[index];
-    const otherCategory = categories[newIndex];
-    
-    // Order-Werte tauschen
-    updateCategory(category.id, { order: otherCategory.order });
-    updateCategory(otherCategory.id, { order: category.order });
+
+    // order-Werte der beiden betroffenen Kategorien tauschen. Zwei
+    // funktionale updateCategory-Aufrufe sind sicher, da der Context
+    // setCategories(prev => …) nutzt und beide IDs verschieden sind.
+    const orderA = sorted[index].order;
+    const orderB = sorted[newIndex].order;
+    updateCategory(sorted[index].id, { order: orderB });
+    updateCategory(sorted[newIndex].id, { order: orderA });
   };
   
   // Kategorie speichern
