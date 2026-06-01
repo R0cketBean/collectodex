@@ -4,7 +4,8 @@ import {
   CollectionItem,
   CollectionSummary,
   AttributeDefinition,
-  DEFAULT_CATEGORIES
+  DEFAULT_CATEGORIES,
+  CORE_ATTRIBUTES
 } from '../types/models';
 import * as StorageService from '../services/StorageService';
 import { useImportExport } from '../hooks/useImportExport';
@@ -138,7 +139,13 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
           const categoriesWithDates = storedCategories.map((cat: any) => ({
             ...cat,
             createdAt: new Date(cat.createdAt),
-            updatedAt: new Date(cat.updatedAt)
+            updatedAt: new Date(cat.updatedAt),
+            // #65: Kategorien ohne Attribute mit den Kern-Attributen heilen —
+            // sonst lassen sich dort keine Artikel anlegen (z.B. "Master Sets").
+            // Additiv und idempotent: bereits befüllte Kategorien bleiben unberührt.
+            attributes: Array.isArray(cat.attributes) && cat.attributes.length > 0
+              ? cat.attributes
+              : [...CORE_ATTRIBUTES]
           }));
           setCategories(categoriesWithDates);
         } else {
