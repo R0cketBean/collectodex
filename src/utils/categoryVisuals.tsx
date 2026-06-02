@@ -61,6 +61,26 @@ export const colorClassForOrder = (order: number): string =>
       CATEGORY_COLOR_CLASSES.length
   ];
 
+/**
+ * Liefert die Farb-Klasse einer Kategorie: bevorzugt die frei gewählte
+ * `color` (#63), sonst Fallback auf die order-basierte Rotation. So bleiben
+ * Altdaten ohne explizite Farbe unverändert.
+ */
+export const colorClassForCategory = (category: {
+  color?: string;
+  order: number;
+}): string => category.color || colorClassForOrder(category.order);
+
+// Auswahl-Optionen für den Farb-Picker (Klasse + deutsches Label).
+export const COLOR_OPTIONS: { value: string; label: string }[] = [
+  { value: 'bg-blue-500', label: 'Blau' },
+  { value: 'bg-green-500', label: 'Grün' },
+  { value: 'bg-yellow-500', label: 'Gelb' },
+  { value: 'bg-red-500', label: 'Rot' },
+  { value: 'bg-purple-500', label: 'Lila' },
+  { value: 'bg-pink-500', label: 'Pink' },
+];
+
 /** Rendert das Icon zu einem Icon-Namen (Fallback: Sammlung-Icon). */
 export const renderCategoryIcon = (
   iconName?: string,
