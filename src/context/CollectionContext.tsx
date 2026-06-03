@@ -89,6 +89,23 @@ interface CollectionProviderProps {
   children: ReactNode;
 }
 
+// Migriert die Attribut-Liste einer geladenen Kategorie additiv & idempotent:
+// - leere/fehlende Liste -> alle Kern-Attribute (#65)
+// - bestehende Liste -> fehlende Kern-Felder ergänzen (z.B. "addedDate", #45)
+const migrateCategoryAttributes = (
+  attributes: AttributeDefinition[] | undefined
+): AttributeDefinition[] => {
+  if (!Array.isArray(attributes) || attributes.length === 0) {
+    return [...CORE_ATTRIBUTES];
+  }
+  const existingIds = new Set(attributes.map(attr => attr.id));
+  // Nur additiv fehlende Kern-Felder anhängen, die als Standard erwartet werden.
+  const missingCore = CORE_ATTRIBUTES.filter(
+    core => core.id === 'addedDate' && !existingIds.has(core.id)
+  );
+  return missingCore.length > 0 ? [...attributes, ...missingCore] : attributes;
+};
+
 // Provider-Komponente
 export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children }) => {
   // State für die Daten
@@ -140,12 +157,10 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
             ...cat,
             createdAt: new Date(cat.createdAt),
             updatedAt: new Date(cat.updatedAt),
-            // #65: Kategorien ohne Attribute mit den Kern-Attributen heilen —
-            // sonst lassen sich dort keine Artikel anlegen (z.B. "Master Sets").
-            // Additiv und idempotent: bereits befüllte Kategorien bleiben unberührt.
-            attributes: Array.isArray(cat.attributes) && cat.attributes.length > 0
-              ? cat.attributes
-              : [...CORE_ATTRIBUTES]
+            // Attribute migrieren: leere Kategorien mit Kern-Attributen heilen
+            // (#65) und bestehende um neue Kern-Felder wie "addedDate" (#45)
+            // ergänzen. Additiv und idempotent.
+            attributes: migrateCategoryAttributes(cat.attributes)
           }));
           setCategories(categoriesWithDates);
         } else {

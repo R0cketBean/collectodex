@@ -1065,7 +1065,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
             values[attr.id] = false;
             break;
           case 'date':
-            values[attr.id] = null;
+            // "Hinzugefügt am" (#45) bei NEUEN Items mit heute vorbelegen
+            // (lokales Datum als YYYY-MM-DD, passend zum <input type="date">).
+            if (!item && attr.id === 'addedDate') {
+              const t = new Date();
+              values[attr.id] = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+            } else {
+              values[attr.id] = null;
+            }
             break;
           case 'dropdown':
             values[attr.id] = ''; // Leerer String für Dropdown-Felder
