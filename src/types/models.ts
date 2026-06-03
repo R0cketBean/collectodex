@@ -136,6 +136,17 @@ export const CORE_ATTRIBUTES: AttributeDefinition[] = [
     isCalculated: true,
     formula: 'totalValue - totalCost',
     order: 6
+  },
+  {
+    // Sichtbares, editierbares Datum, wann der Artikel hinzugefügt wurde (#45).
+    // Wird beim Anlegen automatisch mit dem heutigen Datum vorbelegt.
+    id: 'addedDate',
+    name: 'Hinzugefügt am',
+    type: 'date',
+    required: false,
+    isCore: true,
+    isVisible: true,
+    order: 7
   }
 ];
 
