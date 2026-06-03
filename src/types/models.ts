@@ -66,6 +66,18 @@ export interface CollectionSummary {
   };
 }
 
+// Ein täglicher Wert-Snapshot für die echte Wertentwicklung (#26).
+// date als 'YYYY-MM-DD' (Tagesgranularität); pro Kategorie zusätzlich, um
+// später kategorieweise Verläufe darstellen zu können.
+export interface ValueSnapshot {
+  date: string;
+  totalValue: number;
+  totalCost: number;
+  categories: {
+    [categoryId: string]: { value: number; cost: number };
+  };
+}
+
 // Standard-Attribute, die in jeder Kategorie existieren sollten
 export const CORE_ATTRIBUTES: AttributeDefinition[] = [
   {

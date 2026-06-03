@@ -46,7 +46,7 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#FF6E6E'
 
 // Dashboard-Komponente
 const Dashboard: React.FC = () => {
-  const { categories, summary, items, calculateItemValue } = useCollection();
+  const { categories, summary, items, calculateItemValue, valueHistory } = useCollection();
   const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'quarter' | 'halfyear' | 'year' | 'all'>('all');
   
   // Sortiere Kategorien nach Reihenfolge
@@ -67,274 +67,36 @@ const Dashboard: React.FC = () => {
     return <IconComponent className="h-6 w-6 text-white" aria-hidden="true" />;
   };
 
-  // Berechnet den Gesamtwert der Sammlung zu einem bestimmten Datum
-  const calculateValueAtDate = (date: Date) => {
-    if (items.length === 0) return 0;
-    
-    // Für dieses Beispiel: Lineare Interpolation zwischen dem frühesten Datum und heute
-    const earliestItem = items.reduce((earliest, item) => {
-      const itemDate = new Date(item.createdAt);
-      return itemDate < new Date(earliest.createdAt) ? item : earliest;
-    }, items[0]);
-    
-    const earliestDate = new Date(earliestItem.createdAt);
-    const currentDate = new Date();
-    const targetDate = new Date(date);
-    
-    // Stelle sicher, dass das Datum nicht vor dem frühesten Datum liegt
-    if (targetDate < earliestDate) {
-      return 0;
-    }
-    
-    // Stelle sicher, dass das Datum nicht nach dem aktuellen Datum liegt
-    if (targetDate > currentDate) {
-      return summary.totalValue;
-    }
-    
-    // Lineare Interpolation
-    const totalTimespan = currentDate.getTime() - earliestDate.getTime();
-    const targetTimespan = targetDate.getTime() - earliestDate.getTime();
-    const ratio = totalTimespan === 0 ? 1 : targetTimespan / totalTimespan;
-    
-    // Runde auf 2 Nachkommastellen
-    return Math.round(summary.totalValue * ratio * 100) / 100;
+  // Echte Wertentwicklung (#26): direkt aus den gespeicherten Tages-Snapshots,
+  // gefiltert nach dem gewählten Zeitraum. Keine Interpolation/Fabrikation mehr.
+  const RANGE_DAYS: Record<string, number> = {
+    month: 30,
+    quarter: 90,
+    halfyear: 180,
+    year: 365,
   };
-  
-  // Generiere Daten für die Wertentwicklung basierend auf den vorhandenen Einträgen
-  const generateValueData = () => {
-    if (items.length === 0) {
-      return [
-        { name: 'Jan', wert: 0 },
-        { name: 'Feb', wert: 0 },
-        { name: 'Mär', wert: 0 },
-        { name: 'Apr', wert: 0 },
-        { name: 'Mai', wert: 0 },
-        { name: 'Jun', wert: 0 },
-      ];
+  const valueData = (() => {
+    const sorted = [...valueHistory].sort((a, b) => a.date.localeCompare(b.date));
+    const days = RANGE_DAYS[timeRange];
+    let filtered = sorted;
+    if (days) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      const cutoffKey = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+      filtered = sorted.filter(s => s.date >= cutoffKey);
     }
+    return filtered.map(s => ({
+      name: new Date(`${s.date}T00:00:00`).toLocaleDateString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+      }),
+      wert: s.totalValue,
+    }));
+  })();
 
-    // Finde das früheste Datum (createdAt, updatedAt oder purchaseDate)
-    let earliestDate = new Date();
-    
-    items.forEach(item => {
-      // Berücksichtige createdAt und updateAt
-      if (item.createdAt && new Date(item.createdAt) < earliestDate) {
-        earliestDate = new Date(item.createdAt);
-      }
-      
-      // Prüfe auf Kaufdatum (purchaseDate), falls vorhanden
-      if (item.values.purchaseDate && new Date(item.values.purchaseDate) < earliestDate) {
-        earliestDate = new Date(item.values.purchaseDate);
-      }
-    });
-
-    // Aktuelles Datum
-    const currentDate = new Date();
-    
-    // Datenpunkte generieren basierend auf dem ausgewählten Zeitraum
-    const dataPoints: {name: string, wert: number}[] = [];
-    let startDate = new Date(earliestDate);
-    
-    switch (timeRange) {
-      case 'day':
-        // Letzten 24 Stunden in 4-Stunden-Schritten
-        startDate = new Date(currentDate);
-        startDate.setDate(currentDate.getDate() - 1);
-        for (let i = 0; i <= 6; i++) {
-          const pointDate = new Date(startDate);
-          pointDate.setHours(startDate.getHours() + (i * 4));
-          const pointValue = calculateValueAtDate(pointDate);
-          dataPoints.push({
-            name: `${pointDate.getHours()}:00`,
-            wert: pointValue
-          });
-        }
-        break;
-        
-      case 'week':
-        // Letzte 7 Tage
-        startDate = new Date(currentDate);
-        startDate.setDate(currentDate.getDate() - 7);
-        for (let i = 0; i <= 7; i++) {
-          const pointDate = new Date(startDate);
-          pointDate.setDate(startDate.getDate() + i);
-          const pointValue = calculateValueAtDate(pointDate);
-          dataPoints.push({
-            name: pointDate.toLocaleDateString('de-DE', { weekday: 'short' }),
-            wert: pointValue
-          });
-        }
-        break;
-        
-      case 'month':
-        // Letzten 30 Tage in 5-Tage-Schritten
-        startDate = new Date(currentDate);
-        startDate.setDate(currentDate.getDate() - 30);
-        for (let i = 0; i <= 6; i++) {
-          const pointDate = new Date(startDate);
-          pointDate.setDate(startDate.getDate() + (i * 5));
-          const pointValue = calculateValueAtDate(pointDate);
-          dataPoints.push({
-            name: pointDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-            wert: pointValue
-          });
-        }
-        break;
-        
-      case 'quarter':
-        // Letzten 3 Monate in 2-Wochen-Schritten
-        startDate = new Date(currentDate);
-        startDate.setMonth(currentDate.getMonth() - 3);
-        
-        // Stelle sicher, dass es einen Anfangswert gibt
-        dataPoints.push({
-          name: startDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-          wert: items.length > 0 ? summary.totalValue * 0.5 : 0
-        });
-        
-        // Zwischenwerte - ca. alle 2 Wochen einen Datenpunkt
-        for (let i = 1; i <= 5; i++) {
-          const pointDate = new Date(startDate);
-          pointDate.setDate(startDate.getDate() + (i * 14));
-          // Berechne einen ansteigenden Wert für eine schönere Darstellung
-          let pointValue = items.length > 0 ? summary.totalValue * (0.5 + (i * 0.09)) : 0;
-          pointValue = Math.round(pointValue * 100) / 100;
-          
-          dataPoints.push({
-            name: pointDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-            wert: pointValue
-          });
-        }
-        
-        // Aktueller Wert
-        dataPoints.push({
-          name: currentDate.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
-          wert: summary.totalValue
-        });
-        break;
-        
-      case 'halfyear':
-        // Letzten 6 Monate in Monatsschritten
-        startDate = new Date(currentDate);
-        startDate.setMonth(currentDate.getMonth() - 6);
-        
-        // Von Start bis Ende in Monatsschritten
-        for (let i = 0; i <= 6; i++) {
-          const pointDate = new Date(startDate);
-          pointDate.setMonth(startDate.getMonth() + i);
-          
-          // Berechne einen ansteigenden Wert für eine schönere Darstellung
-          let pointValue = 0;
-          if (items.length > 0) {
-            const ratio = i / 6;
-            pointValue = summary.totalValue * (0.4 + (ratio * 0.6));
-            pointValue = Math.round(pointValue * 100) / 100;
-          }
-          
-          dataPoints.push({
-            name: pointDate.toLocaleDateString('de-DE', { month: 'short' }),
-            wert: pointValue
-          });
-        }
-        break;
-        
-      case 'year':
-        // Letzten 12 Monate
-        startDate = new Date(currentDate);
-        startDate.setMonth(currentDate.getMonth() - 11);
-        
-        // Stelle sicher, dass es einen Anfangswert gibt
-        dataPoints.push({
-          name: startDate.toLocaleDateString('de-DE', { month: 'short' }),
-          wert: items.length > 0 ? summary.totalValue * 0.3 : 0
-        });
-        
-        // Zwischenwerte
-        for (let i = 1; i < 11; i++) {
-          const pointDate = new Date(startDate.getFullYear(), startDate.getMonth() + i, 1);
-          // Berechne einen ansteigenden Wert für eine schönere Darstellung
-          let pointValue = items.length > 0 ? summary.totalValue * (0.3 + (i * 0.06)) : 0;
-          pointValue = Math.round(pointValue * 100) / 100;
-          
-          dataPoints.push({
-            name: pointDate.toLocaleDateString('de-DE', { month: 'short' }),
-            wert: pointValue
-          });
-        }
-        
-        // Aktueller Wert
-        dataPoints.push({
-          name: currentDate.toLocaleDateString('de-DE', { month: 'short' }),
-          wert: summary.totalValue
-        });
-        break;
-        
-      case 'all':
-      default:
-        // Für 'all' einen ähnlichen Ansatz wie bei 'year' verwenden
-        // Stelle sicher, dass Werte angezeigt werden, auch wenn es nur ein Item gibt
-        
-        // Gesamter Zeitraum vom frühesten Datum bis heute
-        const totalMonths = (currentDate.getFullYear() - earliestDate.getFullYear()) * 12 + 
-                           (currentDate.getMonth() - earliestDate.getMonth());
-        
-        // Mindestens 6 Datenpunkte, maximal 12
-        const monthStep = totalMonths <= 6 ? 1 : Math.ceil(totalMonths / 6);
-        const points = Math.min(Math.ceil(totalMonths / monthStep), 12);
-        
-        // Stelle sicher, dass es mindestens einen Startpunkt gibt
-        dataPoints.push({
-          name: earliestDate.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
-          wert: items.length > 0 ? summary.totalValue * 0.2 : 0
-        });
-        
-        // Wenn es nur einen Datenpunkt gibt, mindestens einen weiteren hinzufügen
-        if (points <= 1 && items.length > 0) {
-          // Einen Punkt in der Mitte zwischen Anfangsdatum und heute
-          const midDate = new Date(
-            earliestDate.getTime() + (currentDate.getTime() - earliestDate.getTime()) / 2
-          );
-          
-          dataPoints.push({
-            name: midDate.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
-            wert: summary.totalValue * 0.6
-          });
-        } else {
-          // Mehrere Punkte zwischen Anfang und Ende
-          for (let i = 1; i < points; i++) {
-            const pointDate = new Date(earliestDate);
-            pointDate.setMonth(earliestDate.getMonth() + (i * monthStep));
-            
-            // Stelle sicher, dass wir nicht über das aktuelle Datum hinausgehen
-            if (pointDate > currentDate) {
-              pointDate.setTime(currentDate.getTime());
-            }
-            
-            // Berechne einen ansteigenden Wert
-            const ratio = i / points;
-            const pointValue = items.length > 0 ? 
-              summary.totalValue * (0.2 + (ratio * 0.8)) : 0;
-            
-            dataPoints.push({
-              name: pointDate.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
-              wert: Math.round(pointValue * 100) / 100
-            });
-          }
-        }
-        
-        // Stelle sicher, dass das letzte Datum das aktuelle ist
-        dataPoints.push({
-          name: currentDate.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
-          wert: summary.totalValue
-        });
-        break;
-    }
-    
-    return dataPoints;
-  };
-  
-  // Generiere Wertentwicklungsdaten
-  const valueData = generateValueData();
+  // Solange erst <2 Tages-Snapshots existieren, lässt sich noch keine Kurve
+  // zeichnen — wir zeigen dann einen Aufbau-Hinweis.
+  const historyTooSparse = valueData.length < 2;
 
   return (
     <div>
@@ -458,6 +220,12 @@ const Dashboard: React.FC = () => {
               <ValueHistoryChart valueData={valueData} />
             </Suspense>
           </div>
+          {historyTooSparse && (
+            <div className="text-center mt-4 text-sm text-gray-500">
+              Die Wert-Historie wird ab jetzt täglich aufgebaut – die Kurve
+              füllt sich mit der Zeit.
+            </div>
+          )}
         </div>
       </div>
       
