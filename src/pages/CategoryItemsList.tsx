@@ -13,7 +13,7 @@ import {
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
-import { useCollection } from '../context/CollectionContext';
+import { useCollection, useItemsData } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types/models';
 import { fetchPriceFromCardmarket } from '../services/PriceService';
@@ -48,13 +48,17 @@ const CategoryItemsList: React.FC = () => {
   const isDesktop = useIsDesktop();
   const {
     categories,
-    getItemsByCategoryId,
     addItem,
     updateItem,
     deleteItem,
     deleteMultipleItems,
     calculateItemValue,
   } = useCollection();
+  // Alle Items als eigener Slice (#18): Die Kategorie-Liste wird unten direkt
+  // daraus gefiltert, statt über das (nun referenz-stabile) getItemsByCategoryId
+  // — sonst ginge die items-Memo stale (würde bei Item-Mutationen nicht neu
+  // rechnen, weil die Funktions-Referenz konstant bleibt).
+  const allItems = useItemsData();
   
   const { categoryId } = useParams<{ categoryId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -63,10 +67,11 @@ const CategoryItemsList: React.FC = () => {
     return categories.find(cat => cat.id === categoryId);
   }, [categories, categoryId]);
   
-  // Verwenden von useMemo für die items-Variable, um die ESLint-Warnung zu beheben
+  // Items dieser Kategorie aus dem Items-Slice ableiten — recomputed korrekt,
+  // sobald sich allItems (Anlegen/Bearbeiten/Löschen) oder categoryId ändert.
   const items = useMemo(() => {
-    return categoryId ? getItemsByCategoryId(categoryId) : [];
-  }, [categoryId, getItemsByCategoryId]);
+    return categoryId ? allItems.filter(item => item.categoryId === categoryId) : [];
+  }, [categoryId, allItems]);
   
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>('name');

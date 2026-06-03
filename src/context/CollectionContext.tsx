@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, ReactNode } from 'react';
 import {
   Category,
   CollectionItem,
@@ -75,16 +75,67 @@ interface CollectionContextType {
   correctItemCategories: (sourceIdOrItemId: string, targetId: string, isSingleItem?: boolean) => { success: boolean, correctedCount: number, error: string | null };
 }
 
-// Context erstellen
-const CollectionContext = createContext<CollectionContextType | undefined>(undefined);
+// Re-Render-Isolation (#18): Statt EINES flachen Contexts wird die Schnittstelle
+// in domänen-granulare Contexts aufgeteilt, die aus EINEM Provider gespeist
+// werden. So re-rendern Consumer künftig nur noch auf die Daten, die sie
+// tatsächlich lesen. Die reinen Daten-Slices ändern sich bei Mutationen, die
+// Funktionen werden referenz-stabil gehalten (siehe Provider, latest-ref).
+type DerivedValue = Pick<CollectionContextType, 'summary' | 'valueHistory'>;
+type CollectionActions = Omit<
+  CollectionContextType,
+  'categories' | 'items' | 'summary' | 'valueHistory'
+>;
 
-// Hook für den Zugriff auf den Context
-export const useCollection = () => {
-  const context = useContext(CollectionContext);
-  if (!context) {
-    throw new Error('useCollection must be used within a CollectionProvider');
+const CategoriesContext = createContext<Category[] | undefined>(undefined);
+const ItemsContext = createContext<CollectionItem[] | undefined>(undefined);
+const DerivedContext = createContext<DerivedValue | undefined>(undefined);
+const ActionsContext = createContext<CollectionActions | undefined>(undefined);
+
+// Granulare Selektor-Hooks — Consumer, die nur eine Domäne brauchen, abonnieren
+// gezielt diesen Slice und re-rendern nicht mehr bei fremden Änderungen.
+export const useCategoriesData = (): Category[] => {
+  const ctx = useContext(CategoriesContext);
+  if (ctx === undefined) {
+    throw new Error('useCategoriesData must be used within a CollectionProvider');
   }
-  return context;
+  return ctx;
+};
+
+export const useItemsData = (): CollectionItem[] => {
+  const ctx = useContext(ItemsContext);
+  if (ctx === undefined) {
+    throw new Error('useItemsData must be used within a CollectionProvider');
+  }
+  return ctx;
+};
+
+export const useDerived = (): DerivedValue => {
+  const ctx = useContext(DerivedContext);
+  if (!ctx) {
+    throw new Error('useDerived must be used within a CollectionProvider');
+  }
+  return ctx;
+};
+
+export const useCollectionActions = (): CollectionActions => {
+  const ctx = useContext(ActionsContext);
+  if (!ctx) {
+    throw new Error('useCollectionActions must be used within a CollectionProvider');
+  }
+  return ctx;
+};
+
+// Abwärtskompatibler Aggregator: liefert weiterhin die flache Schnittstelle.
+// Bestehende Consumer laufen unverändert; neue/migrierte Consumer nutzen die
+// granularen Selektor-Hooks oben. Hinweis: Wer diesen Hook nutzt, re-rendert
+// (wie bisher) bei jeder Daten-Änderung — die Isolation greift erst nach
+// Migration auf die granularen Hooks.
+export const useCollection = (): CollectionContextType => {
+  const categories = useCategoriesData();
+  const items = useItemsData();
+  const { summary, valueHistory } = useDerived();
+  const actions = useCollectionActions();
+  return { categories, items, summary, valueHistory, ...actions };
 };
 
 // Props für den Provider
@@ -240,56 +291,110 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   });
 
 
-  // Context-Werte
-  const contextValue: CollectionContextType = {
-    categories,
-    items,
-    summary,
-    valueHistory,
-
+  // Stabile Actions (#18): Die Domänen-Hooks memoisieren ihre Funktionen nicht;
+  // jeder Render erzeugt neue Referenzen. Statt alle Hooks invasiv mit
+  // useCallback zu durchziehen, halten wir hier EINE Funktions-Sammlung über
+  // das latest-ref-Pattern referenz-stabil: `latest.current` wird bei jedem
+  // Render aktualisiert, die exponierten Wrapper bleiben dank `useMemo([], …)`
+  // für immer identisch und lesen beim Aufruf stets die aktuelle Closure
+  // (→ keine veralteten Daten). So re-rendern reine Actions-Consumer nie mehr
+  // wegen Daten-Änderungen.
+  const latest = useRef<CollectionActions>(null as unknown as CollectionActions);
+  latest.current = {
     addCategory,
     updateCategory,
     deleteCategory,
     reorderCategories,
-    
     addAttributeToCategory,
     updateAttribute,
     deleteAttribute,
-    
     addItem,
     updateItem,
     deleteItem,
     deleteMultipleItems,
     getItemsByCategoryId,
     setItems,
-    
     addImageToItem,
     removeImageFromItem,
     addLinkToItem,
     removeLinkFromItem,
     cleanupItemLinks,
-    
     calculateItemValue,
     calculateFormula,
-    
     exportData,
     importData,
     resetToDefaults,
-    
-    // Excel-Funktionen
     exportCategoryAsExcel,
     createExcelTemplate,
     exportCollectionAsExcel,
-    
-    // Fehlerkorrekturen
-    correctItemCategories
+    correctItemCategories,
   };
-  
+
+  const actions = useMemo<CollectionActions>(() => ({
+    // Kategorie-Funktionen
+    addCategory: (...a) => latest.current.addCategory(...a),
+    updateCategory: (...a) => latest.current.updateCategory(...a),
+    deleteCategory: (...a) => latest.current.deleteCategory(...a),
+    reorderCategories: (...a) => latest.current.reorderCategories(...a),
+
+    // Attribut-Funktionen
+    addAttributeToCategory: (...a) => latest.current.addAttributeToCategory(...a),
+    updateAttribute: (...a) => latest.current.updateAttribute(...a),
+    deleteAttribute: (...a) => latest.current.deleteAttribute(...a),
+
+    // Item-Funktionen
+    addItem: (...a) => latest.current.addItem(...a),
+    updateItem: (...a) => latest.current.updateItem(...a),
+    deleteItem: (...a) => latest.current.deleteItem(...a),
+    deleteMultipleItems: (...a) => latest.current.deleteMultipleItems(...a),
+    getItemsByCategoryId: (...a) => latest.current.getItemsByCategoryId(...a),
+    // setItems ist ein useState-Dispatch und bereits referenz-stabil.
+    setItems,
+
+    // Bilder und Links
+    addImageToItem: (...a) => latest.current.addImageToItem(...a),
+    removeImageFromItem: (...a) => latest.current.removeImageFromItem(...a),
+    addLinkToItem: (...a) => latest.current.addLinkToItem(...a),
+    removeLinkFromItem: (...a) => latest.current.removeLinkFromItem(...a),
+    cleanupItemLinks: (...a) => latest.current.cleanupItemLinks(...a),
+
+    // Berechnung und Werte
+    calculateItemValue: (...a) => latest.current.calculateItemValue(...a),
+    calculateFormula: (...a) => latest.current.calculateFormula(...a),
+
+    // Datenverwaltung
+    exportData: (...a) => latest.current.exportData(...a),
+    importData: (...a) => latest.current.importData(...a),
+    resetToDefaults: (...a) => latest.current.resetToDefaults(...a),
+
+    // Excel-Funktionen
+    exportCategoryAsExcel: (...a) => latest.current.exportCategoryAsExcel(...a),
+    createExcelTemplate: (...a) => latest.current.createExcelTemplate(...a),
+    exportCollectionAsExcel: (...a) => latest.current.exportCollectionAsExcel(...a),
+
+    // Fehlerkorrekturen
+    correctItemCategories: (...a) => latest.current.correctItemCategories(...a),
+  }), [setItems]);
+
+  // Abgeleitete Daten als ein memoisierter Slice — ändert sich nur, wenn
+  // summary oder valueHistory tatsächlich neu sind.
+  const derived = useMemo<DerivedValue>(
+    () => ({ summary, valueHistory }),
+    [summary, valueHistory]
+  );
+
+  // Ein Provider, vier Slices. Datenwerte werden ROH durchgereicht (nicht in ein
+  // frisches Objektliteral gewrappt), damit die Referenz-Stabilität — und damit
+  // die Render-Isolation — erhalten bleibt.
   return (
-    <CollectionContext.Provider value={contextValue}>
-      {children}
-    </CollectionContext.Provider>
+    <ActionsContext.Provider value={actions}>
+      <CategoriesContext.Provider value={categories}>
+        <ItemsContext.Provider value={items}>
+          <DerivedContext.Provider value={derived}>
+            {children}
+          </DerivedContext.Provider>
+        </ItemsContext.Provider>
+      </CategoriesContext.Provider>
+    </ActionsContext.Provider>
   );
 };
-
-export default CollectionContext;
