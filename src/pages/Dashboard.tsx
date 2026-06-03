@@ -5,7 +5,12 @@ import {
   CurrencyEuroIcon,
   ArchiveBoxIcon
 } from '@heroicons/react/24/solid';
-import { useCollection } from '../context/CollectionContext';
+import {
+  useCategoriesData,
+  useItemsData,
+  useDerived,
+  useCollectionActions,
+} from '../context/CollectionContext';
 import { colorClassForCategory } from '../utils/categoryVisuals';
 
 // recharts (~1 MB) wird verzögert geladen, damit es nicht im Start-Bundle
@@ -46,7 +51,11 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#FF6E6E'
 
 // Dashboard-Komponente
 const Dashboard: React.FC = () => {
-  const { categories, summary, items, calculateItemValue, valueHistory } = useCollection();
+  // Re-Render-Isolation (#18): gezielt nur die genutzten Slices abonnieren.
+  const categories = useCategoriesData();
+  const items = useItemsData();
+  const { summary, valueHistory } = useDerived();
+  const { calculateItemValue } = useCollectionActions();
   const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month' | 'quarter' | 'halfyear' | 'year' | 'all'>('all');
   
   // Sortiere Kategorien nach Reihenfolge
