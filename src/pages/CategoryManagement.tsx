@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useCollection } from '../context/CollectionContext';
+import { useCategoriesData, useCollectionActions } from '../context/CollectionContext';
 import { moveAndRenumber } from '../utils/reorder';
 import {
   ICON_OPTIONS,
@@ -408,17 +408,18 @@ const getAttributeTypeName = (type: AttributeDataType): string => {
 };
 
 const CategoryManagement: React.FC = () => {
-  const { 
-    categories, 
-    addCategory, 
+  // Re-Render-Isolation (#18): nur den Categories-Slice + die (stabilen) Actions.
+  const categories = useCategoriesData();
+  const {
+    addCategory,
     updateCategory,
     deleteCategory,
     reorderCategories,
     addAttributeToCategory,
     updateAttribute,
     deleteAttribute,
-    resetToDefaults 
-  } = useCollection();
+    resetToDefaults,
+  } = useCollectionActions();
   
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     categories.length > 0 ? categories[0].id : null
