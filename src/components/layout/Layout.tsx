@@ -14,7 +14,7 @@ import {
     DocumentIcon,
     ChevronUpIcon
 } from '@heroicons/react/24/outline';
-import { useCollection } from '../../context/CollectionContext';
+import { useCategoriesData } from '../../context/CollectionContext';
 
 // Map von Icon-Namen zu Icon-Komponenten
 const iconMap: Record<string, React.ElementType> = {
@@ -34,7 +34,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
-  const { categories } = useCollection();
+  // Nur den Categories-Slice abonnieren (#18): Layout re-rendert dadurch nicht
+  // mehr bei Item-/Snapshot-Änderungen, sondern nur bei Kategorie-Änderungen.
+  const categories = useCategoriesData();
   
   // Sortiere Kategorien nach Reihenfolge; ausgeblendete (#66) erscheinen
   // nicht in der Navigation (ihre Werte zählen im Dashboard weiterhin).
