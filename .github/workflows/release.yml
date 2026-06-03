@@ -78,6 +78,21 @@ jobs:
         with:
           draft: true
           generate_release_notes: true
+          # Installations-Anleitung (#22). Wird vor die automatisch generierten
+          # Release-Notes gestellt. Nur der mac-Job setzt den Text; der
+          # Windows-Job hängt anschließend nur Dateien an.
+          body: |
+            ## Installation
+
+            **macOS** (signiert & notarisiert)
+            1. Die `.dmg` öffnen.
+            2. CollectODex in den Ordner „Programme" ziehen.
+
+            **Windows** (NSIS-Installer, unsigniert)
+            1. Die `…Setup.exe` ausführen.
+            2. Falls SmartScreen warnt: „Weitere Informationen" → „Trotzdem ausführen".
+
+            ---
           # latest-mac.yml + Blockmap sind nötig, damit electron-updater im
           # veröffentlichten Release das Update-Manifest findet (#20).
           files: |
@@ -85,3 +100,63 @@ jobs:
             dist/*.zip
             dist/latest-mac.yml
             dist/*.blockmap
+
+  release-windows:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    # Wartet auf den mac-Job, damit dieser das Draft-Release (per Tag) zuerst
+    # anlegt; der Windows-Job hängt danach nur seine Dateien an (vermeidet eine
+    # Race-Condition beim parallelen Erstellen desselben Releases).
+    needs: release-mac
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Package Windows app (NSIS, unsigned)
+        # Unsigniert (keine CSC-Secrets) — SmartScreen-Hinweis steht im
+        # Release-Text. --publish never erzeugt latest.yml (Update-Manifest für
+        # Windows-Auto-Update, #20) lokal in dist/, lädt aber nichts selbst hoch;
+        # das Anhängen ans Release macht der Schritt unten.
+        run: npx electron-builder --win --publish never -c.extraMetadata.main=public/electron.js
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
+          retention-days: 30
+
+      - name: Attach Windows artifacts to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          # Kein body/generate_release_notes hier — der mac-Job hat das Release
+          # bereits mit Text angelegt; dieser Schritt hängt nur Dateien an.
+          files: |
+            dist/*.exe
+            dist/*.exe.blockmap
+            dist/latest.yml
