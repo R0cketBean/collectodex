@@ -90,6 +90,11 @@ function setupAutoUpdater() {
   autoUpdater.on('update-available', (info) => {
     sendToRenderer('update:available', { version: info && info.version });
   });
+  // Für die manuelle Prüfung (Settings): "kein Update vorhanden" muss
+  // ebenfalls eine Rückmeldung geben, sonst bleibt der Button ohne Feedback.
+  autoUpdater.on('update-not-available', (info) => {
+    sendToRenderer('update:none', { version: info && info.version });
+  });
   autoUpdater.on('download-progress', (progress) => {
     sendToRenderer('update:progress', { percent: progress && progress.percent });
   });
@@ -300,6 +305,28 @@ ipcMain.handle('update:install', async () => {
   autoUpdater.quitAndInstall();
   return true;
 });
+
+// Manuelle Update-Prüfung aus dem Settings-Tab. Im Dev-/ungepackten Modus
+// gibt es keine Update-Konfiguration — dann meldet { supported: false }
+// zurück, damit die UI einen passenden Hinweis statt eines Fehlers zeigt.
+// Im gepackten Betrieb laufen die Ergebnisse über die update:*-Events.
+ipcMain.handle('update:check', async () => {
+  if (isDev || !app.isPackaged) {
+    return { supported: false };
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    console.error('Manuelle Update-Prüfung fehlgeschlagen:', error);
+    sendToRenderer('update:error', {
+      message: error == null ? 'unbekannt' : String(error.message || error),
+    });
+  }
+  return { supported: true };
+});
+
+// Aktuelle App-Version für die Anzeige im Settings-Tab.
+ipcMain.handle('app:version', async () => app.getVersion());
 
 // Speichere beim Beenden der App automatisch den aktuellen Zustand
 app.on('before-quit', () => {

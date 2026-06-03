@@ -33,8 +33,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update:error', handler);
     return () => ipcRenderer.removeListener('update:error', handler);
   },
+  // "Kein Update vorhanden" — Rückmeldung für die manuelle Prüfung (Settings).
+  onUpdateNone: (callback) => {
+    const handler = (_event, info) => callback(info);
+    ipcRenderer.on('update:none', handler);
+    return () => ipcRenderer.removeListener('update:none', handler);
+  },
 
   // Vom UpdateNotification-UI ausgelöst: Download starten bzw. installieren.
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
-  installUpdate: () => ipcRenderer.invoke('update:install')
+  installUpdate: () => ipcRenderer.invoke('update:install'),
+  // Manuelle Prüfung aus dem Settings-Tab; liefert { supported } zurück.
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  // Aktuelle App-Version (für die Anzeige im Settings-Tab).
+  getAppVersion: () => ipcRenderer.invoke('app:version')
 });

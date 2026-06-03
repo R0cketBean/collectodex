@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import CategoryItemsList from './pages/CategoryItemsList';
 import CategoryManagement from './pages/CategoryManagement';
 import ImportExport from './pages/ImportExport';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
               <Route path="/category/:categoryId" element={<CategoryItemsList />} />
               <Route path="/category-management" element={<CategoryManagement />} />
               <Route path="/import-export" element={<ImportExport />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
             <LoadingOverlayContainer />
             <UpdateNotification />
