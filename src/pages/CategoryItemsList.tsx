@@ -6,6 +6,9 @@ import {
   TrashIcon, 
   MagnifyingGlassIcon,
   FunnelIcon,
+  ArrowsUpDownIcon,
+  BarsArrowUpIcon,
+  BarsArrowDownIcon,
   ArrowUpCircleIcon,
   CameraIcon,
   PhotoIcon,
@@ -184,14 +187,19 @@ const CategoryItemsList: React.FC = () => {
     // Filtere die Items
     let result = [...items];
     
-    // Textsuche
+    // Textsuche — durchsucht Text- UND Dropdown-Attribute (z.B. Sprache,
+    // Zustand, Grade), damit man auch nach "englisch", "PSA", "Near Mint"
+    // suchen kann, nicht nur nach dem Namen.
     if (searchTerm) {
+      const needle = searchTerm.toLowerCase();
       result = result.filter(item => {
-        // Suche in allen Textattributen
         for (const attr of category?.attributes || []) {
-          if (attr.type === 'text' && item.values[attr.id]) {
+          if (
+            (attr.type === 'text' || attr.type === 'dropdown') &&
+            item.values[attr.id]
+          ) {
             const value = String(item.values[attr.id]).toLowerCase();
-            if (value.includes(searchTerm.toLowerCase())) {
+            if (value.includes(needle)) {
               return true;
             }
           }
@@ -480,6 +488,41 @@ const CategoryItemsList: React.FC = () => {
                     ))}
                   </select>
                 )}
+              </div>
+            )}
+
+            {/* Sortierung — auch in der mobilen Kartenansicht nutzbar (die
+                sortierbaren Tabellen-Header gibt es nur im Desktop-Layout).
+                Teilt sich State mit den Spalten-Headern (sortBy/sortDirection). */}
+            {visibleAttributes.length > 0 && (
+              <div className="flex items-center space-x-2 sm:min-w-[200px]">
+                <ArrowsUpDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" aria-hidden="true" />
+                <select
+                  id="sort-attribute"
+                  aria-label="Sortieren nach"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  {visibleAttributes.map((attr) => (
+                    <option key={attr.id} value={attr.id}>
+                      {attr.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  title={sortDirection === 'asc' ? 'Aufsteigend' : 'Absteigend'}
+                  aria-label={`Sortierrichtung: ${sortDirection === 'asc' ? 'aufsteigend' : 'absteigend'}`}
+                  className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md border-2 border-gray-300 bg-gray-50 text-gray-600 hover:text-pokemon-blue focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue"
+                >
+                  {sortDirection === 'asc' ? (
+                    <BarsArrowUpIcon className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <BarsArrowDownIcon className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </button>
               </div>
             )}
           </div>
