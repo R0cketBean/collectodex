@@ -3,6 +3,7 @@ import { useCollection } from '../context/CollectionContext';
 import { moveAndRenumber } from '../utils/reorder';
 import {
   ICON_OPTIONS,
+  COLOR_OPTIONS,
   colorClassForOrder,
   renderCategoryIcon,
 } from '../utils/categoryVisuals';
@@ -20,20 +21,22 @@ import {
 // Modal-Komponente für das Hinzufügen/Bearbeiten von Kategorien
 interface CategoryModalProps {
   category: Category | null;
+  // Vorgabefarbe für neue Kategorien (die order-basierte Farbe, die sie sonst
+  // bekäme) — so ist die Vorschau beim Anlegen nicht immer blau (#63).
+  defaultColor: string;
   onSave: (categoryData: Partial<Category>) => void;
   onCancel: () => void;
 }
 
-const CategoryModal: React.FC<CategoryModalProps> = ({ category, onSave, onCancel }) => {
+const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
     name: category?.name || '',
     description: category?.description || '',
     icon: category?.icon || 'collection',
+    // Frei wählbare Farbe (#63): bestehende Kategorie behält ihre Farbe,
+    // neue startet mit der Vorgabefarbe.
+    color: category?.color || defaultColor,
   });
-
-  // Farbe richtet sich (wie im Dashboard) nach der order der Kategorie.
-  // Bei einer neuen Kategorie gibt es noch keine — 0 als Vorschau-Default.
-  const previewOrder = category?.order ?? 0;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -95,12 +98,9 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, onSave, onCance
                         Icon
                       </label>
                       <div className="mt-1 flex items-center gap-3">
-                        {/* Vorschau: Icon in der Farbe, die die Kategorie
-                            auch im Dashboard/der Liste bekommt (#52). */}
+                        {/* Vorschau: Icon in der gewählten Farbe (#52/#63). */}
                         <div
-                          className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${colorClassForOrder(
-                            previewOrder
-                          )}`}
+                          className={`flex-shrink-0 h-10 w-10 rounded-full flex items-center justify-center ${formData.color}`}
                           aria-label="Icon-Vorschau"
                         >
                           {renderCategoryIcon(formData.icon)}
@@ -118,6 +118,32 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, onSave, onCance
                             </option>
                           ))}
                         </select>
+                      </div>
+                    </div>
+
+                    {/* Farb-Auswahl (#63) */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Farbe
+                      </label>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {COLOR_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.value}
+                            type="button"
+                            title={opt.label}
+                            aria-label={opt.label}
+                            aria-pressed={formData.color === opt.value}
+                            onClick={() =>
+                              setFormData((prev) => ({ ...prev, color: opt.value }))
+                            }
+                            className={`h-8 w-8 rounded-full ${opt.value} transition-transform hover:scale-110 ${
+                              formData.color === opt.value
+                                ? 'ring-2 ring-offset-2 ring-gray-700'
+                                : ''
+                            }`}
+                          />
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -754,6 +780,9 @@ const CategoryManagement: React.FC = () => {
       {showCategoryModal && (
         <CategoryModal
           category={editingCategory}
+          defaultColor={colorClassForOrder(
+            editingCategory?.order ?? Math.max(...categories.map(c => c.order), -1) + 1
+          )}
           onSave={handleSaveCategory}
           onCancel={() => setShowCategoryModal(false)}
         />
