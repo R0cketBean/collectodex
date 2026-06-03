@@ -133,18 +133,46 @@ interface CollectionProviderProps {
 // Migriert die Attribut-Liste einer geladenen Kategorie additiv & idempotent:
 // - leere/fehlende Liste -> alle Kern-Attribute (#65)
 // - bestehende Liste -> fehlende Kern-Felder ergänzen (z.B. "addedDate", #45)
+// - "addedDate" heißt jetzt "Gekauft am"; das frühere separate "Kaufdatum"
+//   (purchaseDate) entfällt zugunsten dieses einen Feldes.
 const migrateCategoryAttributes = (
   attributes: AttributeDefinition[] | undefined
 ): AttributeDefinition[] => {
   if (!Array.isArray(attributes) || attributes.length === 0) {
     return [...CORE_ATTRIBUTES];
   }
-  const existingIds = new Set(attributes.map(attr => attr.id));
+  // Entferne das abgelöste "Kaufdatum" und benenne "addedDate" in "Gekauft am" um.
+  const cleaned = attributes
+    .filter(attr => attr.id !== 'purchaseDate')
+    .map(attr =>
+      attr.id === 'addedDate' ? { ...attr, name: 'Gekauft am' } : attr
+    );
+  const existingIds = new Set(cleaned.map(attr => attr.id));
   // Nur additiv fehlende Kern-Felder anhängen, die als Standard erwartet werden.
   const missingCore = CORE_ATTRIBUTES.filter(
     core => core.id === 'addedDate' && !existingIds.has(core.id)
   );
-  return missingCore.length > 0 ? [...attributes, ...missingCore] : attributes;
+  return missingCore.length > 0 ? [...cleaned, ...missingCore] : cleaned;
+};
+
+// Migriert die Werte eines geladenen Items idempotent: Der Wert des
+// entfernten "Kaufdatum" (purchaseDate) wird in "Gekauft am" (addedDate)
+// übernommen, falls dort noch nichts steht, und purchaseDate verworfen.
+const migrateItemValues = <T extends { values?: Record<string, any> }>(
+  item: T
+): T => {
+  const values = item.values || {};
+  const legacy = values.purchaseDate;
+  if (legacy == null || legacy === '') {
+    return item;
+  }
+  const hasAdded = values.addedDate != null && values.addedDate !== '';
+  const nextValues = { ...values };
+  if (!hasAdded) {
+    nextValues.addedDate = legacy;
+  }
+  delete nextValues.purchaseDate;
+  return { ...item, values: nextValues };
 };
 
 // Provider-Komponente
@@ -221,12 +249,16 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         // Lade Items aus dem Speicher
         const storedItems = await StorageService.getData<CollectionItem[]>(StorageService.STORAGE_KEYS.ITEMS);
         if (storedItems) {
-          // Konvertiere Datum-Strings zurück zu Date-Objekten
-          const itemsWithDates = storedItems.map((item: any) => ({
-            ...item,
-            createdAt: new Date(item.createdAt),
-            updatedAt: new Date(item.updatedAt)
-          }));
+          // Konvertiere Datum-Strings zurück zu Date-Objekten und migriere die
+          // Werte (purchaseDate -> addedDate, s. migrateItemValues).
+          const itemsWithDates = storedItems.map((item: any) => {
+            const migrated = migrateItemValues(item);
+            return {
+              ...migrated,
+              createdAt: new Date(item.createdAt),
+              updatedAt: new Date(item.updatedAt)
+            };
+          });
           setItems(itemsWithDates);
         }
       } catch (error) {

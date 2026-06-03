@@ -1071,7 +1071,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
             values[attr.id] = false;
             break;
           case 'date':
-            // "Hinzugefügt am" (#45) bei NEUEN Items mit heute vorbelegen
+            // "Gekauft am" (#45) bei NEUEN Items mit heute vorbelegen
             // (lokales Datum als YYYY-MM-DD, passend zum <input type="date">).
             if (!item && attr.id === 'addedDate') {
               const t = new Date();
