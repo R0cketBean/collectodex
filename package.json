@@ -20,6 +20,7 @@
     "autoprefixer": "^10.4.21",
     "electron-is-dev": "^2.0.0",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.3",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "postcss": "^8.5.3",
@@ -81,6 +82,13 @@
   "build": {
     "appId": "com.collectodex.app",
     "productName": "CollectODex",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "R0cketBean",
+        "repo": "collectodex"
+      }
+    ],
     "extraMetadata": {
       "main": "public/electron.js"
     },

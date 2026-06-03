@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
+const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const fs = require('fs');
 
@@ -68,6 +69,43 @@ process.on('uncaughtException', (error) => {
     `Ein unerwarteter Fehler ist aufgetreten: ${error.message}\n\nDetails wurden in die Konsole geschrieben.`
   );
 });
+
+// Auto-Update (#20): Notify-only — die App prüft beim Start auf neue
+// GitHub-Releases, lädt aber erst nach Bestätigung in der UI herunter
+// (autoDownload = false) und installiert erst auf Klick (quitAndInstall).
+// Nur in der gepackten, signierten App aktiv; im Dev-Modus deaktiviert.
+function sendToRenderer(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+function setupAutoUpdater() {
+  if (isDev || !app.isPackaged) {
+    return;
+  }
+
+  autoUpdater.autoDownload = false;
+
+  autoUpdater.on('update-available', (info) => {
+    sendToRenderer('update:available', { version: info && info.version });
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    sendToRenderer('update:progress', { percent: progress && progress.percent });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    sendToRenderer('update:downloaded', { version: info && info.version });
+  });
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-Update-Fehler:', error);
+    sendToRenderer('update:error', { message: error == null ? 'unbekannt' : String(error.message || error) });
+  });
+
+  // Beim Start einmalig prüfen; Fehler werden über das 'error'-Event behandelt.
+  autoUpdater.checkForUpdates().catch((error) => {
+    console.error('Auto-Update-Prüfung fehlgeschlagen:', error);
+  });
+}
 
 // Erstelle das Hauptfenster
 function createWindow() {
@@ -137,7 +175,10 @@ function createWindow() {
     console.log('Preload-Skript Pfad:', path.join(__dirname, 'preload.js'));
     
     mainWindow.loadURL(startUrl);
-    
+
+    // Auto-Update-Prüfung anstoßen (No-op im Dev-Modus, s. setupAutoUpdater).
+    setupAutoUpdater();
+
     // Immer DevTools im Entwicklungsmodus öffnen und optional in der Produktionsversion
     if (isDev || process.env.DEBUG_PROD === 'true') {
       mainWindow.webContents.openDevTools();
@@ -245,6 +286,19 @@ ipcMain.handle('open-external-url', async (event, url) => {
     return true;
   }
   return false;
+});
+
+// IPC Handler für Auto-Update (#20): Download bzw. Installation werden vom
+// Renderer (UpdateNotification) per Button-Klick angestoßen.
+ipcMain.handle('update:download', async () => {
+  await autoUpdater.downloadUpdate();
+  return true;
+});
+
+ipcMain.handle('update:install', async () => {
+  // Beendet die App und installiert das geladene Update.
+  autoUpdater.quitAndInstall();
+  return true;
 });
 
 // Speichere beim Beenden der App automatisch den aktuellen Zustand

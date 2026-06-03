@@ -4,6 +4,7 @@ import { CollectionProvider } from './context/CollectionContext';
 import { LoadingProvider } from './context/LoadingContext';
 import Layout from './components/layout/Layout';
 import LoadingOverlayContainer from './components/common/LoadingOverlayContainer';
+import UpdateNotification from './components/common/UpdateNotification';
 
 // Seiten importieren
 import Dashboard from './pages/Dashboard';
@@ -24,6 +25,7 @@ function App() {
               <Route path="/import-export" element={<ImportExport />} />
             </Routes>
             <LoadingOverlayContainer />
+            <UpdateNotification />
           </Layout>
         </Router>
       </LoadingProvider>
