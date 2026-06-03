@@ -13,7 +13,8 @@ const isElectron = () => {
 // Storage Keys
 export const STORAGE_KEYS = {
   CATEGORIES: 'pokemon_collection_categories',
-  ITEMS: 'pokemon_collection_items'
+  ITEMS: 'pokemon_collection_items',
+  VALUE_HISTORY: 'pokemon_collection_value_history'
 };
 
 // Globale Update-Warteschlange - Verhindert konkurrierende Updates der gleichen Resource

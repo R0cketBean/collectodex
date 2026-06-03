@@ -5,7 +5,8 @@ import {
   CollectionSummary,
   AttributeDefinition,
   DEFAULT_CATEGORIES,
-  CORE_ATTRIBUTES
+  CORE_ATTRIBUTES,
+  ValueSnapshot
 } from '../types/models';
 import * as StorageService from '../services/StorageService';
 import { useImportExport } from '../hooks/useImportExport';
@@ -13,6 +14,7 @@ import { useItemValue } from '../hooks/useItemValue';
 import { useCollectionSummary } from '../hooks/useCollectionSummary';
 import { useItems } from '../hooks/useItems';
 import { useCategories } from '../hooks/useCategories';
+import { useValueHistory } from '../hooks/useValueHistory';
 
 // Typ für den Context
 interface CollectionContextType {
@@ -20,6 +22,7 @@ interface CollectionContextType {
   categories: Category[];
   items: CollectionItem[];
   summary: CollectionSummary;
+  valueHistory: ValueSnapshot[];
   
   // Kategorie-Funktionen
   addCategory: (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt'>) => string;
@@ -110,6 +113,9 @@ const migrateCategoryAttributes = (
 export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children }) => {
   // State für die Daten
   const [categories, setCategories] = useState<Category[]>([]);
+  // true, sobald der initiale Lade-Vorgang abgeschlossen ist (#26: damit die
+  // Wert-Historie nicht den Vor-Lade-Nullwert als Snapshot schreibt).
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Items-Domäne (#18): items-State, Item-CRUD, Bilder/Links, Storage-Sync und
   // Kategorie-Korrektur leben jetzt im useItems-Hook. categories wird lesend
@@ -189,6 +195,10 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
         console.error('Fehler beim Initialisieren der App:', error);
         // Bei Fehler mit Standardwerten initialisieren
         resetToDefaults();
+      } finally {
+        // Initialer Lade-Vorgang abgeschlossen — ab jetzt darf die
+        // Wert-Historie Snapshots schreiben (#26).
+        setIsInitialized(true);
       }
     };
     
@@ -202,6 +212,10 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   // Abgeleitete Zusammenfassung (#18): wird aus categories + items via
   // calculateItemValue im eigenen Hook berechnet.
   const summary = useCollectionSummary({ categories, items, calculateItemValue });
+
+  // Echte Wert-Historie (#26): tägliche Snapshots aus der Summe, im
+  // eigenen Hook gehalten und persistiert.
+  const valueHistory = useValueHistory({ summary, isInitialized });
 
 
   // Import/Export/Reset- und Excel-Orchestrierung lebt jetzt in einem
@@ -231,7 +245,8 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     categories,
     items,
     summary,
-    
+    valueHistory,
+
     addCategory,
     updateCategory,
     deleteCategory,
