@@ -6,20 +6,21 @@ import {
   ExclamationCircleIcon,
   ArrowUpTrayIcon
 } from '@heroicons/react/24/outline';
-import { useCollection } from '../context/CollectionContext';
+import { useCategoriesData, useCollectionActions } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
 import { wrapBackup, validateBackup } from '../utils/backup';
 
 const ImportExport: React.FC = () => {
-  const { 
-    categories,
+  // Re-Render-Isolation (#18): nur den Categories-Slice + die (stabilen) Actions.
+  const categories = useCategoriesData();
+  const {
     exportData,
     importData,
     exportCategoryAsExcel,
     createExcelTemplate,
     exportCollectionAsExcel,
-    getItemsByCategoryId
-  } = useCollection();
+    getItemsByCategoryId,
+  } = useCollectionActions();
   
   const { showLoading, hideLoading } = useLoading();
 
