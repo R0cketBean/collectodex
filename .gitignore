@@ -48,3 +48,8 @@ yarn-error.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 .idea/
+
+# Claude Code – lokale/Preview-Konfiguration
+# (projektweite .claude/settings.json darf weiterhin eingecheckt werden)
+.claude/launch.json
+.claude/settings.local.json
