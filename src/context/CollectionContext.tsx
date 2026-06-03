@@ -125,19 +125,6 @@ export const useCollectionActions = (): CollectionActions => {
   return ctx;
 };
 
-// Abwärtskompatibler Aggregator: liefert weiterhin die flache Schnittstelle.
-// Bestehende Consumer laufen unverändert; neue/migrierte Consumer nutzen die
-// granularen Selektor-Hooks oben. Hinweis: Wer diesen Hook nutzt, re-rendert
-// (wie bisher) bei jeder Daten-Änderung — die Isolation greift erst nach
-// Migration auf die granularen Hooks.
-export const useCollection = (): CollectionContextType => {
-  const categories = useCategoriesData();
-  const items = useItemsData();
-  const { summary, valueHistory } = useDerived();
-  const actions = useCollectionActions();
-  return { categories, items, summary, valueHistory, ...actions };
-};
-
 // Props für den Provider
 interface CollectionProviderProps {
   children: ReactNode;
