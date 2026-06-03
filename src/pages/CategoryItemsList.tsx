@@ -26,7 +26,26 @@ import { logger } from '../utils/logger';
 // Zum Reaktivieren einfach auf `true` setzen.
 const PRICE_FETCH_ENABLED = false;
 
+// Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
+// nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
+// beide gleichzeitig — das halbiert bei großen Kategorien die gerenderten
+// Zeilen-Subtrees und damit die Render-/Wechselzeit (#67).
+const useIsDesktop = (): boolean => {
+  const query = '(min-width: 768px)';
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : true
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+};
+
 const CategoryItemsList: React.FC = () => {
+  const isDesktop = useIsDesktop();
   const {
     categories,
     getItemsByCategoryId,
@@ -307,42 +326,32 @@ const CategoryItemsList: React.FC = () => {
     }
   };
   
-  // Berechne Summen für numerische Attribute
-  const calculateSums = () => {
-    const sums: Record<string, number> = {};
-    
-    // Identifiziere numerische Attribute
-    const numericAttributes = category?.attributes?.filter(attr => 
+  // Summen je numerischem Attribut — memoisiert, damit sie nicht bei jedem
+  // Render (z.B. Hover, Tippen in der Suche) neu über alle Items berechnet
+  // werden (#67). calculateItemValue wird einmal pro Item aufgerufen.
+  const sums = useMemo(() => {
+    const result: Record<string, number> = {};
+
+    const numericAttributes = category?.attributes?.filter(attr =>
       attr.type === 'number' || attr.type === 'formula'
     ) || [];
-    
-    // Initialisiere Summen mit 0
+
     numericAttributes.forEach(attr => {
-      sums[attr.id] = 0;
+      result[attr.id] = 0;
     });
-    
-    // Berechne Summen
+
     filteredAndSortedItems.forEach(item => {
+      const calculated = calculateItemValue(item);
       numericAttributes.forEach(attr => {
-        let value = item.values[attr.id];
-        
-        // Bei berechneten Attributen neu berechnen
-        if (attr.isCalculated) {
-          const calculatedValues = calculateItemValue(item);
-          value = calculatedValues[attr.id];
-        }
-        
-        // Wenn der Wert eine Zahl ist, addiere ihn zur Summe
+        const value = attr.isCalculated ? calculated[attr.id] : item.values[attr.id];
         if (typeof value === 'number') {
-          sums[attr.id] += value;
+          result[attr.id] += value;
         }
       });
     });
-    
-    return sums;
-  };
-  
-  const sums = calculateSums();
+
+    return result;
+  }, [filteredAndSortedItems, category, calculateItemValue]);
   
   // Funktion zum Öffnen externer Links
   const openExternalLink = (linkUrl: string) => {
@@ -488,7 +497,7 @@ const CategoryItemsList: React.FC = () => {
             ) : (
               <div className="bg-white shadow overflow-hidden rounded-md">
                 <ul className="divide-y divide-gray-200">
-                  {filteredAndSortedItems.map((item) => {
+                  {!isDesktop && filteredAndSortedItems.map((item) => {
                     // Berechnete Werte
                     const calculatedValues = calculateItemValue(item);
                     
@@ -638,7 +647,7 @@ const CategoryItemsList: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredAndSortedItems.map((item) => {
+                      {isDesktop && filteredAndSortedItems.map((item) => {
                         // Berechnete Werte
                         const calculatedValues = calculateItemValue(item);
                         
@@ -679,14 +688,12 @@ const CategoryItemsList: React.FC = () => {
                                     }}
                                     className="text-pokemon-blue hover:text-blue-900 inline-flex items-center justify-center"
                                     onMouseEnter={(e) => {
+                                      // Position einmalig beim Betreten setzen.
+                                      // Kein onMouseMove mehr: das löste pro
+                                      // Mausbewegung einen Re-Render der ganzen
+                                      // Tabelle aus (#67).
                                       const imageKey = Object.keys(item.images || {})[0];
                                       setHoverImage(item.images?.[imageKey] || null);
-                                      setHoverPosition({
-                                        x: e.clientX,
-                                        y: e.clientY
-                                      });
-                                    }}
-                                    onMouseMove={(e) => {
                                       setHoverPosition({
                                         x: e.clientX,
                                         y: e.clientY
