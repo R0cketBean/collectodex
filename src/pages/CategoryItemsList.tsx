@@ -9,22 +9,13 @@ import {
   ArrowUpCircleIcon,
   CameraIcon,
   PhotoIcon,
-  LinkIcon,
-  ArrowPathIcon
+  LinkIcon
 } from '@heroicons/react/24/outline';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import { useCategoriesData, useItemsData, useCollectionActions } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types/models';
-import { fetchPriceFromCardmarket } from '../services/PriceService';
 import { logger } from '../utils/logger';
-
-// Der "Preis abrufen"-Button ruft den lokalen Scraping-Server unter
-// localhost:3001 auf (PriceService). Den gibt es in der gepackten App
-// nicht, der Abruf schlägt dort also immer fehl (#27). Bis die offizielle
-// Cardmarket-API angebunden ist (#15, v0.4), blenden wir den Button aus.
-// Zum Reaktivieren einfach auf `true` setzen.
-const PRICE_FETCH_ENABLED = false;
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
 // nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
@@ -1022,7 +1013,7 @@ interface ItemModalProps {
 
 const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel }) => {
   // Re-Render-Isolation (#18): Items-Slice + (stabile) Actions gezielt.
-  const { addImageToItem, addLinkToItem, removeLinkFromItem, cleanupItemLinks } = useCollectionActions();
+  const { addImageToItem, addLinkToItem, removeLinkFromItem } = useCollectionActions();
   const items = useItemsData();
   
   // Loading-Indikator Hook
@@ -1042,9 +1033,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
   const [currentLinkAttributeId, setCurrentLinkAttributeId] = useState<string | null>(null);
   const [linkInputValue, setLinkInputValue] = useState('');
   const [itemLinks, setItemLinks] = useState<Record<string, string>>({});
-  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
-  const [priceError, setPriceError] = useState<string | null>(null);
-  
+
   // Ref für das Hauptmodal-Element und File input
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1258,56 +1247,6 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     }
   };
   
-  // Funktion zum Abrufen und Aktualisieren des Preises
-  const fetchAndUpdatePrice = async () => {
-    // Prüfen ob ein Link vorhanden ist
-    if (!item?.links?.product || !item.links.product.includes('cardmarket')) {
-      setPriceError('Es ist kein gültiger Cardmarket-Link vorhanden. Bitte zuerst einen Link hinzufügen.');
-      setTimeout(() => setPriceError(null), 5000);
-      return;
-    }
-
-    setIsLoadingPrice(true);
-    setPriceError(null);
-
-    try {
-      // Stelle sicher, dass wir den aktuellsten Link haben
-      cleanupItemLinks(item.id);
-      
-      const result = await fetchPriceFromCardmarket(item.links.product);
-      
-      if (result.success && result.lowestPrice) {
-        // Suche nach dem price-Attribut
-        const priceAttribute = editableAttributes.find(attr => 
-          attr.id === 'price' || attr.id === 'value' || 
-          attr.name.toLowerCase().includes('preis') || 
-          attr.name.toLowerCase().includes('wert')
-        );
-        
-        if (priceAttribute) {
-          // Konvertiere den Preis zu einer Nummer
-          const priceValue = parseFloat(result.lowestPrice);
-          
-          if (!isNaN(priceValue)) {
-            // Aktualisiere den Formularwert
-            const updatedValues = { ...formValues };
-            updatedValues[priceAttribute.id] = priceValue;
-            setFormValues(updatedValues);
-          }
-        } else {
-          setPriceError('Kein Preisattribut gefunden. Der Preis konnte nicht aktualisiert werden.');
-        }
-      } else {
-        setPriceError(result.error || 'Der Preis konnte nicht abgerufen werden.');
-      }
-    } catch (error) {
-      console.error('Fehler beim Preisabruf:', error);
-      setPriceError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
-    } finally {
-      setIsLoadingPrice(false);
-    }
-  };
-  
   // Bei Link-Dialog-Abbruch
   const cancelLinkDialog = () => {
     setShowLinkDialog(false);
@@ -1490,24 +1429,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                       <LinkIcon className="h-4 w-4 mr-2" />
                                       <span>Link bearbeiten</span>
                                     </button>
-                                    
-                                    {PRICE_FETCH_ENABLED && (
-                                      <button
-                                        type="button"
-                                        onClick={fetchAndUpdatePrice}
-                                        disabled={isLoadingPrice}
-                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-blue-50 hover:text-blue-900 disabled:opacity-50"
-                                      >
-                                        <ArrowPathIcon className={`h-4 w-4 mr-2 ${isLoadingPrice ? 'animate-spin' : ''}`} />
-                                        <span>Preis abrufen</span>
-                                      </button>
-                                    )}
                                   </div>
-
-                                  {/* Fehleranzeige für Preisabruf */}
-                                  {PRICE_FETCH_ENABLED && priceError && (
-                                    <div className="text-xs text-red-500 mt-1">{priceError}</div>
-                                  )}
                                 </>
                               ) : (
                                 <button
