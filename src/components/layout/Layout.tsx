@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-    HomeIcon, 
+    HomeIcon,
     CogIcon,
+    Cog6ToothIcon,
     DocumentArrowDownIcon,
     Bars3Icon,
     XMarkIcon,
@@ -49,6 +50,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', href: '/', icon: HomeIcon },
     { name: 'Kategorien verwalten', href: '/category-management', icon: CogIcon },
     { name: 'Import/Export', href: '/import-export', icon: DocumentArrowDownIcon },
+    { name: 'Einstellungen', href: '/settings', icon: Cog6ToothIcon },
   ];
 
   const toggleSidebar = () => {

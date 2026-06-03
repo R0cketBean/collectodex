@@ -30,8 +30,12 @@ export interface ElectronAPI {
   onUpdateProgress: (callback: (info: UpdateProgress) => void) => () => void;
   onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => () => void;
   onUpdateError: (callback: (info: UpdateError) => void) => () => void;
+  onUpdateNone: (callback: (info: UpdateInfo) => void) => () => void;
   downloadUpdate: () => Promise<boolean>;
   installUpdate: () => Promise<boolean>;
+  // Manuelle Prüfung; { supported: false } im Dev-/ungepackten Modus.
+  checkForUpdates: () => Promise<{ supported: boolean }>;
+  getAppVersion: () => Promise<string>;
 }
 
 declare global {
