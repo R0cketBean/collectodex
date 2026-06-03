@@ -131,10 +131,16 @@ jobs:
           CI: true
 
       - name: Package Windows app (NSIS, unsigned)
+        # shell: bash — der Default-Shell auf windows-latest ist PowerShell, die
+        # das Argument -c.extraMetadata.main=public/electron.js zerlegt, sodass
+        # electron-builder ".extraMetadata.main=..." als (nicht existierende)
+        # Config-Datei öffnet (ENOENT). Unter Git Bash wird der dotted-Override
+        # exakt wie im mac-Job geparst.
         # Unsigniert (keine CSC-Secrets) — SmartScreen-Hinweis steht im
         # Release-Text. --publish never erzeugt latest.yml (Update-Manifest für
         # Windows-Auto-Update, #20) lokal in dist/, lädt aber nichts selbst hoch;
         # das Anhängen ans Release macht der Schritt unten.
+        shell: bash
         run: npx electron-builder --win --publish never -c.extraMetadata.main=public/electron.js
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
