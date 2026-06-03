@@ -6,6 +6,7 @@ import {
   ArchiveBoxIcon
 } from '@heroicons/react/24/solid';
 import { useCollection } from '../context/CollectionContext';
+import { colorClassForCategory } from '../utils/categoryVisuals';
 
 // recharts (~1 MB) wird verzögert geladen, damit es nicht im Start-Bundle
 // liegt (#19). Bis die Charts geladen sind, zeigt Suspense einen Platzhalter.
@@ -492,17 +493,10 @@ const Dashboard: React.FC = () => {
                   const nameAttribute = category?.attributes.find(attr => attr.id === 'name');
                   const itemName = nameAttribute ? String(item.values[nameAttribute.id] || 'Unbenannt') : 'Unbenannt';
                   
-                  // Farbe für die Kategorie ermitteln
-                  const colorClasses = [
-                    'bg-blue-500',
-                    'bg-green-500',
-                    'bg-yellow-500',
-                    'bg-red-500',
-                    'bg-purple-500',
-                    'bg-pink-500'
-                  ];
-                  const colorClass = category 
-                    ? colorClasses[category.order % colorClasses.length] 
+                  // Farbe für die Kategorie ermitteln (gewählte Farbe oder
+                  // order-basierter Fallback, #63)
+                  const colorClass = category
+                    ? colorClassForCategory(category)
                     : 'bg-gray-500';
                   
                   return (
@@ -551,16 +545,8 @@ const Dashboard: React.FC = () => {
               profitLoss: 0
             };
             
-            // Wähle eine Farbe basierend auf dem Index der Kategorie
-            const colorClasses = [
-              'bg-blue-500',
-              'bg-green-500',
-              'bg-yellow-500',
-              'bg-red-500',
-              'bg-purple-500',
-              'bg-pink-500'
-            ];
-            const colorClass = colorClasses[category.order % colorClasses.length];
+            // Gewählte Kategorie-Farbe oder order-basierter Fallback (#63)
+            const colorClass = colorClassForCategory(category);
             
             return (
               <Link 
