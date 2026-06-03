@@ -13,7 +13,7 @@ import {
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
-import { useCollection, useItemsData } from '../context/CollectionContext';
+import { useCategoriesData, useItemsData, useCollectionActions } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types/models';
 import { fetchPriceFromCardmarket } from '../services/PriceService';
@@ -46,14 +46,15 @@ const useIsDesktop = (): boolean => {
 
 const CategoryItemsList: React.FC = () => {
   const isDesktop = useIsDesktop();
+  // Re-Render-Isolation (#18): Categories-Slice + (stabile) Actions gezielt.
+  const categories = useCategoriesData();
   const {
-    categories,
     addItem,
     updateItem,
     deleteItem,
     deleteMultipleItems,
     calculateItemValue,
-  } = useCollection();
+  } = useCollectionActions();
   // Alle Items als eigener Slice (#18): Die Kategorie-Liste wird unten direkt
   // daraus gefiltert, statt über das (nun referenz-stabile) getItemsByCategoryId
   // — sonst ginge die items-Memo stale (würde bei Item-Mutationen nicht neu
@@ -1020,9 +1021,9 @@ interface ItemModalProps {
 }
 
 const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel }) => {
-  // Collection-Context holen
-  const { addImageToItem, addLinkToItem, removeLinkFromItem, cleanupItemLinks } = useCollection();
-  const { items } = useCollection();
+  // Re-Render-Isolation (#18): Items-Slice + (stabile) Actions gezielt.
+  const { addImageToItem, addLinkToItem, removeLinkFromItem, cleanupItemLinks } = useCollectionActions();
+  const items = useItemsData();
   
   // Loading-Indikator Hook
   const { showLoading, hideLoading } = useLoading();
