@@ -150,10 +150,12 @@ export const CORE_ATTRIBUTES: AttributeDefinition[] = [
     order: 6
   },
   {
-    // Sichtbares, editierbares Datum, wann der Artikel hinzugefügt wurde (#45).
-    // Wird beim Anlegen automatisch mit dem heutigen Datum vorbelegt.
+    // Sichtbares, editierbares Kaufdatum des Artikels (#45). Wird beim Anlegen
+    // automatisch mit dem heutigen Datum vorbelegt. Die ID bleibt aus
+    // Kompatibilitätsgründen 'addedDate' (gespeicherte Werte hängen daran),
+    // der angezeigte Name ist aber "Gekauft am".
     id: 'addedDate',
-    name: 'Hinzugefügt am',
+    name: 'Gekauft am',
     type: 'date',
     required: false,
     isCore: true,
@@ -201,14 +203,6 @@ export const SEALED_ATTRIBUTES: AttributeDefinition[] = [
     isVisible: true,
     options: ['deutsch', 'englisch', 'japanisch', 'französisch', 'italienisch', 'spanisch'],
     order: 8
-  },
-  {
-    id: 'purchaseDate',
-    name: 'Kaufdatum',
-    type: 'date',
-    required: false,
-    isVisible: true,
-    order: 9
   }
 ];
 
