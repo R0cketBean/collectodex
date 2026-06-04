@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="de" data-lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CollectODex – Pokémon-Sammlung verwalten</title>
+<meta name="description" content="CollectODex ist eine Desktop-App zum Verwalten, Bewerten und Auswerten deiner Pokémon-Kartensammlung. Lokal, plattformübergreifend, Open Source." />
+<link rel="icon" href="./assets/logo.png" />
+<meta property="og:title" content="CollectODex" />
+<meta property="og:description" content="Die Desktop-App für deine Pokémon-Kartensammlung." />
+<meta property="og:image" content="./screenshots/dashboard-light.png" />
+<meta property="og:type" content="website" />
+<style>
+  :root {
+    --blue: #3b4cca;
+    --blue-600: #2f3da6;
+    --green: #00c49f;
+    --yellow: #ffbb28;
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --text: #1a1b25;
+    --muted: #5b5f73;
+    --border: #e6e8f0;
+    --shadow: 0 10px 30px rgba(26, 27, 37, 0.08);
+  }
+  html[data-theme="dark"] {
+    --bg: #0f1117;
+    --card: #181b24;
+    --text: #f3f4f8;
+    --muted: #9aa0b4;
+    --border: #262a36;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+  /* Sprach-/Theme-Umschaltung */
+  [data-lang="de"] .en, [data-lang="en"] .de { display: none; }
+
+  header {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: saturate(180%) blur(12px);
+    background: color-mix(in srgb, var(--bg) 80%, transparent);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav { display: flex; align-items: center; gap: 16px; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .nav .spacer { flex: 1; }
+  .toggle {
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .toggle:hover { border-color: var(--blue); }
+
+  .hero { padding: 72px 0 32px; text-align: center; }
+  .hero img.logo { width: 96px; height: 96px; border-radius: 22px; box-shadow: var(--shadow); }
+  .hero h1 { font-size: clamp(34px, 6vw, 56px); margin: 20px 0 8px; letter-spacing: -0.02em; }
+  .hero p.lead { font-size: clamp(17px, 2.4vw, 21px); color: var(--muted); max-width: 620px; margin: 0 auto 28px; }
+
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 13px 22px; border-radius: 12px; font-weight: 600; font-size: 15px;
+    border: 1px solid transparent; cursor: pointer;
+  }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: var(--blue-600); }
+  .btn-ghost { background: var(--card); color: var(--text); border-color: var(--border); }
+  .btn-ghost:hover { border-color: var(--blue); }
+  .subnote { color: var(--muted); font-size: 13px; margin-top: 14px; }
+
+  .badges { margin-top: 18px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .badges img { height: 20px; }
+
+  .shot-frame {
+    margin: 48px auto 0; max-width: 920px; border-radius: 16px; overflow: hidden;
+    border: 1px solid var(--border); box-shadow: var(--shadow); background: var(--card);
+  }
+  .shot-frame img { width: 100%; display: block; }
+  .shot-tabs { display: flex; gap: 8px; justify-content: center; margin: 22px 0 0; }
+  .shot-tab {
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+  }
+  .shot-tab.active { color: #fff; background: var(--blue); border-color: var(--blue); }
+
+  section { padding: 56px 0; }
+  h2 { font-size: clamp(24px, 4vw, 32px); text-align: center; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .section-sub { text-align: center; color: var(--muted); margin: 0 auto 36px; max-width: 560px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .feature {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 22px; box-shadow: var(--shadow);
+  }
+  .feature .ico { font-size: 26px; }
+  .feature h3 { margin: 12px 0 6px; font-size: 17px; }
+  .feature p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+  .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .gallery a { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+  .gallery img { width: 100%; display: block; }
+
+  .install { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .install .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: var(--shadow); }
+  .install h3 { margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .install ol { margin: 0; padding-left: 18px; color: var(--muted); }
+  .install code { background: var(--bg); padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border); font-size: 13px; }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 0; color: var(--muted); font-size: 14px; }
+  .foot { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <span class="brand"><img src="./assets/logo.png" alt="" />CollectODex</span>
+    <span class="spacer"></span>
+    <button class="toggle" id="langToggle" title="Sprache / Language">
+      <span class="de">🇬🇧 English</span><span class="en">🇩🇪 Deutsch</span>
+    </button>
+    <button class="toggle" id="themeToggle" title="Hell / Dunkel">
+      <span data-dark="🌙 Dunkel" data-light="☀️ Hell">🌙 Dunkel</span>
+    </button>
+    <a class="toggle" href="https://github.com/R0cketBean/collectodex" target="_blank" rel="noopener">GitHub ↗</a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <img class="logo" src="./assets/logo.png" alt="CollectODex Logo" />
+    <h1>CollectODex</h1>
+    <p class="lead">
+      <span class="de">Die Desktop-App für deine Pokémon-Kartensammlung. Kategorisieren, bewerten, Bestand führen – und sehen, was deine Sammlung wert ist.</span>
+      <span class="en">The desktop app for your Pokémon card collection. Categorise, value and track your inventory – and see what it's worth.</span>
+    </p>
+    <div class="cta">
+      <a class="btn btn-primary" id="downloadBtn" href="https://github.com/R0cketBean/collectodex/releases/latest">
+        <span class="de">⬇️ Herunterladen</span><span class="en">⬇️ Download</span>
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/R0cketBean/collectodex/releases">
+        <span class="de">Alle Versionen</span><span class="en">All releases</span>
+      </a>
+    </div>
+    <p class="subnote">
+      <span class="de">Verfügbar für macOS &amp; Windows · kostenlos &amp; Open Source</span>
+      <span class="en">Available for macOS &amp; Windows · free &amp; open source</span>
+    </p>
+    <div class="badges">
+      <img src="https://img.shields.io/github/v/release/R0cketBean/collectodex?label=Release&color=3B4CCA" alt="Release" />
+      <img src="https://img.shields.io/github/downloads/R0cketBean/collectodex/total?color=00C49F" alt="Downloads" />
+      <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT" />
+    </div>
+
+    <div class="shot-tabs">
+      <button class="shot-tab active" data-shot="light"><span class="de">Hell</span><span class="en">Light</span></button>
+      <button class="shot-tab" data-shot="dark"><span class="de">Dunkel</span><span class="en">Dark</span></button>
+    </div>
+    <div class="shot-frame">
+      <img id="heroShot" src="./screenshots/dashboard-light.png" alt="CollectODex Dashboard" />
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <h2><span class="de">Funktionen</span><span class="en">Features</span></h2>
+      <p class="section-sub">
+        <span class="de">Alles, um eine wachsende Sammlung im Blick zu behalten – lokal auf deinem Rechner.</span>
+        <span class="en">Everything you need to keep a growing collection under control – locally on your machine.</span>
+      </p>
+      <div class="grid">
+        <div class="feature"><div class="ico">📦</div><h3><span class="de">Flexible Kategorien</span><span class="en">Flexible categories</span></h3><p><span class="de">Sealed, Gegradet, Einzelkarten oder eigene Kategorien mit frei definierbaren Attributen.</span><span class="en">Sealed, graded, singles or your own categories with freely defined attributes.</span></p></div>
+        <div class="feature"><div class="ico">📊</div><h3><span class="de">Dashboard</span><span class="en">Dashboard</span></h3><p><span class="de">Gesamtwert, Gewinn/Verlust, Wertverteilung und Wertentwicklung auf einen Blick.</span><span class="en">Total value, profit/loss, distribution and value trend at a glance.</span></p></div>
+        <div class="feature"><div class="ico">📈</div><h3><span class="de">Statistik</span><span class="en">Statistics</span></h3><p><span class="de">Rendite je Position, durchschnittliche Haltedauer und Wertverlauf pro Kategorie.</span><span class="en">ROI per item, average holding period and value history per category.</span></p></div>
+        <div class="feature"><div class="ico">🧮</div><h3><span class="de">Berechnete Felder</span><span class="en">Calculated fields</span></h3><p><span class="de">Gesamtkosten, Gesamtwert und Gewinn/Verlust per Formel automatisch ermittelt.</span><span class="en">Total cost, total value and profit/loss derived automatically via formulas.</span></p></div>
+        <div class="feature"><div class="ico">🌗</div><h3><span class="de">Dark Mode</span><span class="en">Dark mode</span></h3><p><span class="de">Hell, dunkel oder dem System folgend.</span><span class="en">Light, dark, or follow the system.</span></p></div>
+        <div class="feature"><div class="ico">💾</div><h3><span class="de">Import/Export &amp; Backups</span><span class="en">Import/export &amp; backups</span></h3><p><span class="de">Excel-Export und automatische, sicherbare Sicherungen.</span><span class="en">Excel export and automatic, restorable backups.</span></p></div>
+        <div class="feature"><div class="ico">🔎</div><h3><span class="de">Suchen &amp; Filtern</span><span class="en">Search &amp; filter</span></h3><p><span class="de">Suchen, filtern und sortieren – auch auf dem schmalen Fenster.</span><span class="en">Search, filter and sort – even in a narrow window.</span></p></div>
+        <div class="feature"><div class="ico">🔄</div><h3><span class="de">Auto-Update</span><span class="en">Auto-update</span></h3><p><span class="de">Benachrichtigt über neue Versionen (electron-updater).</span><span class="en">Notifies you about new versions (electron-updater).</span></p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="screenshots" style="background: color-mix(in srgb, var(--blue) 5%, var(--bg));">
+    <div class="wrap">
+      <h2><span class="de">Screenshots</span><span class="en">Screenshots</span></h2>
+      <p class="section-sub"><span class="de">Klicken zum Vergrößern.</span><span class="en">Click to enlarge.</span></p>
+      <div class="gallery">
+        <a href="./screenshots/dashboard-light.png" target="_blank"><img src="./screenshots/dashboard-light.png" alt="Dashboard" loading="lazy" /></a>
+        <a href="./screenshots/statistics-light.png" target="_blank"><img src="./screenshots/statistics-light.png" alt="Statistik" loading="lazy" /></a>
+        <a href="./screenshots/collection-light.png" target="_blank"><img src="./screenshots/collection-light.png" alt="Sammlung" loading="lazy" /></a>
+      </div>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap">
+      <h2><span class="de">Download &amp; Installation</span><span class="en">Download &amp; install</span></h2>
+      <p class="section-sub">
+        <span class="de">Die fertigen Builds gibt es auf der Releases-Seite.</span>
+        <span class="en">Prebuilt binaries are on the releases page.</span>
+      </p>
+      <div class="install">
+        <div class="card">
+          <h3>🍎 macOS</h3>
+          <p class="subnote" style="margin-top:0"><span class="de">signiert &amp; notarisiert</span><span class="en">signed &amp; notarised</span></p>
+          <ol>
+            <li><span class="de">Die <code>.dmg</code> öffnen.</span><span class="en">Open the <code>.dmg</code>.</span></li>
+            <li><span class="de">CollectODex in den Ordner „Programme" ziehen.</span><span class="en">Drag CollectODex into your Applications folder.</span></li>
+          </ol>
+        </div>
+        <div class="card">
+          <h3>🪟 Windows</h3>
+          <p class="subnote" style="margin-top:0"><span class="de">NSIS-Installer, derzeit unsigniert</span><span class="en">NSIS installer, currently unsigned</span></p>
+          <ol>
+            <li><span class="de">Die <code>…Setup.exe</code> ausführen.</span><span class="en">Run the <code>…Setup.exe</code>.</span></li>
+            <li><span class="de">Bei SmartScreen-Warnung: „Weitere Informationen" → „Trotzdem ausführen".</span><span class="en">If SmartScreen warns: “More info” → “Run anyway”.</span></li>
+          </ol>
+        </div>
+      </div>
+      <div class="cta" style="margin-top:28px">
+        <a class="btn btn-primary" href="https://github.com/R0cketBean/collectodex/releases/latest">
+          <span class="de">⬇️ Zur neuesten Version</span><span class="en">⬇️ Get the latest version</span>
+        </a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot">
+    <span>© 2024–2026 Andreas Bröder · <a href="https://github.com/R0cketBean/collectodex/blob/main/LICENSE">MIT</a></span>
+    <span>
+      <a href="https://github.com/R0cketBean/collectodex">GitHub</a> ·
+      <a href="https://github.com/R0cketBean/collectodex/releases"><span class="de">Releases</span><span class="en">Releases</span></a> ·
+      <a href="https://github.com/R0cketBean/collectodex/milestones">Roadmap</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    var html = document.documentElement;
+
+    // Sprache: aus localStorage oder Browser
+    var lang = localStorage.getItem('cod-lang') || (navigator.language || 'de').slice(0, 2);
+    if (lang !== 'de' && lang !== 'en') lang = 'de';
+    setLang(lang);
+    document.getElementById('langToggle').addEventListener('click', function () {
+      setLang(html.getAttribute('data-lang') === 'de' ? 'en' : 'de');
+    });
+    function setLang(l) {
+      html.setAttribute('data-lang', l);
+      html.setAttribute('lang', l);
+      localStorage.setItem('cod-lang', l);
+      updateDownloadLabel();
+    }
+
+    // Theme
+    var theme = localStorage.getItem('cod-theme') ||
+      (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    setTheme(theme);
+    document.getElementById('themeToggle').addEventListener('click', function () {
+      setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    });
+    function setTheme(t) {
+      html.setAttribute('data-theme', t);
+      localStorage.setItem('cod-theme', t);
+      var span = document.querySelector('#themeToggle span');
+      span.textContent = t === 'dark' ? span.getAttribute('data-light') : span.getAttribute('data-dark');
+    }
+
+    // Screenshot Hell/Dunkel-Tabs
+    var heroShot = document.getElementById('heroShot');
+    Array.prototype.forEach.call(document.querySelectorAll('.shot-tab'), function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelector('.shot-tab.active').classList.remove('active');
+        tab.classList.add('active');
+        heroShot.src = './screenshots/dashboard-' + tab.getAttribute('data-shot') + '.png';
+      });
+    });
+
+    // Download-Label an Betriebssystem anpassen (sonst neutrales "Herunterladen")
+    function updateDownloadLabel() {
+      var btn = document.getElementById('downloadBtn');
+      var os = /Mac/i.test(navigator.userAgent) ? 'macOS'
+        : /Win/i.test(navigator.userAgent) ? 'Windows' : null;
+      if (!os) return;
+      btn.querySelector('.de').textContent = '⬇️ Für ' + os + ' herunterladen';
+      btn.querySelector('.en').textContent = '⬇️ Download for ' + os;
+    }
+    updateDownloadLabel();
+  })();
+</script>
+</body>
+</html>
