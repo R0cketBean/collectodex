@@ -11,20 +11,21 @@ changelog:
   categories:
     - title: 🚀 Neue Funktionen
       labels:
-        - feature
         - enhancement
     - title: 🐛 Fehlerbehebungen
       labels:
         - bug
-        - fix
+    - title: ⚡ Performance
+      labels:
+        - performance
     - title: 🎨 Design & UI
       labels:
         - design
-        - ui
-    - title: 🧰 Wartung & Sonstiges
+    - title: 🧹 Refactor & Aufräumen
       labels:
-        - chore
-        - dependencies
+        - refactor
+    - title: 📖 Dokumentation
+      labels:
         - documentation
     - title: 📦 Weitere Änderungen
       labels:
