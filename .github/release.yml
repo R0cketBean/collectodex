@@ -1,0 +1,32 @@
+# Steuert die automatisch generierten Release-Notes
+# (generate_release_notes im Release-Workflow, "What's Changed").
+# Die Gruppierung erfolgt über PR-Labels – Labels an PRs vergeben, damit die
+# Einträge in den passenden Abschnitt wandern.
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - dependabot
+  categories:
+    - title: 🚀 Neue Funktionen
+      labels:
+        - enhancement
+    - title: 🐛 Fehlerbehebungen
+      labels:
+        - bug
+    - title: ⚡ Performance
+      labels:
+        - performance
+    - title: 🎨 Design & UI
+      labels:
+        - design
+    - title: 🧹 Refactor & Aufräumen
+      labels:
+        - refactor
+    - title: 📖 Dokumentation
+      labels:
+        - documentation
+    - title: 📦 Weitere Änderungen
+      labels:
+        - "*"

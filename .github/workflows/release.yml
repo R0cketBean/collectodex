@@ -82,7 +82,14 @@ jobs:
           # Release-Notes gestellt. Nur der mac-Job setzt den Text; der
           # Windows-Job hängt anschließend nur Dateien an.
           body: |
-            ## Installation
+            <div align="center">
+
+            **CollectODex** – die Desktop-App für deine Pokémon-Kartensammlung.
+            🌐 [Landingpage](https://r0cketbean.github.io/collectodex/) · 📖 [README](https://github.com/R0cketBean/collectodex#readme)
+
+            </div>
+
+            ## ⬇️ Installation
 
             **macOS** (signiert & notarisiert)
             1. Die `.dmg` öffnen.
