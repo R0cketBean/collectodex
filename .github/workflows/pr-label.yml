@@ -1,0 +1,52 @@
+name: PR Auto-Label
+
+# Vergibt automatisch ein Label anhand des Conventional-Commit-Präfixes im
+# PR-Titel (z. B. "feat: …" → enhancement). Damit greifen die gruppierten
+# Release-Notes aus .github/release.yml, ohne dass Labels manuell gesetzt
+# werden müssen. Bestehende Labels bleiben erhalten (es wird nur ergänzt).
+
+on:
+  pull_request:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.pull_request.title || '';
+            // type(scope)!: …  → fängt feat, fix(#90), refactor! usw.
+            const m = title.match(/^(\w+)(\([^)]*\))?!?:/);
+            if (!m) {
+              core.info(`Kein Conventional-Commit-Präfix in "${title}" – nichts zu tun.`);
+              return;
+            }
+            const type = m[1].toLowerCase();
+            // Mappt auf die vorhandenen Repo-Labels (siehe .github/release.yml).
+            const map = {
+              feat: 'enhancement',
+              feature: 'enhancement',
+              fix: 'bug',
+              bugfix: 'bug',
+              perf: 'performance',
+              refactor: 'refactor',
+              docs: 'documentation',
+            };
+            const label = map[type];
+            if (!label) {
+              core.info(`Typ "${type}" hat keine Label-Zuordnung – nichts zu tun.`);
+              return;
+            }
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              labels: [label],
+            });
+            core.info(`Label "${label}" gesetzt (Titel-Typ "${type}").`);
