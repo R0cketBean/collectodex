@@ -19,6 +19,7 @@ import { useCategoriesData, useItemsData, useCollectionActions } from '../contex
 import { useLoading } from '../context/LoadingContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types/models';
 import { logger } from '../utils/logger';
+import { inputClass, selectClass } from '../utils/formStyles';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
 // nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
@@ -446,7 +447,7 @@ const CategoryItemsList: React.FC = () => {
                 type="text"
                 name="search"
                 id="search"
-                className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm rounded-md h-10 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                className="focus:outline-none focus:ring-2 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm rounded-md h-10 border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 placeholder="Suche..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -1510,7 +1511,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                            className={`mt-1 ${inputClass}`}
                           />
                         )}
                         
@@ -1523,7 +1524,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             required={attr.required}
                             step={attr.id === 'quantity' ? "1" : "0.01"}
                             min={attr.id === 'quantity' ? "0" : undefined}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                            className={`mt-1 ${inputClass}`}
                             onFocus={(e) => e.target.select()}
                             placeholder={attr.id.includes('price') || attr.id.includes('Value') ? "0.00 €" : "0"}
                           />
@@ -1535,7 +1536,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] ? 'true' : 'false'}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                            className={`mt-1 ${selectClass}`}
                           >
                             <option value="true">Ja</option>
                             <option value="false">Nein</option>
@@ -1549,7 +1550,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                            className={`mt-1 ${inputClass}`}
                           />
                         )}
                         
@@ -1559,7 +1560,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                            className={`mt-1 ${selectClass}`}
                           >
                             <option value="">Bitte wählen</option>
                             {attr.options?.map((option) => (
@@ -1617,7 +1618,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                   <input
                     type="url"
                     id="linkUrl"
-                    className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
+                    className={inputClass}
                     value={linkInputValue}
                     onChange={(e) => setLinkInputValue(e.target.value)}
                     placeholder="https://www.cardmarket.com/..."
