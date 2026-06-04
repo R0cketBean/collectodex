@@ -1,6 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowPathIcon, SunIcon, MoonIcon, ComputerDesktopIcon } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon,
+  SunIcon,
+  MoonIcon,
+  ComputerDesktopIcon,
+  ArchiveBoxArrowDownIcon,
+  FolderOpenIcon,
+} from '@heroicons/react/24/outline';
 import { getThemeChoice, setThemeChoice, ThemeChoice } from '../utils/theme';
+import { useCollectionActions } from '../context/CollectionContext';
+import { wrapBackup } from '../utils/backup';
+import {
+  BackupSettings,
+  DEFAULT_BACKUP_SETTINGS,
+  loadBackupSettings,
+  saveBackupSettings,
+  todayKey,
+} from '../utils/backupSettings';
 
 // Settings-Tab: manuelle Update-Prüfung, Darstellung (Dark Mode), App-Version.
 // Sprache/i18n und Auto-Backup ziehen als eigene Schritte hier ein.
@@ -19,6 +35,9 @@ const Settings: React.FC = () => {
   const [checkState, setCheckState] = useState<CheckState>('idle');
   const [detail, setDetail] = useState<string | undefined>(undefined);
   const [theme, setTheme] = useState<ThemeChoice>(getThemeChoice());
+  const [backup, setBackup] = useState<BackupSettings>(DEFAULT_BACKUP_SETTINGS);
+  const [backupStatus, setBackupStatus] = useState<string | null>(null);
+  const { exportData } = useCollectionActions();
 
   // Vermeidet ein State-Update, falls eine Update-Event nach dem Unmount kommt.
   const mounted = useRef(true);
@@ -81,6 +100,74 @@ const Settings: React.FC = () => {
   const handleThemeChange = (choice: ThemeChoice) => {
     setThemeChoice(choice);
     setTheme(choice);
+  };
+
+  // --- Backups (#91) -------------------------------------------------------
+  useEffect(() => {
+    loadBackupSettings().then((s) => {
+      if (mounted.current) setBackup(s);
+    });
+  }, []);
+
+  const persistBackup = async (next: BackupSettings) => {
+    setBackup(next);
+    await saveBackupSettings(next);
+  };
+
+  const handleChooseFolder = async () => {
+    const api = window.electronAPI;
+    if (!api) return;
+    const folder = await api.chooseBackupFolder();
+    if (folder) {
+      setBackupStatus(null);
+      await persistBackup({ ...backup, folder });
+    }
+  };
+
+  const handleToggleBackup = async () => {
+    const api = window.electronAPI;
+    if (!api) {
+      setBackupStatus('Backups sind nur in der installierten App verfügbar.');
+      return;
+    }
+    // Beim Aktivieren zuerst einen Ordner verlangen.
+    if (!backup.enabled && !backup.folder) {
+      const folder = await api.chooseBackupFolder();
+      if (!folder) return; // abgebrochen -> nicht aktivieren
+      await persistBackup({ ...backup, enabled: true, folder });
+      return;
+    }
+    await persistBackup({ ...backup, enabled: !backup.enabled });
+  };
+
+  const handleKeepChange = async (keep: number) => {
+    await persistBackup({ ...backup, keep });
+  };
+
+  const handleBackupNow = async () => {
+    const api = window.electronAPI;
+    if (!api) {
+      setBackupStatus('Backups sind nur in der installierten App verfügbar.');
+      return;
+    }
+    let folder = backup.folder;
+    if (!folder) {
+      folder = await api.chooseBackupFolder();
+      if (!folder) return;
+    }
+    setBackupStatus('Sicherung läuft…');
+    try {
+      const json = JSON.stringify(wrapBackup(exportData()), null, 2);
+      const res = await api.writeBackup({ folder, json, keep: backup.keep });
+      if (res.ok) {
+        await persistBackup({ ...backup, folder, lastBackup: todayKey() });
+        setBackupStatus(`Gesichert: ${res.path}`);
+      } else {
+        setBackupStatus(`Fehler: ${res.error || 'unbekannt'}`);
+      }
+    } catch {
+      setBackupStatus('Sicherung fehlgeschlagen.');
+    }
   };
 
   const renderResult = () => {
@@ -183,13 +270,134 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
+      {/* Backups */}
+      <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="px-4 py-5 sm:p-6">
+          <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">Backups</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Sichert deine Sammlung als vollständige JSON-Datei (inkl. Bilder). Automatisch beim
+            App-Start, höchstens einmal pro Tag; ältere Sicherungen werden automatisch gelöscht.
+          </p>
+
+          {!isElectron && (
+            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+              Backups stehen nur in der installierten App zur Verfügung (nicht im
+              Browser/Entwicklungsmodus).
+            </p>
+          )}
+
+          {isElectron && (
+            <div className="mt-4 space-y-5">
+              {/* Ein/Aus */}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    Automatische Backups
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Beim Start sichern, sofern heute noch nicht geschehen.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={backup.enabled}
+                  onClick={handleToggleBackup}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue ${
+                    backup.enabled ? 'bg-pokemon-blue' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 mt-0.5 transform rounded-full bg-white transition-transform ${
+                      backup.enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Speicherort */}
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Speicherort</p>
+                <div className="mt-1 flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span className="text-sm text-gray-600 dark:text-gray-300 break-all flex-1">
+                    {backup.folder || 'Noch kein Ordner gewählt.'}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleChooseFolder}
+                      className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                    >
+                      Ordner wählen
+                    </button>
+                    {backup.folder && (
+                      <button
+                        type="button"
+                        onClick={() => window.electronAPI?.openBackupFolder(backup.folder as string)}
+                        className="inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium text-pokemon-blue dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                      >
+                        <FolderOpenIcon className="h-5 w-5" aria-hidden="true" />
+                        Öffnen
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Aufbewahrung + manuelle Sicherung */}
+              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                <div>
+                  <label
+                    htmlFor="backup-keep"
+                    className="block text-sm font-medium text-gray-900 dark:text-gray-100"
+                  >
+                    Backups behalten
+                  </label>
+                  <select
+                    id="backup-keep"
+                    value={backup.keep}
+                    onChange={(e) => handleKeepChange(Number(e.target.value))}
+                    className="mt-1 block rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-pokemon-blue focus:border-pokemon-blue"
+                  >
+                    {[3, 5, 10, 20].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBackupNow}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-pokemon-blue px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  <ArchiveBoxArrowDownIcon className="h-5 w-5" aria-hidden="true" />
+                  Jetzt sichern
+                </button>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {backup.lastBackup
+                    ? `Letztes Backup: ${backup.lastBackup}`
+                    : 'Noch kein Backup erstellt.'}
+                </p>
+                {backupStatus && (
+                  <p className="text-sm text-gray-600 dark:text-gray-300 break-all">{backupStatus}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Ausblick auf weitere Einstellungen */}
       <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow">
         <div className="px-4 py-5 sm:p-6">
           <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">Weitere Einstellungen</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Sprachumschaltung (DE/EN) und automatische Backups sind in Vorbereitung und werden hier
-            einziehen.
+            Sprachumschaltung (DE/EN) ist in Vorbereitung und wird hier einziehen.
           </p>
         </div>
       </div>

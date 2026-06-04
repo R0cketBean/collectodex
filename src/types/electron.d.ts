@@ -36,6 +36,15 @@ export interface ElectronAPI {
   // Manuelle Prüfung; { supported: false } im Dev-/ungepackten Modus.
   checkForUpdates: () => Promise<{ supported: boolean }>;
   getAppVersion: () => Promise<string>;
+
+  // Auto-Backup (#91)
+  chooseBackupFolder: () => Promise<string | null>;
+  writeBackup: (payload: {
+    folder: string;
+    json: string;
+    keep: number;
+  }) => Promise<{ ok: boolean; path?: string; error?: string }>;
+  openBackupFolder: (folder: string) => Promise<boolean>;
 }
 
 declare global {

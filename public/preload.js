@@ -46,5 +46,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Manuelle Prüfung aus dem Settings-Tab; liefert { supported } zurück.
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   // Aktuelle App-Version (für die Anzeige im Settings-Tab).
-  getAppVersion: () => ipcRenderer.invoke('app:version')
+  getAppVersion: () => ipcRenderer.invoke('app:version'),
+
+  // Auto-Backup (#91)
+  chooseBackupFolder: () => ipcRenderer.invoke('backup:choose-folder'),
+  writeBackup: (payload) => ipcRenderer.invoke('backup:write', payload),
+  openBackupFolder: (folder) => ipcRenderer.invoke('backup:open-folder', folder)
 });

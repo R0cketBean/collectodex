@@ -15,6 +15,7 @@ import { useCollectionSummary } from '../hooks/useCollectionSummary';
 import { useItems } from '../hooks/useItems';
 import { useCategories } from '../hooks/useCategories';
 import { useValueHistory } from '../hooks/useValueHistory';
+import { useAutoBackup } from '../hooks/useAutoBackup';
 
 // Typ für den Context
 interface CollectionContextType {
@@ -289,6 +290,10 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   // Echte Wert-Historie (#26): tägliche Snapshots aus der Summe, im
   // eigenen Hook gehalten und persistiert.
   const valueHistory = useValueHistory({ summary, isInitialized });
+
+  // Auto-Backup (#91): einmal beim Start eine JSON-Sicherung schreiben, sofern
+  // in den Einstellungen aktiviert (nur in der installierten App).
+  useAutoBackup({ categories, items, isInitialized });
 
 
   // Import/Export/Reset- und Excel-Orchestrierung lebt jetzt in einem
