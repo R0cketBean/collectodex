@@ -4,6 +4,7 @@ import {
     HomeIcon,
     CogIcon,
     Cog6ToothIcon,
+    ChartBarIcon,
     DocumentArrowDownIcon,
     Bars3Icon,
     XMarkIcon,
@@ -50,6 +51,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', href: '/', icon: HomeIcon },
     { name: 'Kategorien verwalten', href: '/category-management', icon: CogIcon },
     { name: 'Import/Export', href: '/import-export', icon: DocumentArrowDownIcon },
+    { name: 'Statistik', href: '/statistics', icon: ChartBarIcon },
     { name: 'Einstellungen', href: '/settings', icon: Cog6ToothIcon },
   ];
 
