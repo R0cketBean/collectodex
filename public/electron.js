@@ -328,6 +328,70 @@ ipcMain.handle('update:check', async () => {
 // Aktuelle App-Version für die Anzeige im Settings-Tab.
 ipcMain.handle('app:version', async () => app.getVersion());
 
+// --- Auto-Backup (#91) -----------------------------------------------------
+// Das eigentliche Schreiben ins Dateisystem muss im Main-Prozess passieren.
+// Der Renderer baut die versionierte Backup-Hülle (utils/backup.ts) und schickt
+// den fertigen JSON-String hierher.
+const BACKUP_PREFIX = 'collectodex-backup-';
+
+// Ordnerauswahl-Dialog; liefert den gewählten Pfad oder null bei Abbruch.
+ipcMain.handle('backup:choose-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Ordner für automatische Backups wählen',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+    return null;
+  }
+  return result.filePaths[0];
+});
+
+// Schreibt ein Backup und behält nur die jüngsten `keep` Dateien.
+ipcMain.handle('backup:write', async (event, payload) => {
+  try {
+    const { folder, json, keep } = payload || {};
+    if (!folder || typeof json !== 'string') {
+      return { ok: false, error: 'Ungültige Backup-Parameter.' };
+    }
+    fs.mkdirSync(folder, { recursive: true });
+
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const stamp =
+      `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` +
+      `_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+    const filePath = path.join(folder, `${BACKUP_PREFIX}${stamp}.json`);
+    fs.writeFileSync(filePath, json, 'utf8');
+
+    // Alte Backups aufräumen: nur die jüngsten `keep` behalten.
+    const keepCount = Number.isFinite(keep) && keep > 0 ? Math.floor(keep) : 5;
+    const existing = fs
+      .readdirSync(folder)
+      .filter((f) => f.startsWith(BACKUP_PREFIX) && f.endsWith('.json'))
+      .sort(); // Zeitstempel im Namen -> lexikografisch = chronologisch
+    const toDelete = existing.slice(0, Math.max(0, existing.length - keepCount));
+    for (const f of toDelete) {
+      try {
+        fs.unlinkSync(path.join(folder, f));
+      } catch (e) {
+        console.error('Backup-Aufräumen fehlgeschlagen für', f, e);
+      }
+    }
+
+    return { ok: true, path: filePath };
+  } catch (error) {
+    console.error('Backup schreiben fehlgeschlagen:', error);
+    return { ok: false, error: String((error && error.message) || error) };
+  }
+});
+
+// Öffnet den Backup-Ordner im Finder/Explorer.
+ipcMain.handle('backup:open-folder', async (event, folder) => {
+  if (!folder) return false;
+  await shell.openPath(folder);
+  return true;
+});
+
 // Speichere beim Beenden der App automatisch den aktuellen Zustand
 app.on('before-quit', () => {
   // Kann verwendet werden, um bestimmte Aufräumarbeiten vor dem Beenden durchzuführen
