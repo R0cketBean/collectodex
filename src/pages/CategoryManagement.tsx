@@ -77,7 +77,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
                         value={formData.name}
                         onChange={handleChange}
                         required
-                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                       />
                     </div>
                     <div>
@@ -90,7 +90,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
                         value={formData.description}
                         onChange={handleChange}
                         rows={3}
-                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                       ></textarea>
                     </div>
                     <div>
@@ -110,7 +110,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
                           id="icon"
                           value={formData.icon}
                           onChange={handleChange}
-                          className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                          className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                         >
                           {ICON_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -257,7 +257,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                         onChange={handleChange}
                         required
                         disabled={isCore}
-                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                       />
                     </div>
                     
@@ -271,7 +271,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                         value={formData.type}
                         onChange={handleChange}
                         disabled={isCore}
-                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                       >
                         <option value="text">Text</option>
                         <option value="number">Zahl</option>
@@ -322,7 +322,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                           value={formData.options}
                           onChange={handleChange}
                           rows={4}
-                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                         ></textarea>
                         
                         {/* Hinweis für Grading Service */}
@@ -354,7 +354,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                           onChange={handleChange}
                           placeholder="z.B. quantity * currentValue"
                           disabled={isCore}
-                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                         />
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           Verwende Attributnamen als Variablen, z.B. quantity * price
