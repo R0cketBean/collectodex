@@ -141,11 +141,14 @@ const migrateCategoryAttributes = (
   if (!Array.isArray(attributes) || attributes.length === 0) {
     return [...CORE_ATTRIBUTES];
   }
-  // Entferne das abgelöste "Kaufdatum" und benenne "addedDate" in "Gekauft am" um.
+  // Entferne das abgelöste "Kaufdatum" und benenne "addedDate" in "Gekauft am"
+  // um; "addedDate" ist außerdem ein Pflichtfeld (required).
   const cleaned = attributes
     .filter(attr => attr.id !== 'purchaseDate')
     .map(attr =>
-      attr.id === 'addedDate' ? { ...attr, name: 'Gekauft am' } : attr
+      attr.id === 'addedDate'
+        ? { ...attr, name: 'Gekauft am', required: true }
+        : attr
     );
   const existingIds = new Set(cleaned.map(attr => attr.id));
   // Nur additiv fehlende Kern-Felder anhängen, die als Standard erwartet werden.

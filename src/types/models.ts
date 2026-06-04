@@ -153,11 +153,12 @@ export const CORE_ATTRIBUTES: AttributeDefinition[] = [
     // Sichtbares, editierbares Kaufdatum des Artikels (#45). Wird beim Anlegen
     // automatisch mit dem heutigen Datum vorbelegt. Die ID bleibt aus
     // Kompatibilitätsgründen 'addedDate' (gespeicherte Werte hängen daran),
-    // der angezeigte Name ist aber "Gekauft am".
+    // der angezeigte Name ist aber "Gekauft am". Pflichtfeld (roter Stern),
+    // da das Kaufdatum für Auswertungen (Haltedauer/Rendite) gebraucht wird.
     id: 'addedDate',
     name: 'Gekauft am',
     type: 'date',
-    required: false,
+    required: true,
     isCore: true,
     isVisible: true,
     order: 7
