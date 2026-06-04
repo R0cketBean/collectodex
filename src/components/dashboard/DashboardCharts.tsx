@@ -81,6 +81,32 @@ const LineTooltip = ({
   );
 };
 
+// Tooltip für mehrere Linien (Wertverlauf pro Kategorie): Datum schwarz, je
+// Kategorie der Wert in ihrer Linienfarbe.
+const MultiLineTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+}): React.ReactElement | null => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div style={TOOLTIP_CARD}>
+      <div style={{ color: '#111827', fontWeight: 600, fontSize: 12, marginBottom: 2 }}>
+        {label}
+      </div>
+      {payload.map((p, i) => (
+        <div key={i} style={{ color: p.color, fontSize: 12 }}>
+          {p.name}: {Number(p.value).toFixed(2)}€
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // Farbige Y-Achsen-Beschriftung: jeder Kategorie-Name wird in der Farbe
 // seines Balkens gezeichnet (statt einheitlich schwarz). recharts liefert dem
 // Custom-Tick den Index der Zeile, über den wir die passende Palette-Farbe
@@ -164,6 +190,38 @@ export const ValueDistributionChart: React.FC<{
     </ResponsiveContainer>
   );
 };
+
+/** Mehrlinien-Diagramm: Wertverlauf je Kategorie über die Zeit (#92). */
+export const CategoryHistoryChart: React.FC<{
+  data: Array<Record<string, number | string>>;
+  series: { key: string; name: string; color: string }[];
+}> = ({ data, series }) => (
+  <ResponsiveContainer width="100%" height="100%">
+    <LineChart data={data} margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+      <YAxis
+        tickFormatter={(value) => `${Math.round(Number(value))}€`}
+        tick={{ fontSize: 10 }}
+        width={40}
+      />
+      <Tooltip content={<MultiLineTooltip />} />
+      <Legend />
+      {series.map((s) => (
+        <Line
+          key={s.key}
+          type="monotone"
+          dataKey={s.key}
+          name={s.name}
+          stroke={s.color}
+          dot={false}
+          activeDot={{ r: 5 }}
+          isAnimationActive={false}
+        />
+      ))}
+    </LineChart>
+  </ResponsiveContainer>
+);
 
 /** Liniendiagramm: Wertentwicklung der Sammlung über die Zeit. */
 export const ValueHistoryChart: React.FC<{ valueData: ValueDatum[] }> = ({
