@@ -28,6 +28,59 @@ export interface ValueDatum {
   wert: number;
 }
 
+// Eigene Tooltip-Karte (statt recharts-Default mit hellgrauem Text auf Weiß,
+// im Dark Mode kaum lesbar). Die Karte bleibt hell; der Name steht in Schwarz,
+// der Wert in der Kategorie-/Linienfarbe — so überall gut lesbar.
+const TOOLTIP_CARD: React.CSSProperties = {
+  backgroundColor: '#ffffff',
+  border: '1px solid #e5e7eb',
+  borderRadius: 6,
+  padding: '6px 10px',
+  boxShadow: '0 1px 2px rgba(0,0,0,0.08)',
+};
+
+const BarTooltip = ({
+  active,
+  payload,
+  total,
+}: {
+  active?: boolean;
+  payload?: any[];
+  total: number;
+}): React.ReactElement | null => {
+  if (!active || !payload || !payload.length) return null;
+  const d = payload[0].payload as { name: string; value: number; fill: string };
+  const pct = total > 0 ? ((d.value / total) * 100).toFixed(0) : '0';
+  return (
+    <div style={TOOLTIP_CARD}>
+      <div style={{ color: '#111827', fontWeight: 600, fontSize: 12 }}>{d.name}</div>
+      <div style={{ color: d.fill, fontSize: 12 }}>
+        {d.value.toFixed(2)}€ ({pct}%)
+      </div>
+    </div>
+  );
+};
+
+const LineTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+}): React.ReactElement | null => {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div style={TOOLTIP_CARD}>
+      <div style={{ color: '#111827', fontWeight: 600, fontSize: 12 }}>{label}</div>
+      <div style={{ color: '#3B4CCA', fontSize: 12 }}>
+        {Number(payload[0].value).toFixed(2)}€ Gesamtwert
+      </div>
+    </div>
+  );
+};
+
 // Farbige Y-Achsen-Beschriftung: jeder Kategorie-Name wird in der Farbe
 // seines Balkens gezeichnet (statt einheitlich schwarz). recharts liefert dem
 // Custom-Tick den Index der Zeile, über den wir die passende Palette-Farbe
@@ -69,8 +122,11 @@ export const ValueDistributionChart: React.FC<{
   pieData: PieDatum[];
   colors: string[];
 }> = ({ pieData, colors }) => {
-  // Absteigend nach Wert; größter Posten oben.
-  const data = [...pieData].sort((a, b) => b.value - a.value);
+  // Absteigend nach Wert; größter Posten oben. Farbe direkt an die Datenpunkte
+  // hängen, damit der Tooltip den Wert in der jeweiligen Balkenfarbe zeigen kann.
+  const data = [...pieData]
+    .sort((a, b) => b.value - a.value)
+    .map((d, i) => ({ ...d, fill: colors[i % colors.length] }));
   const total = data.reduce((sum, d) => sum + d.value, 0);
 
   return (
@@ -96,16 +152,12 @@ export const ValueDistributionChart: React.FC<{
         />
         <Tooltip
           cursor={{ fill: 'rgba(0,0,0,0.04)' }}
-          formatter={(value) => {
-            const num = Number(value);
-            const pct = total > 0 ? ((num / total) * 100).toFixed(0) : '0';
-            return [`${num.toFixed(2)}€ (${pct}%)`, 'Wert'];
-          }}
+          content={<BarTooltip total={total} />}
           allowEscapeViewBox={{ x: false, y: false }}
         />
         <Bar dataKey="value" radius={[0, 4, 4, 0]} isAnimationActive={false}>
           {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+            <Cell key={`cell-${index}`} fill={entry.fill} />
           ))}
         </Bar>
       </BarChart>
@@ -129,10 +181,7 @@ export const ValueHistoryChart: React.FC<{ valueData: ValueDatum[] }> = ({
         tick={{ fontSize: 10 }}
         width={40}
       />
-      <Tooltip
-        formatter={(value) => [`${Number(value).toFixed(2)}€`, 'Gesamtwert']}
-        labelFormatter={(label) => `${label}`}
-      />
+      <Tooltip content={<LineTooltip />} />
       <Legend />
       <Line
         type="monotone"

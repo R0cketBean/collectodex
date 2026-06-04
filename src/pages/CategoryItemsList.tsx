@@ -446,7 +446,7 @@ const CategoryItemsList: React.FC = () => {
                 type="text"
                 name="search"
                 id="search"
-                className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm border-gray-300 dark:border-gray-700 rounded-md h-10"
+                className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm rounded-md h-10 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 placeholder="Suche..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -701,7 +701,7 @@ const CategoryItemsList: React.FC = () => {
                               item.id === highlightedItemId
                                 ? 'bg-yellow-100'
                                 : selectedItems.includes(item.id)
-                                ? 'bg-blue-50'
+                                ? 'bg-blue-50 dark:bg-gray-700'
                                 : ''
                             }`}
                           >
@@ -726,7 +726,7 @@ const CategoryItemsList: React.FC = () => {
                                       setCurrentImage(item.images?.[imageKey] || null);
                                       setShowImagePopup(true);
                                     }}
-                                    className="text-pokemon-blue hover:text-blue-900 inline-flex items-center justify-center"
+                                    className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 inline-flex items-center justify-center"
                                     onMouseEnter={(e) => {
                                       // Position einmalig beim Betreten setzen.
                                       // Kein onMouseMove mehr: das löste pro
@@ -756,7 +756,7 @@ const CategoryItemsList: React.FC = () => {
                                 )}
                                 <button
                                   onClick={() => handleEditItem(item)}
-                                  className="text-pokemon-blue hover:text-blue-900 ml-2 inline-flex items-center justify-center"
+                                  className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 ml-2 inline-flex items-center justify-center"
                                 >
                                   <PencilIcon className="h-5 w-5" />
                                 </button>
@@ -829,7 +829,7 @@ const CategoryItemsList: React.FC = () => {
                                           logger.debug("Opening link:", linkUrl);
                                           openExternalLink(linkUrl);
                                         }}
-                                        className="text-pokemon-blue hover:text-blue-900 hover:underline flex items-center cursor-pointer"
+                                        className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline flex items-center cursor-pointer"
                                       >
                                         {displayValue}
                                         <LinkIcon className="h-4 w-4 ml-1" />
@@ -852,7 +852,7 @@ const CategoryItemsList: React.FC = () => {
                                           logger.debug("Opening direct link:", linkUrl);
                                           openExternalLink(linkUrl);
                                         }}
-                                        className="text-pokemon-blue hover:text-blue-900 hover:underline flex items-center cursor-pointer"
+                                        className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline flex items-center cursor-pointer"
                                       >
                                         {displayValue}
                                         <LinkIcon className="h-4 w-4 ml-1" />
@@ -1467,7 +1467,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                       onClick={() => {
                                         openLinkDialog('product');
                                       }}
-                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-blue-50 hover:text-blue-900"
+                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-blue-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
                                     >
                                       <LinkIcon className="h-4 w-4 mr-2" />
                                       <span>Link bearbeiten</span>
@@ -1480,7 +1480,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                   onClick={() => {
                                     openLinkDialog('product');
                                   }}
-                                  className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-gray-50 dark:bg-gray-700 hover:text-blue-900"
+                                  className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-gray-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
                                 >
                                   <LinkIcon className="h-4 w-4 mr-2" />
                                   <span>Link hinzufügen</span>
@@ -1510,7 +1510,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                           />
                         )}
                         
@@ -1523,7 +1523,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             required={attr.required}
                             step={attr.id === 'quantity' ? "1" : "0.01"}
                             min={attr.id === 'quantity' ? "0" : undefined}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                             onFocus={(e) => e.target.select()}
                             placeholder={attr.id.includes('price') || attr.id.includes('Value') ? "0.00 €" : "0"}
                           />
@@ -1549,7 +1549,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                           />
                         )}
                         
@@ -1617,7 +1617,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                   <input
                     type="url"
                     id="linkUrl"
-                    className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
+                    className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     value={linkInputValue}
                     onChange={(e) => setLinkInputValue(e.target.value)}
                     placeholder="https://www.cardmarket.com/..."

@@ -299,7 +299,7 @@ const ImportExport: React.FC = () => {
       {/* Export Tab */}
       {activeTab === 'export' && (
         <div>
-          <div className="mb-6 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-100">
+          <div className="mb-6 p-3 sm:p-4 bg-blue-50 dark:bg-gray-800 rounded-lg border border-blue-100 dark:border-gray-700">
             <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Daten exportieren</h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
               Exportiere deine Sammlung in verschiedenen Formaten.
@@ -340,7 +340,7 @@ const ImportExport: React.FC = () => {
               </div>
             </div>
             
-            <div className="mt-6 border-t border-blue-100 pt-5">
+            <div className="mt-6 border-t border-blue-100 dark:border-gray-700 pt-5">
               <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Kategorie-Export</h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                 Excel enthält keine Bilder — Tabellen-Tools verkraften keine
@@ -369,7 +369,7 @@ const ImportExport: React.FC = () => {
               </div>
             </div>
             
-            <div className="mt-6 border-t border-blue-100 pt-5">
+            <div className="mt-6 border-t border-blue-100 dark:border-gray-700 pt-5">
               <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Vorlagen herunterladen</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-2">
                 {categories.map((category) => (
@@ -396,7 +396,7 @@ const ImportExport: React.FC = () => {
       {/* Import Tab */}
       {activeTab === 'import' && (
         <div>
-          <div className="mb-6 p-3 sm:p-4 bg-yellow-50 rounded-lg border border-yellow-100">
+          <div className="mb-6 p-3 sm:p-4 bg-yellow-50 dark:bg-gray-800 rounded-lg border border-yellow-100 dark:border-gray-700">
             <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Daten importieren</h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
               Stelle deine Sammlung aus einer vorherigen JSON-Sicherung wieder her.
@@ -434,14 +434,14 @@ const ImportExport: React.FC = () => {
           </div>
           
           {importError && (
-            <div className="fixed bottom-4 right-4 flex items-center bg-red-100 text-red-700 px-4 py-3 rounded-lg shadow-lg max-w-md">
+            <div className="fixed bottom-4 right-4 flex items-center bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg shadow-lg max-w-md">
               <ExclamationCircleIcon className="h-5 w-5 mr-2" />
               <span>{importError}</span>
             </div>
           )}
           
           {importSuccess && (
-            <div className="fixed bottom-4 right-4 flex items-center bg-green-100 text-green-700 px-4 py-3 rounded-lg shadow-lg max-w-md">
+            <div className="fixed bottom-4 right-4 flex items-center bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg shadow-lg max-w-md">
               <CheckCircleIcon className="h-5 w-5 mr-2" />
               <span>{importSuccess}</span>
             </div>
