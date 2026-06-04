@@ -388,12 +388,12 @@ const CategoryItemsList: React.FC = () => {
   return (
     <div className="space-y-6">
       {!category ? (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md p-6">
+        <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md p-6">
           <div className="text-center">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
               Kategorie nicht gefunden
             </h3>
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               Die ausgewählte Kategorie existiert nicht oder wird gerade geladen.
             </p>
             <div className="mt-4">
@@ -410,9 +410,9 @@ const CategoryItemsList: React.FC = () => {
       ) : (
         <>
           {/* Header mit Titel und Aktionen */}
-          <div className="bg-white shadow">
+          <div className="bg-white dark:bg-gray-800 shadow">
             <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-              <h1 className="text-lg leading-6 font-medium text-gray-900">
+              <h1 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
                 {category.name}
               </h1>
               <div className="flex space-x-2 mt-4 sm:mt-0">
@@ -440,13 +440,13 @@ const CategoryItemsList: React.FC = () => {
           <div className="mt-6 flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-4">
             <div className="relative flex-grow">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
               </div>
               <input
                 type="text"
                 name="search"
                 id="search"
-                className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm border-gray-300 rounded-md h-10"
+                className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm border-gray-300 dark:border-gray-700 rounded-md h-10"
                 placeholder="Suche..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -455,10 +455,10 @@ const CategoryItemsList: React.FC = () => {
             
             {filterableAttributes.length > 0 && (
               <div className="flex items-center space-x-2 sm:min-w-[200px]">
-                <FunnelIcon className="h-5 w-5 text-gray-400 flex-shrink-0" aria-hidden="true" />
+                <FunnelIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" aria-hidden="true" />
                 <select
                   id="filter-attribute"
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
                   value={selectedFilter}
                   onChange={(e) => {
                     setSelectedFilter(e.target.value);
@@ -476,7 +476,7 @@ const CategoryItemsList: React.FC = () => {
                 {selectedFilter && (
                   <select
                     id="filter-value"
-                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                     value={filterValue}
                     onChange={(e) => setFilterValue(e.target.value)}
                   >
@@ -496,11 +496,11 @@ const CategoryItemsList: React.FC = () => {
                 Teilt sich State mit den Spalten-Headern (sortBy/sortDirection). */}
             {visibleAttributes.length > 0 && (
               <div className="flex items-center space-x-2 sm:min-w-[200px]">
-                <ArrowsUpDownIcon className="h-5 w-5 text-gray-400 flex-shrink-0" aria-hidden="true" />
+                <ArrowsUpDownIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" aria-hidden="true" />
                 <select
                   id="sort-attribute"
                   aria-label="Sortieren nach"
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                 >
@@ -515,7 +515,7 @@ const CategoryItemsList: React.FC = () => {
                   onClick={() => setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))}
                   title={sortDirection === 'asc' ? 'Aufsteigend' : 'Absteigend'}
                   aria-label={`Sortierrichtung: ${sortDirection === 'asc' ? 'aufsteigend' : 'absteigend'}`}
-                  className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md border-2 border-gray-300 bg-gray-50 text-gray-600 hover:text-pokemon-blue focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue"
+                  className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md border-2 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-pokemon-blue focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue"
                 >
                   {sortDirection === 'asc' ? (
                     <BarsArrowUpIcon className="h-5 w-5" aria-hidden="true" />
@@ -531,12 +531,12 @@ const CategoryItemsList: React.FC = () => {
           <div className="md:hidden mt-6">
             {filteredAndSortedItems.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">Keine Einträge gefunden.</p>
-                <p className="text-gray-400 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
+                <p className="text-gray-500 dark:text-gray-400 text-lg">Keine Einträge gefunden.</p>
+                <p className="text-gray-400 dark:text-gray-500 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
               </div>
             ) : (
-              <div className="bg-white shadow overflow-hidden rounded-md">
-                <ul className="divide-y divide-gray-200">
+              <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-md">
+                <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                   {!isDesktop && filteredAndSortedItems.map((item) => {
                     // Berechnete Werte
                     const calculatedValues = calculateItemValue(item);
@@ -562,7 +562,7 @@ const CategoryItemsList: React.FC = () => {
                         ref={(el) => {
                           if (item.id === highlightedItemId) highlightRef.current = el;
                         }}
-                        className={`px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors duration-500 ${
+                        className={`px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-500 ${
                           item.id === highlightedItemId ? 'bg-yellow-100' : ''
                         }`}
                         onClick={() => handleEditItem(item)}
@@ -573,17 +573,17 @@ const CategoryItemsList: React.FC = () => {
                               <img 
                                 src={mainImage} 
                                 alt={name}
-                                className="h-12 w-12 object-contain rounded-md mr-3 border border-gray-200"
+                                className="h-12 w-12 object-contain rounded-md mr-3 border border-gray-200 dark:border-gray-700"
                               />
                             ) : (
-                              <div className="h-12 w-12 flex items-center justify-center bg-gray-100 rounded-md mr-3 border border-gray-200">
-                                <PhotoIcon className="h-6 w-6 text-gray-400" />
+                              <div className="h-12 w-12 flex items-center justify-center bg-gray-100 dark:bg-gray-900 rounded-md mr-3 border border-gray-200 dark:border-gray-700">
+                                <PhotoIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
                               </div>
                             )}
                             <div>
-                              <h3 className="text-sm font-medium text-gray-900 truncate">{name}</h3>
+                              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{name}</h3>
                               {value && (
-                                <p className="mt-1 text-xs text-gray-500 truncate">
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
                                   Wert: {value}
                                 </p>
                               )}
@@ -618,14 +618,14 @@ const CategoryItemsList: React.FC = () => {
                               }
                               
                               // Gewinn/Verlust farblich hervorheben
-                              let valueClass = 'text-gray-900';
+                              let valueClass = 'text-gray-900 dark:text-gray-100';
                               if (attr.id === 'profitLoss') {
                                 valueClass = attrValue >= 0 ? 'text-green-600' : 'text-red-600';
                               }
                               
                               return (
                                 <div key={attr.id} className="flex flex-col">
-                                  <span className="text-xs text-gray-500">{attr.name}</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">{attr.name}</span>
                                   <span className={`text-xs ${valueClass} truncate`}>{displayValue}</span>
                                 </div>
                               );
@@ -633,7 +633,7 @@ const CategoryItemsList: React.FC = () => {
                           </div>
                         </div>
                         
-                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                        <ChevronRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                       </li>
                     );
                   })}
@@ -646,9 +646,9 @@ const CategoryItemsList: React.FC = () => {
           <div className="hidden md:flex md:flex-col mt-6">
             <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                <div className="shadow overflow-hidden border-b border-gray-200 dark:border-gray-700 sm:rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
                       <tr>
                         {/* Checkbox für "Alle auswählen" */}
                         <th scope="col" className="relative px-6 py-3 w-12">
@@ -668,7 +668,7 @@ const CategoryItemsList: React.FC = () => {
                           <th
                             key={attr.id}
                             scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort(attr.id)}
                           >
                             <div className="flex items-center space-x-1">
@@ -686,7 +686,7 @@ const CategoryItemsList: React.FC = () => {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {isDesktop && filteredAndSortedItems.map((item) => {
                         // Berechnete Werte
                         const calculatedValues = calculateItemValue(item);
@@ -749,7 +749,7 @@ const CategoryItemsList: React.FC = () => {
                                 ) : (
                                   <button
                                     onClick={() => handleEditItem(item)}
-                                    className="text-gray-400 hover:text-gray-600 inline-flex items-center justify-center"
+                                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 inline-flex items-center justify-center"
                                   >
                                     <CameraIcon className="h-5 w-5" />
                                   </button>
@@ -807,9 +807,9 @@ const CategoryItemsList: React.FC = () => {
                               
                               // Für Name-Attribut fett anzeigen
                               if (attr.id === 'name') {
-                                cellClasses += ' font-medium text-gray-900';
+                                cellClasses += ' font-medium text-gray-900 dark:text-gray-100';
                               } else {
-                                cellClasses += ' text-gray-500';
+                                cellClasses += ' text-gray-500 dark:text-gray-400';
                               }
                               
                               // Gewinn/Verlust farblich hervorheben
@@ -882,7 +882,7 @@ const CategoryItemsList: React.FC = () => {
                       
                       {/* Summenzeile für numerische Spalten */}
                       {filteredAndSortedItems.length > 0 && (
-                        <tr className="bg-gray-50 font-medium">
+                        <tr className="bg-gray-50 dark:bg-gray-700 font-medium">
                           {/* Leere Zelle für die Checkbox-Spalte */}
                           <td className="px-6 py-4 whitespace-nowrap"></td>
                           {/* Leere Zelle für die Bild- und Edit-Spalte */}
@@ -892,7 +892,7 @@ const CategoryItemsList: React.FC = () => {
                             // Für die erste Spalte "Summe" anzeigen
                             if (index === 0) {
                               return (
-                                <td key={attr.id} className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                                <td key={attr.id} className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-gray-100">
                                   Summe
                                 </td>
                               );
@@ -906,7 +906,7 @@ const CategoryItemsList: React.FC = () => {
                               if (attr.id === 'profitLoss') {
                                 cellClasses += sums[attr.id] >= 0 ? ' text-green-600' : ' text-red-600';
                               } else {
-                                cellClasses += ' text-gray-900';
+                                cellClasses += ' text-gray-900 dark:text-gray-100';
                               }
                               
                               return (
@@ -937,8 +937,8 @@ const CategoryItemsList: React.FC = () => {
           {/* Keine Daten Hinweis für Desktop-Ansicht */}
           {filteredAndSortedItems.length === 0 && (
             <div className="hidden md:block text-center py-12">
-              <p className="text-gray-500 text-lg">Keine Einträge gefunden.</p>
-              <p className="text-gray-400 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
+              <p className="text-gray-500 dark:text-gray-400 text-lg">Keine Einträge gefunden.</p>
+              <p className="text-gray-400 dark:text-gray-500 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
             </div>
           )}
           
@@ -947,7 +947,7 @@ const CategoryItemsList: React.FC = () => {
             <div className="fixed z-20 inset-0 overflow-y-auto" onClick={() => setShowImagePopup(false)}>
               <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowImagePopup(false)}></div>
-                <div className="relative bg-white rounded-lg overflow-hidden shadow-xl max-w-lg w-full">
+                <div className="relative bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl max-w-lg w-full">
                   <img 
                     src={currentImage} 
                     alt="Pokémon Karte" 
@@ -962,7 +962,7 @@ const CategoryItemsList: React.FC = () => {
           {/* Hover-Bild */}
           {hoverImage && hoverPosition && (
             <div 
-              className="fixed z-30 bg-white rounded-lg overflow-hidden shadow-xl"
+              className="fixed z-30 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl"
               style={{
                 left: `${hoverPosition.x + 20}px`,
                 top: `${hoverPosition.y - 100}px`,
@@ -1391,13 +1391,13 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
 
         <div 
           ref={modalRef} 
-          className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+          className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
         >
           <form onSubmit={handleSubmit}>
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="sm:flex sm:items-start">
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
                     {item ? 'Eintrag bearbeiten' : 'Neuer Eintrag'}
                   </h3>
                   
@@ -1405,15 +1405,15 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                   {item && (
                     <div className="mt-4 border-b pb-4">
                       <div className="flex justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700">Medien und Links</h4>
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">Medien und Links</h4>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Bild-Upload */}
                         <div>
-                          <h5 className="text-xs font-medium text-gray-600 mb-2">Bild hinzufügen</h5>
+                          <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">Bild hinzufügen</h5>
                           <div className="flex items-start space-x-4">
                             {/* Vorschau */}
-                            <div className="w-24 h-24 border rounded-md overflow-hidden flex items-center justify-center bg-gray-100">
+                            <div className="w-24 h-24 border rounded-md overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-900">
                               {newImages['image'] ? (
                                 <img 
                                   src={newImages['image']} 
@@ -1427,7 +1427,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                   className="max-w-full max-h-full object-contain"
                                 />
                               ) : (
-                                <PhotoIcon className="h-10 w-10 text-gray-400" />
+                                <PhotoIcon className="h-10 w-10 text-gray-400 dark:text-gray-500" />
                               )}
                             </div>
                             
@@ -1440,7 +1440,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                 <CameraIcon className="-ml-0.5 mr-2 h-4 w-4" />
                                 Bild wählen
                               </button>
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                 JPG, PNG oder GIF, max. 5MB
                               </p>
                               <input 
@@ -1456,7 +1456,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
 
                         {/* Link Bereich */}
                         <div>
-                          <h5 className="text-xs font-medium text-gray-600 mb-2">Link zum Produkt</h5>
+                          <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">Link zum Produkt</h5>
                           <div className="mt-1">
                             <div className="flex flex-col space-y-2">
                               {itemLinks['product'] ? (
@@ -1480,7 +1480,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                   onClick={() => {
                                     openLinkDialog('product');
                                   }}
-                                  className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-gray-50 hover:text-blue-900"
+                                  className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-gray-50 dark:bg-gray-700 hover:text-blue-900"
                                 >
                                   <LinkIcon className="h-4 w-4 mr-2" />
                                   <span>Link hinzufügen</span>
@@ -1497,7 +1497,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                     {editableAttributes.map((attr) => (
                       <div key={attr.id}>
                         <div className="flex justify-between">
-                          <label htmlFor={attr.id} className="block text-sm font-medium text-gray-700">
+                          <label htmlFor={attr.id} className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                             {attr.name}
                             {attr.required && <span className="text-red-500 ml-1">*</span>}
                           </label>
@@ -1510,7 +1510,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                           />
                         )}
                         
@@ -1523,7 +1523,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             required={attr.required}
                             step={attr.id === 'quantity' ? "1" : "0.01"}
                             min={attr.id === 'quantity' ? "0" : undefined}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                             onFocus={(e) => e.target.select()}
                             placeholder={attr.id.includes('price') || attr.id.includes('Value') ? "0.00 €" : "0"}
                           />
@@ -1535,7 +1535,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] ? 'true' : 'false'}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                           >
                             <option value="true">Ja</option>
                             <option value="false">Nein</option>
@@ -1549,7 +1549,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                           />
                         )}
                         
@@ -1559,7 +1559,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                           >
                             <option value="">Bitte wählen</option>
                             {attr.options?.map((option) => (
@@ -1575,7 +1575,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
               <button
                 type="submit"
                 className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
@@ -1585,7 +1585,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
               <button
                 type="button"
                 onClick={onCancel}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
               >
                 Abbrechen
               </button>
@@ -1604,20 +1604,20 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
             
             <div 
               ref={linkDialogRef}
-              className="relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full"
+              className="relative bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full"
             >
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                   Link hinzufügen
                 </h3>
                 <div>
-                  <label htmlFor="linkUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="linkUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                     CardMarket URL
                   </label>
                   <input
                     type="url"
                     id="linkUrl"
-                    className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                    className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                     value={linkInputValue}
                     onChange={(e) => setLinkInputValue(e.target.value)}
                     placeholder="https://www.cardmarket.com/..."
@@ -1637,14 +1637,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                       }
                     }}
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {linkDialogDefaultValue 
                       ? 'Lassen Sie das Feld leer, um den Link zu entfernen' 
                       : 'Geben Sie die vollständige URL ein (mit https://)'}
                   </p>
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
                   className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
@@ -1654,7 +1654,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                 </button>
                 <button
                   type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                   onClick={cancelLinkDialog}
                 >
                   Abbrechen

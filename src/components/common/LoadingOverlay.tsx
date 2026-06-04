@@ -21,7 +21,7 @@ const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
          }}
     >
       <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-pokemon-blue"></div>
-      <p className="mt-4 text-lg font-medium text-gray-800 text-center max-w-[80%]">
+      <p className="mt-4 text-lg font-medium text-gray-800 dark:text-gray-100 text-center max-w-[80%]">
         {message}
       </p>
     </div>
