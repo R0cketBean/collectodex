@@ -268,16 +268,16 @@ const ImportExport: React.FC = () => {
   
   return (
     <div className="w-full px-4 py-6">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Import / Export</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Import / Export</h1>
 
       {/* Tabs für Übersichtlichkeit */}
-      <div className="border-b border-gray-200 mb-6">
+      <div className="border-b border-gray-200 dark:border-gray-700 mb-6">
         <nav className="-mb-px flex space-x-4 overflow-x-auto scrollbar-hide">
           <button
             className={`${
               activeTab === 'export'
                 ? 'border-pokemon-blue text-pokemon-blue'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
             } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
             onClick={() => setActiveTab('export')}
           >
@@ -287,7 +287,7 @@ const ImportExport: React.FC = () => {
             className={`${
               activeTab === 'import'
                 ? 'border-pokemon-blue text-pokemon-blue'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300 dark:hover:border-gray-600'
             } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm`}
             onClick={() => setActiveTab('import')}
           >
@@ -300,18 +300,18 @@ const ImportExport: React.FC = () => {
       {activeTab === 'export' && (
         <div>
           <div className="mb-6 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Daten exportieren</h2>
-            <p className="text-sm text-gray-600 mb-1">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Daten exportieren</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
               Exportiere deine Sammlung in verschiedenen Formaten.
             </p>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               <strong>Hinweis:</strong> Für vollständige Sicherungen mit Bildern nutze JSON-Export.
             </p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mt-4">
-              <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                 <h3 className="font-medium mb-2">JSON Export</h3>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                   Komplette Sicherung der Sammlung inklusive Bilder und Einstellungen.
                 </p>
                 <button
@@ -324,9 +324,9 @@ const ImportExport: React.FC = () => {
                 </button>
               </div>
               
-              <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                 <h3 className="font-medium mb-2">Excel Export (Komplett)</h3>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                   Export aller Kategorien und deren Einträge als Excel-Datei.
                 </p>
                 <button
@@ -341,17 +341,17 @@ const ImportExport: React.FC = () => {
             </div>
             
             <div className="mt-6 border-t border-blue-100 pt-5">
-              <h3 className="text-sm font-medium text-gray-900 mb-2">Kategorie-Export</h3>
-              <p className="text-xs text-gray-500 mb-3">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Kategorie-Export</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                 Excel enthält keine Bilder — Tabellen-Tools verkraften keine
                 Base64-Blobs. Für einen vollständigen Round-Trip mit Bildern
                 bitte den JSON-Export oben verwenden.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {categories.map((category) => (
-                  <div key={category.id} className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <div key={category.id} className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                     <h4 className="font-medium mb-2 text-sm">{category.name}</h4>
-                    <p className="text-xs text-gray-500 mb-3">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                       {getItemsByCategoryId(category.id).length} Einträge
                     </p>
                     <div className="flex flex-col space-y-2">
@@ -370,16 +370,16 @@ const ImportExport: React.FC = () => {
             </div>
             
             <div className="mt-6 border-t border-blue-100 pt-5">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">Vorlagen herunterladen</h3>
+              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Vorlagen herunterladen</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mt-2">
                 {categories.map((category) => (
-                  <div key={category.id} className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
+                  <div key={category.id} className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                     <h4 className="font-medium mb-2 text-sm">{category.name}</h4>
                     <div className="flex flex-col space-y-2">
                       <button
                         onClick={() => handleExcelTemplateDownload(category.id)}
                         disabled={isLoading}
-                        className="w-full flex justify-center items-center px-2 py-1.5 border border-gray-200 rounded-md shadow-sm text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
+                        className="w-full flex justify-center items-center px-2 py-1.5 border border-gray-200 dark:border-gray-700 rounded-md shadow-sm text-xs font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
                       >
                         <DocumentArrowDownIcon className="h-4 w-4 mr-1.5" />
                         Excel-Vorlage
@@ -397,18 +397,18 @@ const ImportExport: React.FC = () => {
       {activeTab === 'import' && (
         <div>
           <div className="mb-6 p-3 sm:p-4 bg-yellow-50 rounded-lg border border-yellow-100">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-2">Daten importieren</h2>
-            <p className="text-sm text-gray-600 mb-1">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Daten importieren</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
               Stelle deine Sammlung aus einer vorherigen JSON-Sicherung wieder her.
             </p>
-            <p className="text-xs text-gray-500 mb-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
               <strong>Hinweis:</strong> Ein Import überschreibt eventuell vorhandene Daten. Erstelle vorher eine Sicherung!
             </p>
 
             <div className="mt-4">
-              <div className="bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm">
+              <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
                 <h3 className="font-medium mb-2 text-sm">JSON Import (Vollständig)</h3>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                   Stellt eine komplette Sicherung inklusive Bilder und Links wieder her.
                 </p>
                 <div className="mt-2">

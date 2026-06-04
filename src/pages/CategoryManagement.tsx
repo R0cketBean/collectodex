@@ -57,17 +57,17 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
 
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
           <form onSubmit={handleSubmit}>
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="sm:flex sm:items-start">
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
                     {category ? 'Kategorie bearbeiten' : 'Neue Kategorie erstellen'}
                   </h3>
                   <div className="mt-2 space-y-4">
                     <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                         Name
                       </label>
                       <input
@@ -77,11 +77,11 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
                         value={formData.name}
                         onChange={handleChange}
                         required
-                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                       />
                     </div>
                     <div>
-                      <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                         Beschreibung
                       </label>
                       <textarea
@@ -90,11 +90,11 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
                         value={formData.description}
                         onChange={handleChange}
                         rows={3}
-                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                       ></textarea>
                     </div>
                     <div>
-                      <label htmlFor="icon" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="icon" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                         Icon
                       </label>
                       <div className="mt-1 flex items-center gap-3">
@@ -110,7 +110,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
                           id="icon"
                           value={formData.icon}
                           onChange={handleChange}
-                          className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                          className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                         >
                           {ICON_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -123,7 +123,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
 
                     {/* Farb-Auswahl (#63) */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                         Farbe
                       </label>
                       <div className="mt-1 flex flex-wrap gap-2">
@@ -150,7 +150,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
               <button
                 type="submit"
                 className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
@@ -160,7 +160,7 @@ const CategoryModal: React.FC<CategoryModalProps> = ({ category, defaultColor, o
               <button
                 type="button"
                 onClick={onCancel}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
               >
                 Abbrechen
               </button>
@@ -229,12 +229,12 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
 
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
           <form onSubmit={handleSubmit}>
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="sm:flex sm:items-start">
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
                     {attribute ? 'Attribut bearbeiten' : 'Neues Attribut erstellen'}
                   </h3>
                   
@@ -246,7 +246,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                   
                   <div className="mt-2 space-y-4">
                     <div>
-                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                         Name
                       </label>
                       <input
@@ -257,12 +257,12 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                         onChange={handleChange}
                         required
                         disabled={isCore}
-                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                        className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                       />
                     </div>
                     
                     <div>
-                      <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+                      <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                         Datentyp
                       </label>
                       <select
@@ -271,7 +271,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                         value={formData.type}
                         onChange={handleChange}
                         disabled={isCore}
-                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                       >
                         <option value="text">Text</option>
                         <option value="number">Zahl</option>
@@ -290,9 +290,9 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                         checked={formData.required}
                         onChange={handleChange}
                         disabled={isCore}
-                        className="h-4 w-4 text-pokemon-blue focus:ring-pokemon-blue border-gray-300 rounded"
+                        className="h-4 w-4 text-pokemon-blue focus:ring-pokemon-blue border-gray-300 dark:border-gray-700 rounded"
                       />
-                      <label htmlFor="required" className="ml-2 block text-sm text-gray-900">
+                      <label htmlFor="required" className="ml-2 block text-sm text-gray-900 dark:text-gray-100">
                         Pflichtfeld
                       </label>
                     </div>
@@ -304,16 +304,16 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                         id="isVisible"
                         checked={formData.isVisible}
                         onChange={handleChange}
-                        className="h-4 w-4 text-pokemon-blue focus:ring-pokemon-blue border-gray-300 rounded"
+                        className="h-4 w-4 text-pokemon-blue focus:ring-pokemon-blue border-gray-300 dark:border-gray-700 rounded"
                       />
-                      <label htmlFor="isVisible" className="ml-2 block text-sm text-gray-900">
+                      <label htmlFor="isVisible" className="ml-2 block text-sm text-gray-900 dark:text-gray-100">
                         In Listen und Übersichten anzeigen
                       </label>
                     </div>
                     
                     {formData.type === 'dropdown' && (
                       <div>
-                        <label htmlFor="options" className="block text-sm font-medium text-gray-700">
+                        <label htmlFor="options" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                           Auswahloptionen (eine pro Zeile)
                         </label>
                         <textarea
@@ -322,7 +322,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                           value={formData.options}
                           onChange={handleChange}
                           rows={4}
-                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                         ></textarea>
                         
                         {/* Hinweis für Grading Service */}
@@ -343,7 +343,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                     
                     {formData.type === 'formula' && (
                       <div>
-                        <label htmlFor="formula" className="block text-sm font-medium text-gray-700">
+                        <label htmlFor="formula" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                           Formel
                         </label>
                         <input
@@ -354,9 +354,9 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                           onChange={handleChange}
                           placeholder="z.B. quantity * currentValue"
                           disabled={isCore}
-                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                          className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 dark:border-gray-700 rounded-md"
                         />
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           Verwende Attributnamen als Variablen, z.B. quantity * price
                         </p>
                       </div>
@@ -365,7 +365,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
               <button
                 type="submit"
                 className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
@@ -375,7 +375,7 @@ const AttributeModal: React.FC<AttributeModalProps> = ({ attribute, onSave, onCa
               <button
                 type="button"
                 onClick={onCancel}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
               >
                 Abbrechen
               </button>
@@ -533,9 +533,9 @@ const CategoryManagement: React.FC = () => {
   
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow">
+      <div className="bg-white dark:bg-gray-800 shadow">
         <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-          <h1 className="text-lg leading-6 font-medium text-gray-900">
+          <h1 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
             Kategorien verwalten
           </h1>
           <div className="flex space-x-2">
@@ -546,7 +546,7 @@ const CategoryManagement: React.FC = () => {
                   resetToDefaults();
                 }
               }}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
             >
               Auf Standard zurücksetzen
             </button>
@@ -565,20 +565,20 @@ const CategoryManagement: React.FC = () => {
       <div className="md:grid md:grid-cols-6 md:gap-6">
         {/* Kategorie-Liste */}
         <div className="md:col-span-2">
-          <div className="bg-white shadow overflow-hidden sm:rounded-md">
-            <ul className="divide-y divide-gray-200">
+          <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md">
+            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {sortedCategories.map((category) => (
                 <li key={category.id} className="relative">
                   <div
                     onClick={() => setSelectedCategoryId(category.id)}
-                    className={`block hover:bg-gray-50 w-full text-left cursor-pointer ${selectedCategoryId === category.id ? 'bg-gray-50' : ''}`}
+                    className={`block hover:bg-gray-50 dark:hover:bg-gray-700 w-full text-left cursor-pointer ${selectedCategoryId === category.id ? 'bg-gray-50 dark:bg-gray-700' : ''}`}
                   >
                     <div className="px-4 py-4 sm:px-6 flex items-center">
                       <div className="min-w-0 flex-1">
-                        <p className={`truncate font-medium ${category.hidden ? 'text-gray-400' : ''}`}>
+                        <p className={`truncate font-medium ${category.hidden ? 'text-gray-400 dark:text-gray-500' : ''}`}>
                           {category.name}
                           {category.hidden && (
-                            <span className="ml-2 text-xs font-normal text-gray-400">(ausgeblendet)</span>
+                            <span className="ml-2 text-xs font-normal text-gray-400 dark:text-gray-500">(ausgeblendet)</span>
                           )}
                         </p>
                       </div>
@@ -589,12 +589,12 @@ const CategoryManagement: React.FC = () => {
                             updateCategory(category.id, { hidden: !category.hidden });
                           }}
                           title={category.hidden ? 'In der Navigation einblenden' : 'Aus der Navigation ausblenden'}
-                          className="p-1 rounded-full hover:bg-gray-200"
+                          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                         >
                           {category.hidden ? (
-                            <EyeSlashIcon className="h-4 w-4 text-gray-400" />
+                            <EyeSlashIcon className="h-4 w-4 text-gray-400 dark:text-gray-500" />
                           ) : (
-                            <EyeIcon className="h-4 w-4 text-gray-500" />
+                            <EyeIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                           )}
                         </button>
                         <button
@@ -602,27 +602,27 @@ const CategoryManagement: React.FC = () => {
                             e.stopPropagation();
                             handleMoveCategory(category.id, 'up');
                           }}
-                          className="p-1 rounded-full hover:bg-gray-200"
+                          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                         >
-                          <ArrowUpIcon className="h-4 w-4 text-gray-500" />
+                          <ArrowUpIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleMoveCategory(category.id, 'down');
                           }}
-                          className="p-1 rounded-full hover:bg-gray-200"
+                          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                         >
-                          <ArrowDownIcon className="h-4 w-4 text-gray-500" />
+                          <ArrowDownIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleAddEditCategory(category);
                           }}
-                          className="p-1 rounded-full hover:bg-gray-200"
+                          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                         >
-                          <PencilIcon className="h-4 w-4 text-gray-500" />
+                          <PencilIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                         </button>
                         <button
                           onClick={(e) => {
@@ -636,9 +636,9 @@ const CategoryManagement: React.FC = () => {
                               }
                             }
                           }}
-                          className="p-1 rounded-full hover:bg-gray-200"
+                          className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                         >
-                          <TrashIcon className="h-4 w-4 text-gray-500" />
+                          <TrashIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                         </button>
                       </div>
                     </div>
@@ -647,7 +647,7 @@ const CategoryManagement: React.FC = () => {
               ))}
               
               {categories.length === 0 && (
-                <li className="px-4 py-6 text-center text-gray-500">
+                <li className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                   Keine Kategorien vorhanden. Klicke auf "Neue Kategorie", um eine zu erstellen.
                 </li>
               )}
@@ -658,9 +658,9 @@ const CategoryManagement: React.FC = () => {
         {/* Attribut-Liste */}
         <div className="mt-5 md:mt-0 md:col-span-4">
           {selectedCategory ? (
-            <div className="bg-white shadow sm:rounded-md">
+            <div className="bg-white dark:bg-gray-800 shadow sm:rounded-md">
               <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-                <h2 className="text-lg leading-6 font-medium text-gray-900">
+                <h2 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
                   Attribute für: {selectedCategory.name}
                 </h2>
                 <button
@@ -672,20 +672,20 @@ const CategoryManagement: React.FC = () => {
                   Neues Attribut
                 </button>
               </div>
-              <div className="border-t border-gray-200">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+              <div className="border-t border-gray-200 dark:border-gray-700">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Name
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Typ
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Pflicht
                       </th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Sichtbar
                       </th>
                       <th scope="col" className="relative px-6 py-3">
@@ -693,10 +693,10 @@ const CategoryManagement: React.FC = () => {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {sortedAttributes.map((attribute) => (
                       <tr key={attribute.id}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
                           {attribute.name}
                           {attribute.isCore && (
                             <span className="ml-2 px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
@@ -704,13 +704,13 @@ const CategoryManagement: React.FC = () => {
                             </span>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {getAttributeTypeName(attribute.type)}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {attribute.required ? 'Ja' : 'Nein'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {attribute.isVisible !== false ? 'Ja' : 'Nein'}
                         </td>
                         <td className="px-6 py-4 text-right text-sm font-medium">
@@ -720,27 +720,27 @@ const CategoryManagement: React.FC = () => {
                                 e.preventDefault();
                                 handleMoveAttribute(attribute.id, 'up');
                               }}
-                              className="p-1 rounded-full hover:bg-gray-200"
+                              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                             >
-                              <ArrowUpIcon className="h-4 w-4 text-gray-500" />
+                              <ArrowUpIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                             </button>
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
                                 handleMoveAttribute(attribute.id, 'down');
                               }}
-                              className="p-1 rounded-full hover:bg-gray-200"
+                              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                             >
-                              <ArrowDownIcon className="h-4 w-4 text-gray-500" />
+                              <ArrowDownIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                             </button>
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
                                 handleAddEditAttribute(attribute);
                               }}
-                              className="p-1 rounded-full hover:bg-gray-200"
+                              className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                             >
-                              <PencilIcon className="h-4 w-4 text-gray-500" />
+                              <PencilIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                             </button>
                             {!attribute.isCore && (
                               <button
@@ -748,9 +748,9 @@ const CategoryManagement: React.FC = () => {
                                   e.preventDefault();
                                   handleDeleteAttribute(attribute.id);
                                 }}
-                                className="p-1 rounded-full hover:bg-gray-200"
+                                className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"
                               >
-                                <TrashIcon className="h-4 w-4 text-gray-500" />
+                                <TrashIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                               </button>
                             )}
                           </div>
@@ -760,7 +760,7 @@ const CategoryManagement: React.FC = () => {
                     
                     {sortedAttributes.length === 0 && (
                       <tr>
-                        <td colSpan={5} className="px-6 py-6 text-center text-gray-500">
+                        <td colSpan={5} className="px-6 py-6 text-center text-gray-500 dark:text-gray-400">
                           Keine Attribute vorhanden. Klicke auf "Neues Attribut", um eines zu erstellen.
                         </td>
                       </tr>
@@ -770,7 +770,7 @@ const CategoryManagement: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="bg-white shadow sm:rounded-md p-6 text-center text-gray-500">
+            <div className="bg-white dark:bg-gray-800 shadow sm:rounded-md p-6 text-center text-gray-500 dark:text-gray-400">
               Bitte wähle eine Kategorie aus, um deren Attribute zu bearbeiten oder erstelle eine neue Kategorie.
             </div>
           )}

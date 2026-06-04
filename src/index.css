@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Dark Mode (#93): globale Basis, damit auch noch nicht einzeln konvertierte
+   Flächen einen dunklen Grund haben statt weiß aufzublitzen. */
+html.dark body {
+  background-color: #111827; /* gray-900 */
+  color: #e5e7eb; /* gray-200 */
+}

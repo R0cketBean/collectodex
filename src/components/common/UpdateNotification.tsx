@@ -66,19 +66,19 @@ const UpdateNotification: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white shadow-lg">
+    <div className="fixed bottom-4 right-4 z-50 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg">
       <div className="p-4">
         {status === 'available' && (
           <>
-            <p className="text-sm font-semibold text-gray-800">Update verfügbar</p>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Update verfügbar</p>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
               {version ? `Version ${version} steht bereit.` : 'Eine neue Version steht bereit.'}
             </p>
             <div className="mt-3 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
               >
                 Später
               </button>
@@ -95,21 +95,21 @@ const UpdateNotification: React.FC = () => {
 
         {status === 'downloading' && (
           <>
-            <p className="text-sm font-semibold text-gray-800">Update wird geladen…</p>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Update wird geladen…</p>
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
               <div
                 className="h-full bg-pokemon-blue transition-all duration-200"
                 style={{ width: `${percent}%` }}
               />
             </div>
-            <p className="mt-1 text-right text-xs text-gray-500">{percent}%</p>
+            <p className="mt-1 text-right text-xs text-gray-500 dark:text-gray-400">{percent}%</p>
           </>
         )}
 
         {status === 'downloaded' && (
           <>
-            <p className="text-sm font-semibold text-gray-800">Update bereit</p>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Update bereit</p>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
               {version ? `Version ${version} wurde geladen.` : 'Das Update wurde geladen.'} Zum
               Anwenden die App neu starten.
             </p>
@@ -117,7 +117,7 @@ const UpdateNotification: React.FC = () => {
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
               >
                 Später
               </button>
@@ -135,14 +135,14 @@ const UpdateNotification: React.FC = () => {
         {status === 'error' && (
           <>
             <p className="text-sm font-semibold text-red-600">Update fehlgeschlagen</p>
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
               {errorMessage || 'Beim Prüfen/Laden des Updates ist ein Fehler aufgetreten.'}
             </p>
             <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800"
+                className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-gray-100"
               >
                 Schließen
               </button>

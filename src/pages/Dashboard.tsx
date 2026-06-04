@@ -27,7 +27,7 @@ const ValueHistoryChart = lazy(() =>
 );
 
 const ChartFallback: React.FC = () => (
-  <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+  <div className="flex items-center justify-center h-full text-gray-400 dark:text-gray-500 text-sm">
     Diagramm wird geladen…
   </div>
 );
@@ -109,20 +109,20 @@ const Dashboard: React.FC = () => {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Dashboard</h1>
       
       {/* Kennzahlen-Karten */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {/* Gesamtwert */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-green-500 rounded-md p-3">
                 {renderIcon('currency')}
               </div>
               <div className="ml-4 min-w-0 flex-1">
-                <h3 className="text-base font-medium text-gray-900 truncate">Gesamtwert</h3>
-                <p className="mt-1 text-lg sm:text-xl font-semibold text-gray-900">
+                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 truncate">Gesamtwert</h3>
+                <p className="mt-1 text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
                   <span className="whitespace-nowrap">{summary.totalValue.toFixed(2)}€</span>
                 </p>
               </div>
@@ -131,18 +131,18 @@ const Dashboard: React.FC = () => {
         </div>
         
         {/* Gewinn/Verlust */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-blue-500 rounded-md p-3">
                 {renderIcon('trending')}
               </div>
               <div className="ml-4 min-w-0 flex-1">
-                <h3 className="text-base font-medium text-gray-900 truncate">Gewinn/Verlust</h3>
+                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 truncate">Gewinn/Verlust</h3>
                 <p className={`mt-1 text-lg sm:text-xl font-semibold ${summary.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {summary.profitLoss >= 0 ? '+' : ''}{summary.profitLoss.toFixed(2)}€
                   {summary.totalCost > 0 && (
-                    <span className="block text-xs sm:text-sm font-normal text-gray-500">
+                    <span className="block text-xs sm:text-sm font-normal text-gray-500 dark:text-gray-400">
                       ({Math.round((summary.profitLoss / summary.totalCost) * 100)}%)
                     </span>
                   )}
@@ -153,15 +153,15 @@ const Dashboard: React.FC = () => {
         </div>
         
         {/* Anzahl Items */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-yellow-500 rounded-md p-3">
                 {renderIcon('items')}
               </div>
               <div className="ml-4 min-w-0 flex-1">
-                <h3 className="text-base font-medium text-gray-900 truncate">Anzahl Items</h3>
-                <p className="mt-1 text-lg sm:text-xl font-semibold text-gray-900">
+                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 truncate">Anzahl Items</h3>
+                <p className="mt-1 text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
                   {summary.totalItems}
                 </p>
               </div>
@@ -173,52 +173,52 @@ const Dashboard: React.FC = () => {
       {/* Diagramme */}
       <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Verteilung des Werts */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
-          <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 text-center sm:text-left">Verteilung des Sammlungswerts</h2>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
+          <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 text-center sm:text-left">Verteilung des Sammlungswerts</h2>
           <div className="h-56 sm:h-64 px-0 sm:px-4">
             <Suspense fallback={<ChartFallback />}>
               <ValueDistributionChart pieData={pieData} colors={COLORS} />
             </Suspense>
           </div>
           {pieData.length === 0 && (
-            <div className="text-center mt-4 text-gray-500">
+            <div className="text-center mt-4 text-gray-500 dark:text-gray-400">
               Keine Daten verfügbar. Füge Einträge hinzu, um die Verteilung zu sehen.
             </div>
           )}
         </div>
         
         {/* Wertentwicklung */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 sm:mb-4">
-            <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-2 sm:mb-0 text-center sm:text-left">Wertentwicklung</h2>
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2 sm:mb-0 text-center sm:text-left">Wertentwicklung</h2>
             <div className="flex justify-center sm:justify-end flex-wrap gap-1 sm:gap-2">
               <button
                 onClick={() => setTimeRange('month')}
-                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'month' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 text-gray-700'}`}
+                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'month' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
               >
                 1M
               </button>
               <button
                 onClick={() => setTimeRange('quarter')}
-                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'quarter' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 text-gray-700'}`}
+                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'quarter' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
               >
                 3M
               </button>
               <button
                 onClick={() => setTimeRange('halfyear')}
-                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'halfyear' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 text-gray-700'}`}
+                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'halfyear' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
               >
                 6M
               </button>
               <button
                 onClick={() => setTimeRange('year')}
-                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'year' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 text-gray-700'}`}
+                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'year' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
               >
                 1J
               </button>
               <button
                 onClick={() => setTimeRange('all')}
-                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'all' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 text-gray-700'}`}
+                className={`px-2 py-1 text-xs sm:text-sm rounded-md ${timeRange === 'all' ? 'bg-pokemon-blue text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
               >
                 Alle
               </button>
@@ -230,7 +230,7 @@ const Dashboard: React.FC = () => {
             </Suspense>
           </div>
           {historyTooSparse && (
-            <div className="text-center mt-4 text-sm text-gray-500">
+            <div className="text-center mt-4 text-sm text-gray-500 dark:text-gray-400">
               Die Wert-Historie wird ab jetzt täglich aufgebaut – die Kurve
               füllt sich mit der Zeit.
             </div>
@@ -240,14 +240,14 @@ const Dashboard: React.FC = () => {
       
       {/* Top-Performer */}
       <div className="mt-8">
-        <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 text-center sm:text-left">Top-Performer</h2>
-        <div className="bg-white shadow overflow-hidden rounded-lg">
+        <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 text-center sm:text-left">Top-Performer</h2>
+        <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-lg">
           {items.length === 0 ? (
             <div className="text-center py-6 px-4">
-              <p className="text-gray-500">Keine Einträge verfügbar. Füge Einträge hinzu, um Top-Performer zu sehen.</p>
+              <p className="text-gray-500 dark:text-gray-400">Keine Einträge verfügbar. Füge Einträge hinzu, um Top-Performer zu sehen.</p>
             </div>
           ) : (
-            <ul className="divide-y divide-gray-200">
+            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {items
                 .filter(item => {
                   // Berechne den profitLoss-Wert für das Item
@@ -280,7 +280,7 @@ const Dashboard: React.FC = () => {
                     <li key={item.id}>
                       <Link 
                         to={`/category/${item.categoryId}?highlight=${item.id}`} 
-                        className="block hover:bg-gray-50"
+                        className="block hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
                         <div className="px-4 py-4 sm:px-6 flex items-center">
                           <div className={`flex-shrink-0 h-10 w-10 rounded-full ${colorClass} flex items-center justify-center`}>
@@ -288,14 +288,14 @@ const Dashboard: React.FC = () => {
                           </div>
                           <div className="ml-4 flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <p className="text-sm font-medium text-gray-900 truncate">
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                 {itemName}
                               </p>
                               <p className="ml-2 text-sm font-medium text-green-600 whitespace-nowrap">
                                 +{profitLoss.toFixed(2)}€
                               </p>
                             </div>
-                            <p className="text-sm text-gray-500 truncate">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                               {category?.name || 'Unbekannte Kategorie'}
                             </p>
                           </div>
@@ -311,7 +311,7 @@ const Dashboard: React.FC = () => {
       
       {/* Kategorien-Schnellzugriff */}
       <div className="mt-8">
-        <h2 className="text-base sm:text-lg font-medium text-gray-900 mb-3 sm:mb-4 text-center sm:text-left">Kategorien</h2>
+        <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 text-center sm:text-left">Kategorien</h2>
         <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {sortedCategories.map((category) => {
             const categorySummary = summary.categorySummaries[category.id] || {
@@ -329,7 +329,7 @@ const Dashboard: React.FC = () => {
               <Link 
                 key={category.id}
                 to={`/category/${category.id}`} 
-                className="bg-white overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-300"
+                className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg hover:shadow-lg transition-shadow duration-300"
               >
                 <div className="px-4 py-4 sm:p-6">
                   <div className="flex items-center">
@@ -337,8 +337,8 @@ const Dashboard: React.FC = () => {
                       {renderIcon(category.icon)}
                     </div>
                     <div className="ml-3 sm:ml-5 w-0 flex-1">
-                      <h3 className="text-sm sm:text-base font-medium text-gray-900 truncate">{category.name}</h3>
-                      <p className="mt-1 text-xs sm:text-sm text-gray-500 truncate">
+                      <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 truncate">{category.name}</h3>
+                      <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
                         {categorySummary.value.toFixed(2)}€ ({categorySummary.count} Einträge)
                       </p>
                     </div>
@@ -352,10 +352,10 @@ const Dashboard: React.FC = () => {
       
       {/* Hinweis, wenn keine Kategorien vorhanden sind */}
       {categories.length === 0 && (
-        <div className="text-center py-12 bg-white shadow rounded-lg mt-8">
-          <ArchiveBoxOutlineIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-lg font-medium text-gray-900">Keine Kategorien vorhanden</h3>
-          <p className="mt-1 text-sm text-gray-500">
+        <div className="text-center py-12 bg-white dark:bg-gray-800 shadow rounded-lg mt-8">
+          <ArchiveBoxOutlineIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">Keine Kategorien vorhanden</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Beginne damit, Kategorien für deine Sammlung anzulegen.
           </p>
           <div className="mt-6">
