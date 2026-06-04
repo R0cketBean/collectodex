@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
-    HomeIcon, 
+    HomeIcon,
     CogIcon,
+    Cog6ToothIcon,
     DocumentArrowDownIcon,
     Bars3Icon,
     XMarkIcon,
@@ -14,7 +15,7 @@ import {
     DocumentIcon,
     ChevronUpIcon
 } from '@heroicons/react/24/outline';
-import { useCollection } from '../../context/CollectionContext';
+import { useCategoriesData } from '../../context/CollectionContext';
 
 // Map von Icon-Namen zu Icon-Komponenten
 const iconMap: Record<string, React.ElementType> = {
@@ -34,16 +35,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
-  const { categories } = useCollection();
+  // Nur den Categories-Slice abonnieren (#18): Layout re-rendert dadurch nicht
+  // mehr bei Item-/Snapshot-Änderungen, sondern nur bei Kategorie-Änderungen.
+  const categories = useCategoriesData();
   
-  // Sortiere Kategorien nach Reihenfolge
-  const sortedCategories = [...categories].sort((a, b) => a.order - b.order);
+  // Sortiere Kategorien nach Reihenfolge; ausgeblendete (#66) erscheinen
+  // nicht in der Navigation (ihre Werte zählen im Dashboard weiterhin).
+  const sortedCategories = [...categories]
+    .filter(category => !category.hidden)
+    .sort((a, b) => a.order - b.order);
 
   // Statische Navigationselemente
   const staticNavigation = [
     { name: 'Dashboard', href: '/', icon: HomeIcon },
     { name: 'Kategorien verwalten', href: '/category-management', icon: CogIcon },
     { name: 'Import/Export', href: '/import-export', icon: DocumentArrowDownIcon },
+    { name: 'Einstellungen', href: '/settings', icon: Cog6ToothIcon },
   ];
 
   const toggleSidebar = () => {
@@ -61,7 +68,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="h-screen flex overflow-hidden bg-gray-100">
+    <div className="h-screen flex overflow-hidden bg-gray-100 dark:bg-gray-900">
       {/* Mobile Sidebar */}
       <div 
         className={`${
@@ -208,7 +215,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
         <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
           <button
-            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pokemon-blue"
+            className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pokemon-blue"
             onClick={toggleSidebar}
           >
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />

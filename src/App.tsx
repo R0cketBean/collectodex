@@ -4,12 +4,14 @@ import { CollectionProvider } from './context/CollectionContext';
 import { LoadingProvider } from './context/LoadingContext';
 import Layout from './components/layout/Layout';
 import LoadingOverlayContainer from './components/common/LoadingOverlayContainer';
+import UpdateNotification from './components/common/UpdateNotification';
 
 // Seiten importieren
 import Dashboard from './pages/Dashboard';
 import CategoryItemsList from './pages/CategoryItemsList';
 import CategoryManagement from './pages/CategoryManagement';
 import ImportExport from './pages/ImportExport';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -22,8 +24,10 @@ function App() {
               <Route path="/category/:categoryId" element={<CategoryItemsList />} />
               <Route path="/category-management" element={<CategoryManagement />} />
               <Route path="/import-export" element={<ImportExport />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
             <LoadingOverlayContainer />
+            <UpdateNotification />
           </Layout>
         </Router>
       </LoadingProvider>

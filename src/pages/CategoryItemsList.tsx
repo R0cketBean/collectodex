@@ -1,45 +1,72 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   PlusIcon, 
   PencilIcon, 
   TrashIcon, 
   MagnifyingGlassIcon,
   FunnelIcon,
+  ArrowsUpDownIcon,
+  BarsArrowUpIcon,
+  BarsArrowDownIcon,
   ArrowUpCircleIcon,
   CameraIcon,
   PhotoIcon,
-  LinkIcon,
-  ArrowPathIcon
+  LinkIcon
 } from '@heroicons/react/24/outline';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
-import { useCollection } from '../context/CollectionContext';
+import { useCategoriesData, useItemsData, useCollectionActions } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types/models';
-import { fetchPriceFromCardmarket } from '../services/PriceService';
 import { logger } from '../utils/logger';
 
+// Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
+// nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
+// beide gleichzeitig — das halbiert bei großen Kategorien die gerenderten
+// Zeilen-Subtrees und damit die Render-/Wechselzeit (#67).
+const useIsDesktop = (): boolean => {
+  const query = '(min-width: 768px)';
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(query).matches : true
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const onChange = () => setIsDesktop(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isDesktop;
+};
+
 const CategoryItemsList: React.FC = () => {
+  const isDesktop = useIsDesktop();
+  // Re-Render-Isolation (#18): Categories-Slice + (stabile) Actions gezielt.
+  const categories = useCategoriesData();
   const {
-    categories,
-    getItemsByCategoryId,
     addItem,
     updateItem,
     deleteItem,
     deleteMultipleItems,
     calculateItemValue,
-  } = useCollection();
+  } = useCollectionActions();
+  // Alle Items als eigener Slice (#18): Die Kategorie-Liste wird unten direkt
+  // daraus gefiltert, statt über das (nun referenz-stabile) getItemsByCategoryId
+  // — sonst ginge die items-Memo stale (würde bei Item-Mutationen nicht neu
+  // rechnen, weil die Funktions-Referenz konstant bleibt).
+  const allItems = useItemsData();
   
   const { categoryId } = useParams<{ categoryId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const category = useMemo(() => {
     return categories.find(cat => cat.id === categoryId);
   }, [categories, categoryId]);
   
-  // Verwenden von useMemo für die items-Variable, um die ESLint-Warnung zu beheben
+  // Items dieser Kategorie aus dem Items-Slice ableiten — recomputed korrekt,
+  // sobald sich allItems (Anlegen/Bearbeiten/Löschen) oder categoryId ändert.
   const items = useMemo(() => {
-    return categoryId ? getItemsByCategoryId(categoryId) : [];
-  }, [categoryId, getItemsByCategoryId]);
+    return categoryId ? allItems.filter(item => item.categoryId === categoryId) : [];
+  }, [categoryId, allItems]);
   
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>('name');
@@ -108,7 +135,39 @@ const CategoryItemsList: React.FC = () => {
   
   // Filterwert
   const [filterValue, setFilterValue] = useState<string>('');
-  
+
+  // #25: Beim Sprung von den Dashboard-Top-Performern wird ?highlight=<id>
+  // übergeben. Wir scrollen zum betreffenden Item und heben es kurz hervor.
+  const highlightParam = searchParams.get('highlight');
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const highlightRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!highlightParam) return;
+    setHighlightedItemId(highlightParam);
+
+    // Nach dem Rendern zum Item scrollen.
+    const scrollTimer = window.setTimeout(() => {
+      highlightRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+
+    // Hervorhebung nach einigen Sekunden ausblenden und den Param aus der
+    // URL entfernen, damit ein Reload nicht erneut highlightet.
+    const clearTimer = window.setTimeout(() => {
+      setHighlightedItemId(null);
+      const next = new URLSearchParams(searchParams);
+      next.delete('highlight');
+      setSearchParams(next, { replace: true });
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(clearTimer);
+    };
+    // Nur auf Änderung des highlight-Params reagieren.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightParam]);
+
   // Handhabung der Sortierung
   const handleSort = (attributeId: string) => {
     if (sortBy === attributeId) {
@@ -128,14 +187,19 @@ const CategoryItemsList: React.FC = () => {
     // Filtere die Items
     let result = [...items];
     
-    // Textsuche
+    // Textsuche — durchsucht Text- UND Dropdown-Attribute (z.B. Sprache,
+    // Zustand, Grade), damit man auch nach "englisch", "PSA", "Near Mint"
+    // suchen kann, nicht nur nach dem Namen.
     if (searchTerm) {
+      const needle = searchTerm.toLowerCase();
       result = result.filter(item => {
-        // Suche in allen Textattributen
         for (const attr of category?.attributes || []) {
-          if (attr.type === 'text' && item.values[attr.id]) {
+          if (
+            (attr.type === 'text' || attr.type === 'dropdown') &&
+            item.values[attr.id]
+          ) {
             const value = String(item.values[attr.id]).toLowerCase();
-            if (value.includes(searchTerm.toLowerCase())) {
+            if (value.includes(needle)) {
               return true;
             }
           }
@@ -267,42 +331,32 @@ const CategoryItemsList: React.FC = () => {
     }
   };
   
-  // Berechne Summen für numerische Attribute
-  const calculateSums = () => {
-    const sums: Record<string, number> = {};
-    
-    // Identifiziere numerische Attribute
-    const numericAttributes = category?.attributes?.filter(attr => 
+  // Summen je numerischem Attribut — memoisiert, damit sie nicht bei jedem
+  // Render (z.B. Hover, Tippen in der Suche) neu über alle Items berechnet
+  // werden (#67). calculateItemValue wird einmal pro Item aufgerufen.
+  const sums = useMemo(() => {
+    const result: Record<string, number> = {};
+
+    const numericAttributes = category?.attributes?.filter(attr =>
       attr.type === 'number' || attr.type === 'formula'
     ) || [];
-    
-    // Initialisiere Summen mit 0
+
     numericAttributes.forEach(attr => {
-      sums[attr.id] = 0;
+      result[attr.id] = 0;
     });
-    
-    // Berechne Summen
+
     filteredAndSortedItems.forEach(item => {
+      const calculated = calculateItemValue(item);
       numericAttributes.forEach(attr => {
-        let value = item.values[attr.id];
-        
-        // Bei berechneten Attributen neu berechnen
-        if (attr.isCalculated) {
-          const calculatedValues = calculateItemValue(item);
-          value = calculatedValues[attr.id];
-        }
-        
-        // Wenn der Wert eine Zahl ist, addiere ihn zur Summe
+        const value = attr.isCalculated ? calculated[attr.id] : item.values[attr.id];
         if (typeof value === 'number') {
-          sums[attr.id] += value;
+          result[attr.id] += value;
         }
       });
     });
-    
-    return sums;
-  };
-  
-  const sums = calculateSums();
+
+    return result;
+  }, [filteredAndSortedItems, category, calculateItemValue]);
   
   // Funktion zum Öffnen externer Links
   const openExternalLink = (linkUrl: string) => {
@@ -334,12 +388,12 @@ const CategoryItemsList: React.FC = () => {
   return (
     <div className="space-y-6">
       {!category ? (
-        <div className="bg-white shadow overflow-hidden sm:rounded-md p-6">
+        <div className="bg-white dark:bg-gray-800 shadow overflow-hidden sm:rounded-md p-6">
           <div className="text-center">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
               Kategorie nicht gefunden
             </h3>
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
               Die ausgewählte Kategorie existiert nicht oder wird gerade geladen.
             </p>
             <div className="mt-4">
@@ -356,9 +410,9 @@ const CategoryItemsList: React.FC = () => {
       ) : (
         <>
           {/* Header mit Titel und Aktionen */}
-          <div className="bg-white shadow">
+          <div className="bg-white dark:bg-gray-800 shadow">
             <div className="px-4 py-5 sm:px-6 flex justify-between items-center">
-              <h1 className="text-lg leading-6 font-medium text-gray-900">
+              <h1 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
                 {category.name}
               </h1>
               <div className="flex space-x-2 mt-4 sm:mt-0">
@@ -386,13 +440,13 @@ const CategoryItemsList: React.FC = () => {
           <div className="mt-6 flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-4">
             <div className="relative flex-grow">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
               </div>
               <input
                 type="text"
                 name="search"
                 id="search"
-                className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm border-gray-300 rounded-md h-10"
+                className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm rounded-md h-10 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                 placeholder="Suche..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -401,10 +455,10 @@ const CategoryItemsList: React.FC = () => {
             
             {filterableAttributes.length > 0 && (
               <div className="flex items-center space-x-2 sm:min-w-[200px]">
-                <FunnelIcon className="h-5 w-5 text-gray-400 flex-shrink-0" aria-hidden="true" />
+                <FunnelIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" aria-hidden="true" />
                 <select
                   id="filter-attribute"
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
                   value={selectedFilter}
                   onChange={(e) => {
                     setSelectedFilter(e.target.value);
@@ -422,7 +476,7 @@ const CategoryItemsList: React.FC = () => {
                 {selectedFilter && (
                   <select
                     id="filter-value"
-                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                     value={filterValue}
                     onChange={(e) => setFilterValue(e.target.value)}
                   >
@@ -436,19 +490,54 @@ const CategoryItemsList: React.FC = () => {
                 )}
               </div>
             )}
+
+            {/* Sortierung — auch in der mobilen Kartenansicht nutzbar (die
+                sortierbaren Tabellen-Header gibt es nur im Desktop-Layout).
+                Teilt sich State mit den Spalten-Headern (sortBy/sortDirection). */}
+            {visibleAttributes.length > 0 && (
+              <div className="flex items-center space-x-2 sm:min-w-[200px]">
+                <ArrowsUpDownIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" aria-hidden="true" />
+                <select
+                  id="sort-attribute"
+                  aria-label="Sortieren nach"
+                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                >
+                  {visibleAttributes.map((attr) => (
+                    <option key={attr.id} value={attr.id}>
+                      {attr.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                  title={sortDirection === 'asc' ? 'Aufsteigend' : 'Absteigend'}
+                  aria-label={`Sortierrichtung: ${sortDirection === 'asc' ? 'aufsteigend' : 'absteigend'}`}
+                  className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md border-2 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-pokemon-blue focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue"
+                >
+                  {sortDirection === 'asc' ? (
+                    <BarsArrowUpIcon className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <BarsArrowDownIcon className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
           
           {/* Mobile Listenansicht (für kleine Bildschirme) */}
           <div className="md:hidden mt-6">
             {filteredAndSortedItems.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">Keine Einträge gefunden.</p>
-                <p className="text-gray-400 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
+                <p className="text-gray-500 dark:text-gray-400 text-lg">Keine Einträge gefunden.</p>
+                <p className="text-gray-400 dark:text-gray-500 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
               </div>
             ) : (
-              <div className="bg-white shadow overflow-hidden rounded-md">
-                <ul className="divide-y divide-gray-200">
-                  {filteredAndSortedItems.map((item) => {
+              <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-md">
+                <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {!isDesktop && filteredAndSortedItems.map((item) => {
                     // Berechnete Werte
                     const calculatedValues = calculateItemValue(item);
                     
@@ -468,9 +557,14 @@ const CategoryItemsList: React.FC = () => {
                     const mainImage = hasImage ? item.images?.[imageKeys[0]] : null;
                     
                     return (
-                      <li 
+                      <li
                         key={item.id}
-                        className="px-4 py-3 flex items-center justify-between hover:bg-gray-50"
+                        ref={(el) => {
+                          if (item.id === highlightedItemId) highlightRef.current = el;
+                        }}
+                        className={`px-4 py-3 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-500 ${
+                          item.id === highlightedItemId ? 'bg-yellow-100' : ''
+                        }`}
                         onClick={() => handleEditItem(item)}
                       >
                         <div className="min-w-0 flex-1">
@@ -479,17 +573,17 @@ const CategoryItemsList: React.FC = () => {
                               <img 
                                 src={mainImage} 
                                 alt={name}
-                                className="h-12 w-12 object-contain rounded-md mr-3 border border-gray-200"
+                                className="h-12 w-12 object-contain rounded-md mr-3 border border-gray-200 dark:border-gray-700"
                               />
                             ) : (
-                              <div className="h-12 w-12 flex items-center justify-center bg-gray-100 rounded-md mr-3 border border-gray-200">
-                                <PhotoIcon className="h-6 w-6 text-gray-400" />
+                              <div className="h-12 w-12 flex items-center justify-center bg-gray-100 dark:bg-gray-900 rounded-md mr-3 border border-gray-200 dark:border-gray-700">
+                                <PhotoIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
                               </div>
                             )}
                             <div>
-                              <h3 className="text-sm font-medium text-gray-900 truncate">{name}</h3>
+                              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{name}</h3>
                               {value && (
-                                <p className="mt-1 text-xs text-gray-500 truncate">
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
                                   Wert: {value}
                                 </p>
                               )}
@@ -524,14 +618,14 @@ const CategoryItemsList: React.FC = () => {
                               }
                               
                               // Gewinn/Verlust farblich hervorheben
-                              let valueClass = 'text-gray-900';
+                              let valueClass = 'text-gray-900 dark:text-gray-100';
                               if (attr.id === 'profitLoss') {
                                 valueClass = attrValue >= 0 ? 'text-green-600' : 'text-red-600';
                               }
                               
                               return (
                                 <div key={attr.id} className="flex flex-col">
-                                  <span className="text-xs text-gray-500">{attr.name}</span>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">{attr.name}</span>
                                   <span className={`text-xs ${valueClass} truncate`}>{displayValue}</span>
                                 </div>
                               );
@@ -539,7 +633,7 @@ const CategoryItemsList: React.FC = () => {
                           </div>
                         </div>
                         
-                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                        <ChevronRightIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" />
                       </li>
                     );
                   })}
@@ -552,9 +646,9 @@ const CategoryItemsList: React.FC = () => {
           <div className="hidden md:flex md:flex-col mt-6">
             <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
               <div className="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
-                <div className="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
+                <div className="shadow overflow-hidden border-b border-gray-200 dark:border-gray-700 sm:rounded-lg">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
                       <tr>
                         {/* Checkbox für "Alle auswählen" */}
                         <th scope="col" className="relative px-6 py-3 w-12">
@@ -574,7 +668,7 @@ const CategoryItemsList: React.FC = () => {
                           <th
                             key={attr.id}
                             scope="col"
-                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                            className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
                             onClick={() => handleSort(attr.id)}
                           >
                             <div className="flex items-center space-x-1">
@@ -592,15 +686,24 @@ const CategoryItemsList: React.FC = () => {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {filteredAndSortedItems.map((item) => {
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {isDesktop && filteredAndSortedItems.map((item) => {
                         // Berechnete Werte
                         const calculatedValues = calculateItemValue(item);
                         
                         return (
-                          <tr 
+                          <tr
                             key={item.id}
-                            className={selectedItems.includes(item.id) ? 'bg-blue-50' : ''}
+                            ref={(el) => {
+                              if (item.id === highlightedItemId) highlightRef.current = el;
+                            }}
+                            className={`transition-colors duration-500 ${
+                              item.id === highlightedItemId
+                                ? 'bg-yellow-100'
+                                : selectedItems.includes(item.id)
+                                ? 'bg-blue-50 dark:bg-gray-700'
+                                : ''
+                            }`}
                           >
                             {/* Checkbox für einzelne Zeile */}
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -623,16 +726,14 @@ const CategoryItemsList: React.FC = () => {
                                       setCurrentImage(item.images?.[imageKey] || null);
                                       setShowImagePopup(true);
                                     }}
-                                    className="text-pokemon-blue hover:text-blue-900 inline-flex items-center justify-center"
+                                    className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 inline-flex items-center justify-center"
                                     onMouseEnter={(e) => {
+                                      // Position einmalig beim Betreten setzen.
+                                      // Kein onMouseMove mehr: das löste pro
+                                      // Mausbewegung einen Re-Render der ganzen
+                                      // Tabelle aus (#67).
                                       const imageKey = Object.keys(item.images || {})[0];
                                       setHoverImage(item.images?.[imageKey] || null);
-                                      setHoverPosition({
-                                        x: e.clientX,
-                                        y: e.clientY
-                                      });
-                                    }}
-                                    onMouseMove={(e) => {
                                       setHoverPosition({
                                         x: e.clientX,
                                         y: e.clientY
@@ -648,14 +749,14 @@ const CategoryItemsList: React.FC = () => {
                                 ) : (
                                   <button
                                     onClick={() => handleEditItem(item)}
-                                    className="text-gray-400 hover:text-gray-600 inline-flex items-center justify-center"
+                                    className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 inline-flex items-center justify-center"
                                   >
                                     <CameraIcon className="h-5 w-5" />
                                   </button>
                                 )}
                                 <button
                                   onClick={() => handleEditItem(item)}
-                                  className="text-pokemon-blue hover:text-blue-900 ml-2 inline-flex items-center justify-center"
+                                  className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 ml-2 inline-flex items-center justify-center"
                                 >
                                   <PencilIcon className="h-5 w-5" />
                                 </button>
@@ -706,9 +807,9 @@ const CategoryItemsList: React.FC = () => {
                               
                               // Für Name-Attribut fett anzeigen
                               if (attr.id === 'name') {
-                                cellClasses += ' font-medium text-gray-900';
+                                cellClasses += ' font-medium text-gray-900 dark:text-gray-100';
                               } else {
-                                cellClasses += ' text-gray-500';
+                                cellClasses += ' text-gray-500 dark:text-gray-400';
                               }
                               
                               // Gewinn/Verlust farblich hervorheben
@@ -728,7 +829,7 @@ const CategoryItemsList: React.FC = () => {
                                           logger.debug("Opening link:", linkUrl);
                                           openExternalLink(linkUrl);
                                         }}
-                                        className="text-pokemon-blue hover:text-blue-900 hover:underline flex items-center cursor-pointer"
+                                        className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline flex items-center cursor-pointer"
                                       >
                                         {displayValue}
                                         <LinkIcon className="h-4 w-4 ml-1" />
@@ -751,7 +852,7 @@ const CategoryItemsList: React.FC = () => {
                                           logger.debug("Opening direct link:", linkUrl);
                                           openExternalLink(linkUrl);
                                         }}
-                                        className="text-pokemon-blue hover:text-blue-900 hover:underline flex items-center cursor-pointer"
+                                        className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 hover:underline flex items-center cursor-pointer"
                                       >
                                         {displayValue}
                                         <LinkIcon className="h-4 w-4 ml-1" />
@@ -781,7 +882,7 @@ const CategoryItemsList: React.FC = () => {
                       
                       {/* Summenzeile für numerische Spalten */}
                       {filteredAndSortedItems.length > 0 && (
-                        <tr className="bg-gray-50 font-medium">
+                        <tr className="bg-gray-50 dark:bg-gray-700 font-medium">
                           {/* Leere Zelle für die Checkbox-Spalte */}
                           <td className="px-6 py-4 whitespace-nowrap"></td>
                           {/* Leere Zelle für die Bild- und Edit-Spalte */}
@@ -791,7 +892,7 @@ const CategoryItemsList: React.FC = () => {
                             // Für die erste Spalte "Summe" anzeigen
                             if (index === 0) {
                               return (
-                                <td key={attr.id} className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                                <td key={attr.id} className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-gray-100">
                                   Summe
                                 </td>
                               );
@@ -805,7 +906,7 @@ const CategoryItemsList: React.FC = () => {
                               if (attr.id === 'profitLoss') {
                                 cellClasses += sums[attr.id] >= 0 ? ' text-green-600' : ' text-red-600';
                               } else {
-                                cellClasses += ' text-gray-900';
+                                cellClasses += ' text-gray-900 dark:text-gray-100';
                               }
                               
                               return (
@@ -836,8 +937,8 @@ const CategoryItemsList: React.FC = () => {
           {/* Keine Daten Hinweis für Desktop-Ansicht */}
           {filteredAndSortedItems.length === 0 && (
             <div className="hidden md:block text-center py-12">
-              <p className="text-gray-500 text-lg">Keine Einträge gefunden.</p>
-              <p className="text-gray-400 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
+              <p className="text-gray-500 dark:text-gray-400 text-lg">Keine Einträge gefunden.</p>
+              <p className="text-gray-400 dark:text-gray-500 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
             </div>
           )}
           
@@ -846,7 +947,7 @@ const CategoryItemsList: React.FC = () => {
             <div className="fixed z-20 inset-0 overflow-y-auto" onClick={() => setShowImagePopup(false)}>
               <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center">
                 <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowImagePopup(false)}></div>
-                <div className="relative bg-white rounded-lg overflow-hidden shadow-xl max-w-lg w-full">
+                <div className="relative bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl max-w-lg w-full">
                   <img 
                     src={currentImage} 
                     alt="Pokémon Karte" 
@@ -861,7 +962,7 @@ const CategoryItemsList: React.FC = () => {
           {/* Hover-Bild */}
           {hoverImage && hoverPosition && (
             <div 
-              className="fixed z-30 bg-white rounded-lg overflow-hidden shadow-xl"
+              className="fixed z-30 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl"
               style={{
                 left: `${hoverPosition.x + 20}px`,
                 top: `${hoverPosition.y - 100}px`,
@@ -954,9 +1055,9 @@ interface ItemModalProps {
 }
 
 const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel }) => {
-  // Collection-Context holen
-  const { addImageToItem, addLinkToItem, removeLinkFromItem, cleanupItemLinks } = useCollection();
-  const { items } = useCollection();
+  // Re-Render-Isolation (#18): Items-Slice + (stabile) Actions gezielt.
+  const { addImageToItem, addLinkToItem, removeLinkFromItem } = useCollectionActions();
+  const items = useItemsData();
   
   // Loading-Indikator Hook
   const { showLoading, hideLoading } = useLoading();
@@ -975,14 +1076,12 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
   const [currentLinkAttributeId, setCurrentLinkAttributeId] = useState<string | null>(null);
   const [linkInputValue, setLinkInputValue] = useState('');
   const [itemLinks, setItemLinks] = useState<Record<string, string>>({});
-  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
-  const [priceError, setPriceError] = useState<string | null>(null);
-  
+
   // Ref für das Hauptmodal-Element und File input
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkDialogRef = useRef<HTMLDivElement>(null);
-  
+
   // Initialisiere Formularwerte aus dem Item oder mit Standardwerten
   const initialValues = useMemo(() => {
     const values: Record<string, any> = {};
@@ -1004,7 +1103,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
             values[attr.id] = false;
             break;
           case 'date':
-            values[attr.id] = null;
+            // "Gekauft am" (#45) bei NEUEN Items mit heute vorbelegen
+            // (lokales Datum als YYYY-MM-DD, passend zum <input type="date">).
+            if (!item && attr.id === 'addedDate') {
+              const t = new Date();
+              values[attr.id] = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+            } else {
+              values[attr.id] = null;
+            }
             break;
           case 'dropdown':
             values[attr.id] = ''; // Leerer String für Dropdown-Felder
@@ -1184,56 +1290,6 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     }
   };
   
-  // Funktion zum Abrufen und Aktualisieren des Preises
-  const fetchAndUpdatePrice = async () => {
-    // Prüfen ob ein Link vorhanden ist
-    if (!item?.links?.product || !item.links.product.includes('cardmarket')) {
-      setPriceError('Es ist kein gültiger Cardmarket-Link vorhanden. Bitte zuerst einen Link hinzufügen.');
-      setTimeout(() => setPriceError(null), 5000);
-      return;
-    }
-
-    setIsLoadingPrice(true);
-    setPriceError(null);
-
-    try {
-      // Stelle sicher, dass wir den aktuellsten Link haben
-      cleanupItemLinks(item.id);
-      
-      const result = await fetchPriceFromCardmarket(item.links.product);
-      
-      if (result.success && result.lowestPrice) {
-        // Suche nach dem price-Attribut
-        const priceAttribute = editableAttributes.find(attr => 
-          attr.id === 'price' || attr.id === 'value' || 
-          attr.name.toLowerCase().includes('preis') || 
-          attr.name.toLowerCase().includes('wert')
-        );
-        
-        if (priceAttribute) {
-          // Konvertiere den Preis zu einer Nummer
-          const priceValue = parseFloat(result.lowestPrice);
-          
-          if (!isNaN(priceValue)) {
-            // Aktualisiere den Formularwert
-            const updatedValues = { ...formValues };
-            updatedValues[priceAttribute.id] = priceValue;
-            setFormValues(updatedValues);
-          }
-        } else {
-          setPriceError('Kein Preisattribut gefunden. Der Preis konnte nicht aktualisiert werden.');
-        }
-      } else {
-        setPriceError(result.error || 'Der Preis konnte nicht abgerufen werden.');
-      }
-    } catch (error) {
-      console.error('Fehler beim Preisabruf:', error);
-      setPriceError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
-    } finally {
-      setIsLoadingPrice(false);
-    }
-  };
-  
   // Bei Link-Dialog-Abbruch
   const cancelLinkDialog = () => {
     setShowLinkDialog(false);
@@ -1335,13 +1391,13 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
 
         <div 
           ref={modalRef} 
-          className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+          className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
         >
           <form onSubmit={handleSubmit}>
-            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="sm:flex sm:items-start">
                 <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
+                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100">
                     {item ? 'Eintrag bearbeiten' : 'Neuer Eintrag'}
                   </h3>
                   
@@ -1349,15 +1405,15 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                   {item && (
                     <div className="mt-4 border-b pb-4">
                       <div className="flex justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700">Medien und Links</h4>
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">Medien und Links</h4>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {/* Bild-Upload */}
                         <div>
-                          <h5 className="text-xs font-medium text-gray-600 mb-2">Bild hinzufügen</h5>
+                          <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">Bild hinzufügen</h5>
                           <div className="flex items-start space-x-4">
                             {/* Vorschau */}
-                            <div className="w-24 h-24 border rounded-md overflow-hidden flex items-center justify-center bg-gray-100">
+                            <div className="w-24 h-24 border rounded-md overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-900">
                               {newImages['image'] ? (
                                 <img 
                                   src={newImages['image']} 
@@ -1371,7 +1427,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                   className="max-w-full max-h-full object-contain"
                                 />
                               ) : (
-                                <PhotoIcon className="h-10 w-10 text-gray-400" />
+                                <PhotoIcon className="h-10 w-10 text-gray-400 dark:text-gray-500" />
                               )}
                             </div>
                             
@@ -1384,7 +1440,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                 <CameraIcon className="-ml-0.5 mr-2 h-4 w-4" />
                                 Bild wählen
                               </button>
-                              <p className="text-xs text-gray-500 mt-1">
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                 JPG, PNG oder GIF, max. 5MB
                               </p>
                               <input 
@@ -1400,7 +1456,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
 
                         {/* Link Bereich */}
                         <div>
-                          <h5 className="text-xs font-medium text-gray-600 mb-2">Link zum Produkt</h5>
+                          <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">Link zum Produkt</h5>
                           <div className="mt-1">
                             <div className="flex flex-col space-y-2">
                               {itemLinks['product'] ? (
@@ -1411,27 +1467,12 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                       onClick={() => {
                                         openLinkDialog('product');
                                       }}
-                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-blue-50 hover:text-blue-900"
+                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-blue-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
                                     >
                                       <LinkIcon className="h-4 w-4 mr-2" />
                                       <span>Link bearbeiten</span>
                                     </button>
-                                    
-                                    <button
-                                      type="button"
-                                      onClick={fetchAndUpdatePrice}
-                                      disabled={isLoadingPrice}
-                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-blue-50 hover:text-blue-900 disabled:opacity-50"
-                                    >
-                                      <ArrowPathIcon className={`h-4 w-4 mr-2 ${isLoadingPrice ? 'animate-spin' : ''}`} />
-                                      <span>Preis abrufen</span>
-                                    </button>
                                   </div>
-                                  
-                                  {/* Fehleranzeige für Preisabruf */}
-                                  {priceError && (
-                                    <div className="text-xs text-red-500 mt-1">{priceError}</div>
-                                  )}
                                 </>
                               ) : (
                                 <button
@@ -1439,7 +1480,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                                   onClick={() => {
                                     openLinkDialog('product');
                                   }}
-                                  className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-pokemon-blue bg-gray-50 hover:text-blue-900"
+                                  className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-gray-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
                                 >
                                   <LinkIcon className="h-4 w-4 mr-2" />
                                   <span>Link hinzufügen</span>
@@ -1456,7 +1497,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                     {editableAttributes.map((attr) => (
                       <div key={attr.id}>
                         <div className="flex justify-between">
-                          <label htmlFor={attr.id} className="block text-sm font-medium text-gray-700">
+                          <label htmlFor={attr.id} className="block text-sm font-medium text-gray-700 dark:text-gray-200">
                             {attr.name}
                             {attr.required && <span className="text-red-500 ml-1">*</span>}
                           </label>
@@ -1469,7 +1510,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                           />
                         )}
                         
@@ -1482,7 +1523,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             required={attr.required}
                             step={attr.id === 'quantity' ? "1" : "0.01"}
                             min={attr.id === 'quantity' ? "0" : undefined}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                             onFocus={(e) => e.target.select()}
                             placeholder={attr.id.includes('price') || attr.id.includes('Value') ? "0.00 €" : "0"}
                           />
@@ -1494,7 +1535,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] ? 'true' : 'false'}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                           >
                             <option value="true">Ja</option>
                             <option value="false">Nein</option>
@@ -1508,7 +1549,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                            className="mt-1 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                           />
                         )}
                         
@@ -1518,7 +1559,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
-                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 border-2 bg-gray-50 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
                           >
                             <option value="">Bitte wählen</option>
                             {attr.options?.map((option) => (
@@ -1534,7 +1575,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
               <button
                 type="submit"
                 className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
@@ -1544,7 +1585,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
               <button
                 type="button"
                 onClick={onCancel}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
               >
                 Abbrechen
               </button>
@@ -1563,20 +1604,20 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
             
             <div 
               ref={linkDialogRef}
-              className="relative bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full"
+              className="relative bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:max-w-lg sm:w-full"
             >
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 mb-4">
                   Link hinzufügen
                 </h3>
                 <div>
-                  <label htmlFor="linkUrl" className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="linkUrl" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                     CardMarket URL
                   </label>
                   <input
                     type="url"
                     id="linkUrl"
-                    className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                    className="focus:ring-pokemon-blue focus:border-pokemon-blue block w-full shadow-sm sm:text-sm rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
                     value={linkInputValue}
                     onChange={(e) => setLinkInputValue(e.target.value)}
                     placeholder="https://www.cardmarket.com/..."
@@ -1596,14 +1637,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                       }
                     }}
                   />
-                  <p className="mt-1 text-xs text-gray-500">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {linkDialogDefaultValue 
                       ? 'Lassen Sie das Feld leer, um den Link zu entfernen' 
                       : 'Geben Sie die vollständige URL ein (mit https://)'}
                   </p>
                 </div>
               </div>
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
                   className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
@@ -1613,7 +1654,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                 </button>
                 <button
                   type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                   onClick={cancelLinkDialog}
                 >
                   Abbrechen

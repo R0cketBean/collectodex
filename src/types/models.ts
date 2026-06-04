@@ -26,6 +26,8 @@ export interface Category {
   attributes: AttributeDefinition[];
   order: number;         // Reihenfolge im UI
   isDefault?: boolean;   // Ist es eine Standardkategorie?
+  hidden?: boolean;      // Aus der Navigation ausgeblendet (Werte zählen weiter)
+  color?: string;        // Frei gewählte Farb-Klasse (Fallback: nach order)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +63,18 @@ export interface CollectionSummary {
       cost: number;
       profitLoss: number;
     }
+  };
+}
+
+// Ein täglicher Wert-Snapshot für die echte Wertentwicklung (#26).
+// date als 'YYYY-MM-DD' (Tagesgranularität); pro Kategorie zusätzlich, um
+// später kategorieweise Verläufe darstellen zu können.
+export interface ValueSnapshot {
+  date: string;
+  totalValue: number;
+  totalCost: number;
+  categories: {
+    [categoryId: string]: { value: number; cost: number };
   };
 }
 
@@ -134,6 +148,20 @@ export const CORE_ATTRIBUTES: AttributeDefinition[] = [
     isCalculated: true,
     formula: 'totalValue - totalCost',
     order: 6
+  },
+  {
+    // Sichtbares, editierbares Kaufdatum des Artikels (#45). Wird beim Anlegen
+    // automatisch mit dem heutigen Datum vorbelegt. Die ID bleibt aus
+    // Kompatibilitätsgründen 'addedDate' (gespeicherte Werte hängen daran),
+    // der angezeigte Name ist aber "Gekauft am". Pflichtfeld (roter Stern),
+    // da das Kaufdatum für Auswertungen (Haltedauer/Rendite) gebraucht wird.
+    id: 'addedDate',
+    name: 'Gekauft am',
+    type: 'date',
+    required: true,
+    isCore: true,
+    isVisible: true,
+    order: 7
   }
 ];
 
@@ -176,14 +204,6 @@ export const SEALED_ATTRIBUTES: AttributeDefinition[] = [
     isVisible: true,
     options: ['deutsch', 'englisch', 'japanisch', 'französisch', 'italienisch', 'spanisch'],
     order: 8
-  },
-  {
-    id: 'purchaseDate',
-    name: 'Kaufdatum',
-    type: 'date',
-    required: false,
-    isVisible: true,
-    order: 9
   }
 ];
 

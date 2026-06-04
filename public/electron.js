@@ -1,8 +1,54 @@
 const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
+const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const fs = require('fs');
+
+// Einmalige Migration des Datenverzeichnisses (#21).
+//
+// Früher hieß die App intern "pokemon-sammlung" (package.json "name"),
+// wodurch electron ihren userData-Ordner unter
+// .../Application Support/pokemon-sammlung/ anlegte. Mit der Umbenennung
+// auf "collectodex" wechselt dieser Pfad — ohne Migration würde der
+// Nutzer seine gesamte Sammlung "verlieren", weil die App im neuen,
+// leeren Ordner sucht.
+//
+// Daher kopieren wir die Store-Datei einmalig vom alten in den neuen
+// userData-Ordner, sofern dort noch keine existiert. Der alte Ordner
+// bleibt als Sicherheit unangetastet. Muss VOR `new Store()` laufen,
+// damit der Store die migrierte Datei direkt liest.
+const STORE_FILE = 'collectodex-data.json';
+function migrateLegacyUserData() {
+  try {
+    const newUserData = app.getPath('userData');
+    const newStorePath = path.join(newUserData, STORE_FILE);
+
+    // Schon migriert (oder frische Installation mit neuem Namen)?
+    if (fs.existsSync(newStorePath)) return;
+
+    // Alten Pfad ableiten: gleiches Eltern­verzeichnis, alter App-Name.
+    const legacyUserData = path.join(
+      path.dirname(newUserData),
+      'pokemon-sammlung'
+    );
+    const legacyStorePath = path.join(legacyUserData, STORE_FILE);
+
+    if (fs.existsSync(legacyStorePath)) {
+      fs.mkdirSync(newUserData, { recursive: true });
+      fs.copyFileSync(legacyStorePath, newStorePath);
+      console.log(
+        `Datenmigration: ${legacyStorePath} -> ${newStorePath} kopiert.`
+      );
+    }
+  } catch (error) {
+    console.error('Fehler bei der Datenmigration:', error);
+    // Bei Fehler nicht abbrechen — die App startet dann eben mit
+    // leerem Store, statt gar nicht zu starten.
+  }
+}
+
+migrateLegacyUserData();
 
 // Initialisiere persistenten Speicher
 const store = new Store({
@@ -23,6 +69,48 @@ process.on('uncaughtException', (error) => {
     `Ein unerwarteter Fehler ist aufgetreten: ${error.message}\n\nDetails wurden in die Konsole geschrieben.`
   );
 });
+
+// Auto-Update (#20): Notify-only — die App prüft beim Start auf neue
+// GitHub-Releases, lädt aber erst nach Bestätigung in der UI herunter
+// (autoDownload = false) und installiert erst auf Klick (quitAndInstall).
+// Nur in der gepackten, signierten App aktiv; im Dev-Modus deaktiviert.
+function sendToRenderer(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+function setupAutoUpdater() {
+  if (isDev || !app.isPackaged) {
+    return;
+  }
+
+  autoUpdater.autoDownload = false;
+
+  autoUpdater.on('update-available', (info) => {
+    sendToRenderer('update:available', { version: info && info.version });
+  });
+  // Für die manuelle Prüfung (Settings): "kein Update vorhanden" muss
+  // ebenfalls eine Rückmeldung geben, sonst bleibt der Button ohne Feedback.
+  autoUpdater.on('update-not-available', (info) => {
+    sendToRenderer('update:none', { version: info && info.version });
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    sendToRenderer('update:progress', { percent: progress && progress.percent });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    sendToRenderer('update:downloaded', { version: info && info.version });
+  });
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-Update-Fehler:', error);
+    sendToRenderer('update:error', { message: error == null ? 'unbekannt' : String(error.message || error) });
+  });
+
+  // Beim Start einmalig prüfen; Fehler werden über das 'error'-Event behandelt.
+  autoUpdater.checkForUpdates().catch((error) => {
+    console.error('Auto-Update-Prüfung fehlgeschlagen:', error);
+  });
+}
 
 // Erstelle das Hauptfenster
 function createWindow() {
@@ -92,7 +180,10 @@ function createWindow() {
     console.log('Preload-Skript Pfad:', path.join(__dirname, 'preload.js'));
     
     mainWindow.loadURL(startUrl);
-    
+
+    // Auto-Update-Prüfung anstoßen (No-op im Dev-Modus, s. setupAutoUpdater).
+    setupAutoUpdater();
+
     // Immer DevTools im Entwicklungsmodus öffnen und optional in der Produktionsversion
     if (isDev || process.env.DEBUG_PROD === 'true') {
       mainWindow.webContents.openDevTools();
@@ -201,6 +292,41 @@ ipcMain.handle('open-external-url', async (event, url) => {
   }
   return false;
 });
+
+// IPC Handler für Auto-Update (#20): Download bzw. Installation werden vom
+// Renderer (UpdateNotification) per Button-Klick angestoßen.
+ipcMain.handle('update:download', async () => {
+  await autoUpdater.downloadUpdate();
+  return true;
+});
+
+ipcMain.handle('update:install', async () => {
+  // Beendet die App und installiert das geladene Update.
+  autoUpdater.quitAndInstall();
+  return true;
+});
+
+// Manuelle Update-Prüfung aus dem Settings-Tab. Im Dev-/ungepackten Modus
+// gibt es keine Update-Konfiguration — dann meldet { supported: false }
+// zurück, damit die UI einen passenden Hinweis statt eines Fehlers zeigt.
+// Im gepackten Betrieb laufen die Ergebnisse über die update:*-Events.
+ipcMain.handle('update:check', async () => {
+  if (isDev || !app.isPackaged) {
+    return { supported: false };
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    console.error('Manuelle Update-Prüfung fehlgeschlagen:', error);
+    sendToRenderer('update:error', {
+      message: error == null ? 'unbekannt' : String(error.message || error),
+    });
+  }
+  return { supported: true };
+});
+
+// Aktuelle App-Version für die Anzeige im Settings-Tab.
+ipcMain.handle('app:version', async () => app.getVersion());
 
 // Speichere beim Beenden der App automatisch den aktuellen Zustand
 app.on('before-quit', () => {

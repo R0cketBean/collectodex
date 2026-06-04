@@ -17,7 +17,20 @@
 // macht sie testbar (ExcelJS lädt das Blob für Assertions zurück) und
 // frei davon, ob der Aufrufer Electron-Store oder localStorage benutzt.
 
-import ExcelJS from 'exceljs';
+// Nur die Typen statisch importieren — der Import verschwindet beim
+// Build vollständig. Die ExcelJS-Laufzeit (~940 KB) wird stattdessen
+// lazy per dynamischem import() geladen, damit sie nicht im Start-Bundle
+// landet, sondern erst beim ersten Excel-Export (#19).
+import type ExcelJS from 'exceljs';
+
+/**
+ * Lädt die ExcelJS-Laufzeit bei Bedarf und liefert eine neue Workbook-
+ * Instanz. Vite splittet exceljs dadurch in einen eigenen Chunk ab.
+ */
+const createWorkbook = async (): Promise<ExcelJS.Workbook> => {
+  const { default: ExcelJSRuntime } = await import('exceljs');
+  return new ExcelJSRuntime.Workbook();
+};
 import type {
   AttributeDefinition,
   Category,
@@ -58,15 +71,22 @@ const editableAttributesSorted = (
  * generische Zahlen und dd.mm.yyyy für Datums-Spalten.
  */
 const numFmtForAttribute = (attr: AttributeDefinition): string | undefined => {
-  if (attr.type === 'number') {
+  // Auch berechnete Geld-Spalten (Gesamtkosten/Gesamtwert/Gewinn-Verlust) sind
+  // vom Typ 'formula' — sie sollen ebenso als Währung formatiert werden (#64).
+  if (attr.type === 'number' || attr.type === 'formula') {
     const nameLower = attr.name.toLowerCase();
     if (
       attr.id === 'price' ||
       attr.id === 'value' ||
       attr.id === 'cost' ||
+      attr.id === 'totalCost' ||
+      attr.id === 'totalValue' ||
+      attr.id === 'profitLoss' ||
       nameLower.includes('preis') ||
       nameLower.includes('wert') ||
-      nameLower.includes('kosten')
+      nameLower.includes('kosten') ||
+      nameLower.includes('gewinn') ||
+      nameLower.includes('verlust')
     ) {
       return '€#,##0.00;-€#,##0.00';
     }
@@ -163,7 +183,7 @@ export const buildCategoryExcel = async (
 ): Promise<Blob> => {
   const exportAttributes = visibleAttributesSorted(category.attributes);
 
-  const workbook = new ExcelJS.Workbook();
+  const workbook = await createWorkbook();
   workbook.creator = 'CollectODex';
   workbook.created = new Date();
 
@@ -280,7 +300,7 @@ export const buildCategoryExcelTemplate = async (
 ): Promise<Blob> => {
   const templateAttributes = editableAttributesSorted(category.attributes);
 
-  const workbook = new ExcelJS.Workbook();
+  const workbook = await createWorkbook();
   workbook.creator = 'CollectODex';
   workbook.created = new Date();
 
@@ -359,7 +379,7 @@ export const buildCollectionExcel = async (
   summary: CollectionSummary,
   calculateValues: CalculateValues
 ): Promise<Blob> => {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = await createWorkbook();
   workbook.creator = 'CollectODex';
   workbook.created = new Date();
 
