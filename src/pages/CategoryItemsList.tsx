@@ -1003,26 +1003,47 @@ const CategoryItemsList: React.FC = () => {
             />
           )}
           
-          {/* Hover-Bild */}
-          {hoverImage && hoverPosition && (
-            <div 
-              className="fixed z-30 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl"
-              style={{
-                left: `${hoverPosition.x + 20}px`,
-                top: `${hoverPosition.y - 100}px`,
-                transform: 'translate(-50%, -50%)',
-                width: '200px',
-                height: '200px',
-                pointerEvents: 'none' // Damit es die MouseEnter/Leave-Events nicht stört
-              }}
-            >
-              <img 
-                src={hoverImage} 
-                alt="Pokémon Karte" 
-                className="w-full h-full object-contain"
-              />
-            </div>
-          )}
+          {/* Hover-Bild — Position wird an den Viewport geklemmt, damit das
+              Popup immer vollständig sichtbar ist. In der obersten Zeile würde
+              es sonst nach oben aus dem Bild laufen; durch das Clampen öffnet
+              es dann nach unten, horizontal weicht es bei Bedarf nach links aus. */}
+          {hoverImage && hoverPosition && (() => {
+            const SIZE = 200;   // Kantenlänge des Popups (w/h)
+            const MARGIN = 8;   // Mindestabstand zum Fensterrand
+            const GAP = 20;     // Abstand zum Cursor/Icon
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            // Bevorzugt rechts neben dem Cursor; wenn dort kein Platz ist, links.
+            let left = hoverPosition.x + GAP;
+            if (left + SIZE + MARGIN > vw) {
+              left = hoverPosition.x - GAP - SIZE;
+            }
+            left = Math.max(MARGIN, Math.min(left, vw - SIZE - MARGIN));
+
+            // Vertikal am Cursor zentriert, aber komplett im sichtbaren Bereich.
+            let top = hoverPosition.y - SIZE / 2;
+            top = Math.max(MARGIN, Math.min(top, vh - SIZE - MARGIN));
+
+            return (
+              <div
+                className="fixed z-30 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl border border-gray-200 dark:border-gray-700"
+                style={{
+                  left: `${left}px`,
+                  top: `${top}px`,
+                  width: `${SIZE}px`,
+                  height: `${SIZE}px`,
+                  pointerEvents: 'none' // Damit es die MouseEnter/Leave-Events nicht stört
+                }}
+              >
+                <img
+                  src={hoverImage}
+                  alt="Vorschau"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            );
+          })()}
           
           {/* Modal zum Hinzufügen/Bearbeiten von Items */}
           {showItemModal && category && (
