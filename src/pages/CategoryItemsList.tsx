@@ -12,7 +12,8 @@ import {
   ArrowUpCircleIcon,
   CameraIcon,
   PhotoIcon,
-  LinkIcon
+  LinkIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import { useCategoriesData, useItemsData, useCollectionActions } from '../context/CollectionContext';
@@ -20,6 +21,16 @@ import { useLoading } from '../context/LoadingContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../types/models';
 import { logger } from '../utils/logger';
 import { inputClass, selectClass } from '../utils/formStyles';
+import {
+  getOrderedImages,
+  getPrimaryImage,
+  countImages,
+  createExtraImageKey,
+  FRONT_IMAGE_KEY,
+  BACK_IMAGE_KEY,
+  ItemImage,
+} from '../utils/itemImages';
+import ImageLightbox from '../components/common/ImageLightbox';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
 // nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
@@ -79,9 +90,16 @@ const CategoryItemsList: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<string>('');
   const [showItemModal, setShowItemModal] = useState(false);
 
-  // Zustand für Bild-Popup
-  const [showImagePopup, setShowImagePopup] = useState(false);
-  const [currentImage, setCurrentImage] = useState<string | null>(null);
+  // Zustand für den zoombaren Bild-Lightbox (#1)
+  const [lightbox, setLightbox] = useState<{ images: ItemImage[]; index: number } | null>(null);
+
+  // Öffnet den Lightbox mit allen Bildern eines Eintrags, optional ab einem Slot.
+  const openLightbox = useCallback((targetItem: CollectionItem, startKey?: string) => {
+    const images = getOrderedImages(targetItem.images);
+    if (images.length === 0) return;
+    const start = startKey ? images.findIndex(img => img.key === startKey) : 0;
+    setLightbox({ images, index: start >= 0 ? start : 0 });
+  }, []);
 
   // Zustände für Hover-Bild
   const [hoverImage, setHoverImage] = useState<string | null>(null);
@@ -552,10 +570,9 @@ const CategoryItemsList: React.FC = () => {
                       ? Number(calculatedValues[valueAttr.id]).toFixed(2) + ' €' 
                       : '';
                     
-                    // Erster Bild-Schlüssel, falls vorhanden
-                    const imageKeys = item.images ? Object.keys(item.images) : [];
-                    const hasImage = imageKeys.length > 0;
-                    const mainImage = hasImage ? item.images?.[imageKeys[0]] : null;
+                    // Hauptbild (Vorderseite, sonst erstes) für die Vorschau (#1)
+                    const mainImage = getPrimaryImage(item.images);
+                    const hasImage = mainImage !== null;
                     
                     return (
                       <li
@@ -571,11 +588,18 @@ const CategoryItemsList: React.FC = () => {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center mb-1">
                             {hasImage && mainImage ? (
-                              <img 
-                                src={mainImage} 
-                                alt={name}
-                                className="h-12 w-12 object-contain rounded-md mr-3 border border-gray-200 dark:border-gray-700"
-                              />
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); openLightbox(item); }}
+                                className="mr-3 flex-shrink-0 rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden"
+                                title="Bilder ansehen"
+                              >
+                                <img
+                                  src={mainImage}
+                                  alt={name}
+                                  className="h-12 w-12 object-contain"
+                                />
+                              </button>
                             ) : (
                               <div className="h-12 w-12 flex items-center justify-center bg-gray-100 dark:bg-gray-900 rounded-md mr-3 border border-gray-200 dark:border-gray-700">
                                 <PhotoIcon className="h-6 w-6 text-gray-400 dark:text-gray-500" />
@@ -719,22 +743,17 @@ const CategoryItemsList: React.FC = () => {
                             {/* Bild-Zelle */}
                             <td className="px-3 py-4 whitespace-nowrap">
                               <div className="flex items-center">
-                                {item.images && Object.keys(item.images).length > 0 ? (
-                                  <button 
-                                    onClick={() => {
-                                      // Verwende das erste verfügbare Bild
-                                      const imageKey = Object.keys(item.images || {})[0];
-                                      setCurrentImage(item.images?.[imageKey] || null);
-                                      setShowImagePopup(true);
-                                    }}
-                                    className="text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 inline-flex items-center justify-center"
+                                {countImages(item.images) > 0 ? (
+                                  <button
+                                    onClick={() => openLightbox(item)}
+                                    className="relative text-pokemon-blue dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 inline-flex items-center justify-center"
+                                    title="Bilder ansehen"
                                     onMouseEnter={(e) => {
                                       // Position einmalig beim Betreten setzen.
                                       // Kein onMouseMove mehr: das löste pro
                                       // Mausbewegung einen Re-Render der ganzen
                                       // Tabelle aus (#67).
-                                      const imageKey = Object.keys(item.images || {})[0];
-                                      setHoverImage(item.images?.[imageKey] || null);
+                                      setHoverImage(getPrimaryImage(item.images));
                                       setHoverPosition({
                                         x: e.clientX,
                                         y: e.clientY
@@ -746,11 +765,17 @@ const CategoryItemsList: React.FC = () => {
                                     }}
                                   >
                                     <PhotoIcon className="h-5 w-5" />
+                                    {countImages(item.images) > 1 && (
+                                      <span className="absolute -top-1.5 -right-2 bg-pokemon-blue text-white text-[10px] leading-none rounded-full px-1 py-0.5">
+                                        {countImages(item.images)}
+                                      </span>
+                                    )}
                                   </button>
                                 ) : (
                                   <button
                                     onClick={() => handleEditItem(item)}
                                     className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 inline-flex items-center justify-center"
+                                    title="Bild hinzufügen"
                                   >
                                     <CameraIcon className="h-5 w-5" />
                                   </button>
@@ -943,21 +968,13 @@ const CategoryItemsList: React.FC = () => {
             </div>
           )}
           
-          {/* Bild-Popup */}
-          {showImagePopup && currentImage && (
-            <div className="fixed z-20 inset-0 overflow-y-auto" onClick={() => setShowImagePopup(false)}>
-              <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center">
-                <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowImagePopup(false)}></div>
-                <div className="relative bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl max-w-lg w-full">
-                  <img 
-                    src={currentImage} 
-                    alt="Pokémon Karte" 
-                    className="w-full h-auto max-h-96 object-contain"
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                </div>
-              </div>
-            </div>
+          {/* Zoombarer Bild-Lightbox (#1) */}
+          {lightbox && (
+            <ImageLightbox
+              images={lightbox.images}
+              initialIndex={lightbox.index}
+              onClose={() => setLightbox(null)}
+            />
           )}
           
           {/* Hover-Bild */}
@@ -1057,7 +1074,7 @@ interface ItemModalProps {
 
 const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel }) => {
   // Re-Render-Isolation (#18): Items-Slice + (stabile) Actions gezielt.
-  const { addImageToItem, addLinkToItem, removeLinkFromItem } = useCollectionActions();
+  const { addImageToItem, removeImageFromItem, addLinkToItem, removeLinkFromItem } = useCollectionActions();
   const items = useItemsData();
   
   // Loading-Indikator Hook
@@ -1082,6 +1099,11 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
   const modalRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const linkDialogRef = useRef<HTMLDivElement>(null);
+  // Merkt sich, in welchen Bild-Slot der nächste Datei-Upload geschrieben wird
+  // (Vorderseite/Rückseite/Extra). Ein gemeinsames verstecktes File-Input.
+  const uploadKeyRef = useRef<string>(FRONT_IMAGE_KEY);
+  // Lokaler Lightbox-Zustand des Bearbeiten-Dialogs (#1)
+  const [modalLightbox, setModalLightbox] = useState<{ images: ItemImage[]; index: number } | null>(null);
 
   // Initialisiere Formularwerte aus dem Item oder mit Standardwerten
   const initialValues = useMemo(() => {
@@ -1187,26 +1209,47 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     }));
   };
   
-  // Funktion zum Hochladen von Bildern
-  const handleImageUpload = (attributeId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+  // Öffnet den Datei-Dialog für einen bestimmten Bild-Slot (#1). Der Ziel-Slot
+  // wird gemerkt, damit ein einziges verstecktes File-Input genügt.
+  const pickImage = (key: string) => {
+    uploadKeyRef.current = key;
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''; // dieselbe Datei erneut wählbar machen
+      fileInputRef.current.click();
+    }
+  };
+
+  // Funktion zum Hochladen von Bildern in den gemerkten Slot.
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const key = uploadKeyRef.current;
     const file = event.target.files?.[0];
-    if (!file) return;
-    
+    if (!file || !key) return;
+
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
-        setNewImages(prev => ({
-          ...prev,
-          [attributeId]: reader.result as string
-        }));
-        
-        // Wenn es ein bestehendes Item ist, füge das Bild sofort hinzu
+        const data = reader.result as string;
+        setNewImages(prev => ({ ...prev, [key]: data }));
+        // Bei bestehenden Items das Bild sofort persistieren.
         if (item) {
-          addImageToItem(item.id, attributeId, reader.result as string);
+          addImageToItem(item.id, key, data);
         }
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  // Entfernt ein Bild aus einem Slot (lokal und – bei bestehenden Items – sofort
+  // im Speicher).
+  const removeImage = (key: string) => {
+    setNewImages(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    if (item) {
+      removeImageFromItem(item.id, key);
+    }
   };
   
   // Öffne Link-Dialog mit vorausgefülltem Wert
@@ -1380,7 +1423,78 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
       hideLoading();
     }, 300);
   };
-  
+
+  // Anzuzeigende Bilder (#1): aktuellster Item-Stand aus dem Context (frische
+  // Bilder nach sofortigem Speichern) überlagert mit den lokal gewählten
+  // Bildern. So sehen Vorschau/Lightbox immer den neuesten Stand.
+  const liveItem = item ? items.find(i => i.id === item.id) : null;
+  const displayImages: Record<string, string> = {
+    ...(liveItem?.images || item?.images || {}),
+    ...newImages,
+  };
+  const orderedDisplayImages = getOrderedImages(displayImages);
+  const extraImages = orderedDisplayImages.filter(
+    img => img.key !== FRONT_IMAGE_KEY && img.key !== BACK_IMAGE_KEY
+  );
+
+  // Öffnet den Lightbox des Dialogs ab einem bestimmten Slot.
+  const openModalLightbox = (key: string) => {
+    if (orderedDisplayImages.length === 0) return;
+    const start = orderedDisplayImages.findIndex(img => img.key === key);
+    setModalLightbox({ images: orderedDisplayImages, index: start >= 0 ? start : 0 });
+  };
+
+  // Ein einzelner Bild-Slot (Vorderseite/Rückseite/Extra) in der Medien-Sektion.
+  const renderImageSlot = (key: string, label: string) => {
+    const data = displayImages[key];
+    return (
+      <div key={key} className="flex flex-col items-center">
+        <span className="text-xs text-gray-600 dark:text-gray-300 mb-1">{label}</span>
+        <div className="relative w-24 h-24 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-900">
+          {data ? (
+            <>
+              <button
+                type="button"
+                onClick={() => openModalLightbox(key)}
+                className="w-full h-full flex items-center justify-center cursor-zoom-in"
+                title="Bild vergrößern"
+              >
+                <img src={data} alt={label} className="max-w-full max-h-full object-contain" />
+              </button>
+              <button
+                type="button"
+                onClick={() => removeImage(key)}
+                className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 hover:bg-black/80"
+                title="Bild entfernen"
+                aria-label={`${label} entfernen`}
+              >
+                <XMarkIcon className="h-3.5 w-3.5" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => pickImage(key)}
+              className="w-full h-full flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-pokemon-blue"
+              title={`${label} hinzufügen`}
+            >
+              <CameraIcon className="h-7 w-7" />
+            </button>
+          )}
+        </div>
+        {data && (
+          <button
+            type="button"
+            onClick={() => pickImage(key)}
+            className="mt-1 text-xs text-pokemon-blue dark:text-blue-400 hover:underline"
+          >
+            Ändern
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="fixed z-10 inset-0 overflow-y-auto">
       <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -1402,97 +1516,73 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                     {item ? 'Eintrag bearbeiten' : 'Neuer Eintrag'}
                   </h3>
                   
-                  {/* Bild-Upload und Link-Bereich */}
-                  {item && (
-                    <div className="mt-4 border-b pb-4">
-                      <div className="flex justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">Medien und Links</h4>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {/* Bild-Upload */}
-                        <div>
-                          <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">Bild hinzufügen</h5>
-                          <div className="flex items-start space-x-4">
-                            {/* Vorschau */}
-                            <div className="w-24 h-24 border rounded-md overflow-hidden flex items-center justify-center bg-gray-100 dark:bg-gray-900">
-                              {newImages['image'] ? (
-                                <img 
-                                  src={newImages['image']} 
-                                  alt="Vorschau" 
-                                  className="max-w-full max-h-full object-contain"
-                                />
-                              ) : item.images?.['image'] ? (
-                                <img 
-                                  src={item.images['image']} 
-                                  alt="Vorschau" 
-                                  className="max-w-full max-h-full object-contain"
-                                />
-                              ) : (
-                                <PhotoIcon className="h-10 w-10 text-gray-400 dark:text-gray-500" />
-                              )}
-                            </div>
-                            
-                            <div className="flex flex-col mt-1">
-                              <button
-                                type="button"
-                                className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-pokemon-blue hover:bg-blue-700"
-                                onClick={() => fileInputRef.current?.click()}
-                              >
-                                <CameraIcon className="-ml-0.5 mr-2 h-4 w-4" />
-                                Bild wählen
-                              </button>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                JPG, PNG oder GIF, max. 5MB
-                              </p>
-                              <input 
-                                type="file" 
-                                ref={fileInputRef}
-                                className="hidden"
-                                accept="image/*"
-                                onChange={(e) => handleImageUpload('image', e)}
-                              />
-                            </div>
-                          </div>
-                        </div>
+                  {/* Bild-Upload (Vorder-/Rückseite + Extras) und Link-Bereich (#1) */}
+                  <div className="mt-4 border-b border-gray-200 dark:border-gray-700 pb-4">
+                    <div className="flex justify-between mb-2">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">Medien und Links</h4>
+                    </div>
 
-                        {/* Link Bereich */}
-                        <div>
-                          <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2">Link zum Produkt</h5>
-                          <div className="mt-1">
-                            <div className="flex flex-col space-y-2">
-                              {itemLinks['product'] ? (
-                                <>
-                                  <div className="flex items-center space-x-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        openLinkDialog('product');
-                                      }}
-                                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-blue-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
-                                    >
-                                      <LinkIcon className="h-4 w-4 mr-2" />
-                                      <span>Link bearbeiten</span>
-                                    </button>
-                                  </div>
-                                </>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    openLinkDialog('product');
-                                  }}
-                                  className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-gray-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
-                                >
-                                  <LinkIcon className="h-4 w-4 mr-2" />
-                                  <span>Link hinzufügen</span>
-                                </button>
-                              )}
-                            </div>
-                          </div>
+                    {/* Bilder */}
+                    <div className="mb-4">
+                      <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2 text-left">Bilder</h5>
+                      <div className="flex flex-wrap gap-4 items-start">
+                        {renderImageSlot(FRONT_IMAGE_KEY, 'Vorderseite')}
+                        {renderImageSlot(BACK_IMAGE_KEY, 'Rückseite')}
+                        {extraImages.map((img, i) => renderImageSlot(img.key, `Foto ${i + 1}`))}
+
+                        {/* Weiteres Foto hinzufügen */}
+                        <div className="flex flex-col items-center">
+                          <span className="text-xs mb-1 invisible">+</span>
+                          <button
+                            type="button"
+                            onClick={() => pickImage(createExtraImageKey())}
+                            className="w-24 h-24 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md flex flex-col items-center justify-center text-gray-400 dark:text-gray-500 hover:text-pokemon-blue hover:border-pokemon-blue"
+                            title="Weiteres Foto hinzufügen"
+                          >
+                            <PlusIcon className="h-6 w-6" />
+                            <span className="text-xs mt-1">Foto</span>
+                          </button>
                         </div>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-left">
+                        JPG, PNG oder GIF. Klick auf ein Bild öffnet die Zoom-Ansicht.
+                      </p>
+                      {/* Gemeinsames verstecktes File-Input für alle Slots */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        className="hidden"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                      />
+                    </div>
+
+                    {/* Link Bereich */}
+                    <div>
+                      <h5 className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-2 text-left">Link zum Produkt</h5>
+                      <div className="flex flex-col space-y-2 items-start">
+                        {itemLinks['product'] ? (
+                          <button
+                            type="button"
+                            onClick={() => openLinkDialog('product')}
+                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-blue-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
+                          >
+                            <LinkIcon className="h-4 w-4 mr-2" />
+                            <span>Link bearbeiten</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openLinkDialog('product')}
+                            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md text-pokemon-blue dark:text-blue-400 bg-gray-50 dark:bg-gray-700 hover:text-blue-900 dark:hover:text-blue-300"
+                          >
+                            <LinkIcon className="h-4 w-4 mr-2" />
+                            <span>Link hinzufügen</span>
+                          </button>
+                        )}
                       </div>
                     </div>
-                  )}
+                  </div>
                   
                   <div className="mt-4 space-y-4">
                     {editableAttributes.map((attr) => (
@@ -1664,6 +1754,15 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
             </div>
           </div>
         </div>
+      )}
+
+      {/* Zoombarer Bild-Lightbox im Bearbeiten-Dialog (#1) */}
+      {modalLightbox && (
+        <ImageLightbox
+          images={modalLightbox.images}
+          initialIndex={modalLightbox.index}
+          onClose={() => setModalLightbox(null)}
+        />
       )}
     </div>
   );

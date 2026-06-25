@@ -153,12 +153,15 @@ export const CORE_ATTRIBUTES: AttributeDefinition[] = [
     // Sichtbares, editierbares Kaufdatum des Artikels (#45). Wird beim Anlegen
     // automatisch mit dem heutigen Datum vorbelegt. Die ID bleibt aus
     // Kompatibilitätsgründen 'addedDate' (gespeicherte Werte hängen daran),
-    // der angezeigte Name ist aber "Gekauft am". Pflichtfeld (roter Stern),
-    // da das Kaufdatum für Auswertungen (Haltedauer/Rendite) gebraucht wird.
+    // der angezeigte Name ist aber "Gekauft am". KEIN Pflichtfeld mehr: das
+    // Datum wird zwar standardmäßig angezeigt/vorbelegt, ist aber optional,
+    // damit bestehende Einträge ohne Kaufdatum nicht erzwungen nachgepflegt
+    // werden müssen. Auswertungen (Haltedauer/Rendite) überspringen Einträge
+    // ohne Datum sauber.
     id: 'addedDate',
     name: 'Gekauft am',
     type: 'date',
-    required: true,
+    required: false,
     isCore: true,
     isVisible: true,
     order: 7

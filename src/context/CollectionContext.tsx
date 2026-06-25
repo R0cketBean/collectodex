@@ -143,12 +143,14 @@ const migrateCategoryAttributes = (
     return [...CORE_ATTRIBUTES];
   }
   // Entferne das abgelöste "Kaufdatum" und benenne "addedDate" in "Gekauft am"
-  // um; "addedDate" ist außerdem ein Pflichtfeld (required).
+  // um. "addedDate" ist KEIN Pflichtfeld mehr (required: false) — eine frühere
+  // Version hatte es erzwungen; diese Migration hebt das wieder auf, damit
+  // bestehende Einträge ohne Kaufdatum nicht nachgepflegt werden müssen (#45).
   const cleaned = attributes
     .filter(attr => attr.id !== 'purchaseDate')
     .map(attr =>
       attr.id === 'addedDate'
-        ? { ...attr, name: 'Gekauft am', required: true }
+        ? { ...attr, name: 'Gekauft am', required: false }
         : attr
     );
   const existingIds = new Set(cleaned.map(attr => attr.id));
