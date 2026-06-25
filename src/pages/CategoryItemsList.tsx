@@ -31,6 +31,7 @@ import {
   ItemImage,
 } from '../utils/itemImages';
 import ImageLightbox from '../components/common/ImageLightbox';
+import { parseDateInput } from '../utils/dateInput';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
 // nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
@@ -1250,16 +1251,16 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
   ) => {
     // Werte je nach Typ konvertieren
     let processedValue = value;
-    
-    if (type === 'number' && typeof value === 'string') {
-      processedValue = value === '' ? 0 : parseFloat(value);
-    } else if (type === 'boolean' && typeof value === 'string') {
+
+    // Zahlen: den Roh-String während der Eingabe NICHT sofort parsen. Sonst
+    // erzwingt das frühere "'' -> 0" beim Löschen eine 0, an die beim Tippen
+    // vorne angehängt wird (z.B. "050"). Stattdessen bleibt der Rohwert stehen
+    // (leeres Feld erlaubt, Dezimaleingaben zuverlässig) und wird erst beim
+    // Speichern in eine echte Zahl gewandelt (siehe handleSubmit).
+    if (type === 'boolean' && typeof value === 'string') {
       processedValue = value === 'true';
-    } else if (type === 'dropdown') {
-      // Für Dropdown-Felder den Wert direkt übernehmen, auch wenn er leer ist
-      processedValue = value;
     }
-    
+
     setFormValues(prev => ({
       ...prev,
       [attributeId]: processedValue
@@ -1348,9 +1349,21 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     
     // Für Debugging
     logger.debug('Submitting form values:', formValues);
-    
+
+    // Zahlenfelder werden während der Eingabe als Roh-String gehalten — hier in
+    // echte Zahlen wandeln (leer/ungültig -> 0), damit gespeicherte Werte und
+    // Berechnungen/Summen korrekt numerisch sind.
+    const valuesToSave: Record<string, any> = { ...formValues };
+    editableAttributes.forEach(attr => {
+      if (attr.type === 'number') {
+        const raw = valuesToSave[attr.id];
+        const n = typeof raw === 'number' ? raw : parseFloat(raw);
+        valuesToSave[attr.id] = Number.isFinite(n) ? n : 0;
+      }
+    });
+
     // Speichern des Items
-    const itemId = onSave(formValues);
+    const itemId = onSave(valuesToSave);
     
     // Debugging: Prüfen ob ID zurückgegeben wurde
     logger.debug('Saved item ID:', itemId);
@@ -1666,7 +1679,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                           <input
                             type="number"
                             id={attr.id}
-                            value={formValues[attr.id] || 0}
+                            value={formValues[attr.id] ?? ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
                             required={attr.required}
                             step={attr.id === 'quantity' ? "1" : "0.01"}
@@ -1696,6 +1709,16 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             id={attr.id}
                             value={formValues[attr.id] || ''}
                             onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
+                            onPaste={(e) => {
+                              // Eingefügtes Datum (z.B. "25.06.2026") erkennen und
+                              // ins ISO-Format übernehmen — zusätzlich zur
+                              // normalen Auswahl/Eingabe.
+                              const iso = parseDateInput(e.clipboardData.getData('text'));
+                              if (iso) {
+                                e.preventDefault();
+                                handleChange(attr.id, iso, attr.type);
+                              }
+                            }}
                             required={attr.required}
                             className={`mt-1 ${inputClass}`}
                           />
@@ -1859,9 +1882,9 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
   const [values, setValues] = useState<Record<string, any>>({});
 
   const defaultValueFor = (attr: AttributeDefinition): any => {
+    // Zahlen starten leer (nicht 0), damit kein erzwungenes "0" stehen bleibt;
+    // beim Anwenden wird leer zu 0 gewandelt.
     switch (attr.type) {
-      case 'number':
-        return 0;
       case 'boolean':
         return false;
       default:
@@ -1878,9 +1901,9 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
 
   const handleValueChange = (attr: AttributeDefinition, raw: any) => {
     let value = raw;
-    if (attr.type === 'number') {
-      value = raw === '' ? 0 : parseFloat(raw);
-    } else if (attr.type === 'boolean') {
+    // Zahlen: Roh-String behalten (leer erlaubt, Dezimaleingaben zuverlässig);
+    // erst beim Anwenden in eine echte Zahl wandeln.
+    if (attr.type === 'boolean') {
       value = raw === 'true';
     }
     setValues(prev => ({ ...prev, [attr.id]: value }));
@@ -1893,7 +1916,12 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
     const payload: Record<string, any> = {};
     editableAttributes.forEach(attr => {
       if (enabled[attr.id]) {
-        payload[attr.id] = values[attr.id] ?? defaultValueFor(attr);
+        let value = values[attr.id] ?? defaultValueFor(attr);
+        if (attr.type === 'number') {
+          const n = typeof value === 'number' ? value : parseFloat(value);
+          value = Number.isFinite(n) ? n : 0;
+        }
+        payload[attr.id] = value;
       }
     });
     onApply(payload);
@@ -1951,7 +1979,7 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                         {attr.type === 'number' && (
                           <input
                             type="number"
-                            value={values[attr.id] ?? 0}
+                            value={values[attr.id] ?? ''}
                             onChange={(e) => handleValueChange(attr, e.target.value)}
                             disabled={!isOn}
                             step={attr.id === 'quantity' ? '1' : '0.01'}
@@ -1966,6 +1994,13 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
                             type="date"
                             value={values[attr.id] ?? ''}
                             onChange={(e) => handleValueChange(attr, e.target.value)}
+                            onPaste={(e) => {
+                              const iso = parseDateInput(e.clipboardData.getData('text'));
+                              if (iso) {
+                                e.preventDefault();
+                                handleValueChange(attr, iso);
+                              }
+                            }}
                             disabled={!isOn}
                             className={`mt-1 ${inputClass}`}
                           />
