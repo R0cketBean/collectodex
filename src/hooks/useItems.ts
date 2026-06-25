@@ -34,6 +34,7 @@ export interface ItemsApi {
     }
   ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
+  updateMultipleItems: (ids: string[], values: { [key: string]: any }) => void;
   deleteItem: (id: string) => void;
   deleteMultipleItems: (ids: string[]) => void;
   getItemsByCategoryId: (categoryId: string) => CollectionItem[];
@@ -207,10 +208,29 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
     updateStorage();
   };
   
+  /**
+   * Massenbearbeitung (#: Bulk-Edit): setzt dieselben Attribut-Werte auf alle
+   * angegebenen Items. Bewusst EIN State-Update für alle Items (statt N
+   * Einzel-updateItem-Aufrufe) — die Persistenz übernimmt der debounced Save
+   * (wie bei deleteMultipleItems). `values` enthält nur die zu ändernden
+   * Attribute; übrige Werte je Item bleiben unangetastet.
+   */
+  const updateMultipleItems = (ids: string[], values: { [key: string]: any }) => {
+    if (ids.length === 0 || Object.keys(values).length === 0) return;
+    const idSet = new Set(ids);
+    setItems(prev =>
+      prev.map(item =>
+        idSet.has(item.id)
+          ? { ...item, values: { ...item.values, ...values }, updatedAt: new Date() }
+          : item
+      )
+    );
+  };
+
   const deleteItem = (id: string) => {
     setItems(prev => prev.filter(item => item.id !== id));
   };
-  
+
   const deleteMultipleItems = (ids: string[]) => {
     if (ids.length === 0) return;
     
@@ -747,6 +767,7 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
     setItems,
     addItem,
     updateItem,
+    updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
     getItemsByCategoryId,

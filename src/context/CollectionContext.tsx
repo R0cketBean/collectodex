@@ -46,6 +46,7 @@ interface CollectionContextType {
     }
   ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
+  updateMultipleItems: (ids: string[], values: { [key: string]: any }) => void;
   deleteItem: (id: string) => void;
   deleteMultipleItems: (ids: string[]) => void;
   getItemsByCategoryId: (categoryId: string) => CollectionItem[];
@@ -143,12 +144,14 @@ const migrateCategoryAttributes = (
     return [...CORE_ATTRIBUTES];
   }
   // Entferne das abgelöste "Kaufdatum" und benenne "addedDate" in "Gekauft am"
-  // um; "addedDate" ist außerdem ein Pflichtfeld (required).
+  // um. "addedDate" ist KEIN Pflichtfeld mehr (required: false) — eine frühere
+  // Version hatte es erzwungen; diese Migration hebt das wieder auf, damit
+  // bestehende Einträge ohne Kaufdatum nicht nachgepflegt werden müssen (#45).
   const cleaned = attributes
     .filter(attr => attr.id !== 'purchaseDate')
     .map(attr =>
       attr.id === 'addedDate'
-        ? { ...attr, name: 'Gekauft am', required: true }
+        ? { ...attr, name: 'Gekauft am', required: false }
         : attr
     );
   const existingIds = new Set(cleaned.map(attr => attr.id));
@@ -195,6 +198,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     setItems,
     addItem,
     updateItem,
+    updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
     getItemsByCategoryId,
@@ -337,6 +341,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     deleteAttribute,
     addItem,
     updateItem,
+    updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
     getItemsByCategoryId,
@@ -372,6 +377,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     // Item-Funktionen
     addItem: (...a) => latest.current.addItem(...a),
     updateItem: (...a) => latest.current.updateItem(...a),
+    updateMultipleItems: (...a) => latest.current.updateMultipleItems(...a),
     deleteItem: (...a) => latest.current.deleteItem(...a),
     deleteMultipleItems: (...a) => latest.current.deleteMultipleItems(...a),
     getItemsByCategoryId: (...a) => latest.current.getItemsByCategoryId(...a),
