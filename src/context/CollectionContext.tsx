@@ -46,6 +46,7 @@ interface CollectionContextType {
     }
   ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
+  updateMultipleItems: (ids: string[], values: { [key: string]: any }) => void;
   deleteItem: (id: string) => void;
   deleteMultipleItems: (ids: string[]) => void;
   getItemsByCategoryId: (categoryId: string) => CollectionItem[];
@@ -197,6 +198,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     setItems,
     addItem,
     updateItem,
+    updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
     getItemsByCategoryId,
@@ -339,6 +341,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     deleteAttribute,
     addItem,
     updateItem,
+    updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
     getItemsByCategoryId,
@@ -374,6 +377,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     // Item-Funktionen
     addItem: (...a) => latest.current.addItem(...a),
     updateItem: (...a) => latest.current.updateItem(...a),
+    updateMultipleItems: (...a) => latest.current.updateMultipleItems(...a),
     deleteItem: (...a) => latest.current.deleteItem(...a),
     deleteMultipleItems: (...a) => latest.current.deleteMultipleItems(...a),
     getItemsByCategoryId: (...a) => latest.current.getItemsByCategoryId(...a),
