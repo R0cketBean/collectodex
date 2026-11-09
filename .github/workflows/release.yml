@@ -16,12 +16,13 @@ permissions:
 jobs:
   release-mac:
     name: Build macOS DMG
-    # macos-14 (Sonoma, arm64) statt macos-latest: Auf den neueren macOS-Images
-    # (macos-latest zeigt inzwischen auf macOS 26) scheitert electron-builder
-    # 24.x beim Signieren am Keychain (`security set-key-partition-list` →
-    # "SecKeychainUnlock: passphrase not correct"), obwohl Zertifikat/Passwort
-    # korrekt sind. macos-14 ist die bekannte-funktionierende arm64-Umgebung.
-    runs-on: macos-14
+    # macos-15 (arm64) statt macos-latest: macos-latest zeigt inzwischen auf
+    # macOS 26, wo electron-builder 24.x beim Signieren am Keychain scheitert
+    # (`security set-key-partition-list` → "SecKeychainUnlock: passphrase not
+    # correct"). macos-15 ist das aktuell aktive, ältere arm64-Image — macos-14
+    # ist bei GitHub inzwischen in Retirement ("not supported"), macos-13 (Intel)
+    # seit Dez 2025 abgeschaltet.
+    runs-on: macos-15
     timeout-minutes: 45
 
     steps:
