@@ -16,7 +16,12 @@ permissions:
 jobs:
   release-mac:
     name: Build macOS DMG
-    runs-on: macos-latest
+    # macos-14 (Sonoma, arm64) statt macos-latest: Auf den neueren macOS-Images
+    # (macos-latest zeigt inzwischen auf macOS 26) scheitert electron-builder
+    # 24.x beim Signieren am Keychain (`security set-key-partition-list` →
+    # "SecKeychainUnlock: passphrase not correct"), obwohl Zertifikat/Passwort
+    # korrekt sind. macos-14 ist die bekannte-funktionierende arm64-Umgebung.
+    runs-on: macos-14
     timeout-minutes: 45
 
     steps:
@@ -73,10 +78,17 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        # Auch bei workflow_dispatch anlegen (nicht nur bei Tag-Push), damit ein
+        # Release für ein bereits existierendes Tag neu gebaut werden kann (z. B.
+        # nach einem Runner-/CI-Fix), ohne den Tag löschen/neu pushen zu müssen.
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          # Bei Tag-Push leer -> fällt auf github.ref_name (= Tag) zurück; bei
+          # workflow_dispatch das übergebene Tag, da github.ref_name dort der
+          # Branch wäre.
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           generate_release_notes: true
           # Installations-Anleitung (#22). Wird vor die automatisch generierten
           # Release-Notes gestellt. Nur der mac-Job setzt den Text; der
@@ -163,10 +175,11 @@ jobs:
           retention-days: 30
 
       - name: Attach Windows artifacts to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           draft: true
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
           # Kein body/generate_release_notes hier — der mac-Job hat das Release
           # bereits mit Text angelegt; dieser Schritt hängt nur Dateien an.
           files: |
