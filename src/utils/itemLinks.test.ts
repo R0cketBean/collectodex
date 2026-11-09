@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveItemLink } from './itemLinks';
+import { resolveItemLink, normalizeLinkUrl } from './itemLinks';
 import type {
   AttributeDefinition,
   CollectionItem,
@@ -73,5 +73,32 @@ describe('resolveItemLink', () => {
       links: { product: 'https://example.com/p' },
     });
     expect(resolveItemLink(i, attr({ id: 'price' }))).toBeUndefined();
+  });
+});
+
+describe('normalizeLinkUrl', () => {
+  it('ergänzt https:// wenn das Protokoll fehlt', () => {
+    expect(normalizeLinkUrl('cardmarket.com/x')).toBe(
+      'https://cardmarket.com/x'
+    );
+  });
+
+  it('lässt http:// und https:// unverändert', () => {
+    expect(normalizeLinkUrl('http://example.com')).toBe('http://example.com');
+    expect(normalizeLinkUrl('https://example.com')).toBe('https://example.com');
+  });
+
+  it('trimmt Leerzeichen', () => {
+    expect(normalizeLinkUrl('  https://example.com  ')).toBe(
+      'https://example.com'
+    );
+    expect(normalizeLinkUrl('  cardmarket.com/x  ')).toBe(
+      'https://cardmarket.com/x'
+    );
+  });
+
+  it('liefert leeren String für leere/nur-Leerzeichen-Eingaben', () => {
+    expect(normalizeLinkUrl('')).toBe('');
+    expect(normalizeLinkUrl('   ')).toBe('');
   });
 });

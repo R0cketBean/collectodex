@@ -32,6 +32,7 @@ import {
 } from '../utils/itemImages';
 import ImageLightbox from '../components/common/ImageLightbox';
 import { parseDateInput } from '../utils/dateInput';
+import { normalizeLinkUrl } from '../utils/itemLinks';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
 // nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
@@ -319,22 +320,28 @@ const CategoryItemsList: React.FC = () => {
     setShowItemModal(true);
   };
   
-  const handleSaveItem = (values: Record<string, any>): string => {
+  const handleSaveItem = (
+    values: Record<string, any>,
+    options?: {
+      links?: { [attributeId: string]: string };
+      images?: { [attributeId: string]: string };
+    }
+  ): string => {
     if (editingItem) {
       try {
         // Fortschrittsanzeige aktivieren
         setIsSaving(true);
-        
+
         // Speichere das Item und melde die ID zurück
         updateItem(editingItem.id, values);
-        
+
         // Schließe sofort nach dem Update das Modal, um Flackern zu vermeiden
         // Die Aktualisierung des Speicherzustands erfolgt asynchron
         setEditingItem(null);
-        
+
         // Anzeigen einer Erfolgsmeldung
         showSnackbarMessage('Item erfolgreich aktualisiert');
-        
+
         return editingItem.id;
       } catch (error) {
         console.error('Fehler beim Speichern des Items:', error);
@@ -345,7 +352,11 @@ const CategoryItemsList: React.FC = () => {
         setIsSaving(false);
       }
     } else {
-      return addItem(categoryId || '', values);
+      // Neues Item: Links/Bilder direkt beim Anlegen mitgeben. addLinkToItem
+      // würde aus dem Storage lesen, in dem das gerade erst in den State
+      // geschriebene Item noch nicht liegt (debounced Save), und den Link
+      // verwerfen — deshalb der Weg über addItem-options.
+      return addItem(categoryId || '', values, options);
     }
   };
   
@@ -1051,8 +1062,8 @@ const CategoryItemsList: React.FC = () => {
             <ItemModal
               category={category}
               item={editingItem}
-              onSave={(values) => {
-                const itemId = handleSaveItem(values);
+              onSave={(values, options) => {
+                const itemId = handleSaveItem(values, options);
                 setShowItemModal(false);
                 return itemId;
               }}
@@ -1126,7 +1137,13 @@ interface ItemModalProps {
     attributes: AttributeDefinition[];
   };
   item: CollectionItem | null;
-  onSave: (values: Record<string, any>) => string;
+  onSave: (
+    values: Record<string, any>,
+    options?: {
+      links?: { [attributeId: string]: string };
+      images?: { [attributeId: string]: string };
+    }
+  ) => string;
   onCancel: () => void;
 }
 
@@ -1145,6 +1162,30 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
       .filter(attr => !attr.isCalculated)
       .sort((a, b) => a.order - b.order);
   }, [category]);
+
+  // Autovervollständigung für Freitext-Felder (z. B. "Erweiterung"): sammelt
+  // je Text-Attribut die bereits in dieser Kategorie erfassten Werte und bietet
+  // sie per <datalist> als Dropdown an. Freie Eingabe bleibt möglich — es ist
+  // nur eine Auswahlhilfe, kein hartes Dropdown. So müssen wiederkehrende
+  // Erweiterungen nicht jedes Mal neu getippt werden.
+  const valueSuggestions = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    const categoryItems = items.filter(i => i.categoryId === category.id);
+    editableAttributes.forEach(attr => {
+      if (attr.type !== 'text') return;
+      const seen = new Set<string>();
+      categoryItems.forEach(i => {
+        const v = i.values?.[attr.id];
+        if (typeof v === 'string' && v.trim() !== '') {
+          seen.add(v.trim());
+        }
+      });
+      if (seen.size > 0) {
+        map[attr.id] = Array.from(seen).sort((a, b) => a.localeCompare(b, 'de'));
+      }
+    });
+    return map;
+  }, [items, category.id, editableAttributes]);
   
   // State für Link-Dialog
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -1362,45 +1403,62 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
       }
     });
 
-    // Speichern des Items
-    const itemId = onSave(valuesToSave);
-    
-    // Debugging: Prüfen ob ID zurückgegeben wurde
-    logger.debug('Saved item ID:', itemId);
-    
-    // Separat Bilder und Links hinzufügen, wenn vorhanden
-    if (item || itemId) {
-      const targetItemId = item ? item.id : itemId;
-      
-      // Für Debugging
-      logger.debug('Target item ID for media:', targetItemId);
-      
+    if (item) {
+      // Bestehendes Item: zuerst die Werte speichern, danach Bilder und Links
+      // separat persistieren. addLinkToItem/addImageToItem finden das Item im
+      // Storage, weil es dort bereits existiert.
+      onSave(valuesToSave);
+
       // Bilder hinzufügen
       Object.entries(newImages).forEach(([attributeId, imageData]) => {
         logger.debug('Adding image for attribute:', attributeId);
-        addImageToItem(targetItemId, attributeId, imageData);
+        addImageToItem(item.id, attributeId, imageData);
       });
-      
+
       // Links hinzufügen - optimiert ohne cleanup
       logger.debug('Links zum Speichern:', itemLinks);
-      
       Object.entries(itemLinks).forEach(([attributeId, url]) => {
         if (url) {
           logger.debug('Adding link for attribute:', attributeId, url);
-          addLinkToItem(targetItemId, attributeId, url);
+          addLinkToItem(item.id, attributeId, url);
         }
       });
-      
-      // Loading-Indikator ausblenden und Dialog schließen
+
       setTimeout(() => {
         hideLoading();
         onCancel();
       }, 300);
     } else {
-      // Loading-Indikator ausblenden
-      hideLoading();
-      console.warn('No valid item ID for adding media');
-      onCancel();
+      // Neues Item: Links/Bilder direkt beim Anlegen mitgeben, statt sie
+      // danach per addLinkToItem/addImageToItem nachzureichen. Das neue Item
+      // liegt zu diesem Zeitpunkt nur im React-State und noch nicht im Storage
+      // (debounced Save). addLinkToItem liest aber aus dem Storage und würde den
+      // Link verwerfen — genau das war der Bug, bei dem der Link erst nach
+      // nachträglichem Bearbeiten gespeichert wurde.
+      const normalizedLinks: Record<string, string> = {};
+      Object.entries(itemLinks).forEach(([attributeId, url]) => {
+        const normalized = normalizeLinkUrl(url);
+        if (normalized) {
+          normalizedLinks[attributeId] = normalized;
+        }
+      });
+
+      const itemId = onSave(valuesToSave, {
+        links: normalizedLinks,
+        images: newImages,
+      });
+      logger.debug('Saved new item ID:', itemId, 'Links:', normalizedLinks);
+
+      if (itemId) {
+        setTimeout(() => {
+          hideLoading();
+          onCancel();
+        }, 300);
+      } else {
+        hideLoading();
+        console.warn('No valid item ID for adding media');
+        onCancel();
+      }
     }
   };
   
@@ -1665,14 +1723,24 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                         </div>
                         
                         {attr.type === 'text' && (
-                          <input
-                            type="text"
-                            id={attr.id}
-                            value={formValues[attr.id] || ''}
-                            onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
-                            required={attr.required}
-                            className={`mt-1 ${inputClass}`}
-                          />
+                          <>
+                            <input
+                              type="text"
+                              id={attr.id}
+                              value={formValues[attr.id] || ''}
+                              onChange={(e) => handleChange(attr.id, e.target.value, attr.type)}
+                              required={attr.required}
+                              className={`mt-1 ${inputClass}`}
+                              list={valueSuggestions[attr.id] ? `suggestions-${attr.id}` : undefined}
+                            />
+                            {valueSuggestions[attr.id] && (
+                              <datalist id={`suggestions-${attr.id}`}>
+                                {valueSuggestions[attr.id].map(option => (
+                                  <option key={option} value={option} />
+                                ))}
+                              </datalist>
+                            )}
+                          </>
                         )}
                         
                         {attr.type === 'number' && (

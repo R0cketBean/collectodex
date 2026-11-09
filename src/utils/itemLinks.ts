@@ -27,3 +27,23 @@ export const resolveItemLink = (
   }
   return item.links[attr.id] || undefined;
 };
+
+/**
+ * Normalisiert eine vom Nutzer eingegebene Link-URL: trimmt sie und ergänzt
+ * das Protokoll (https://), falls es fehlt. Ein leerer/nur aus Leerzeichen
+ * bestehender Wert ergibt einen leeren String (= kein Link).
+ *
+ * Diese Logik lag früher nur in addLinkToItem (useItems). Beim Anlegen eines
+ * NEUEN Items werden die Links aber direkt an addItem übergeben (addLinkToItem
+ * würde das noch nicht im Storage liegende Item nicht finden), deshalb muss die
+ * Normalisierung zentral verfügbar sein, damit neu angelegte und nachträglich
+ * bearbeitete Links identisch behandelt werden.
+ */
+export const normalizeLinkUrl = (url: string): string => {
+  const trimmed = url.trim();
+  if (trimmed === '') return '';
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return 'https://' + trimmed;
+  }
+  return trimmed;
+};

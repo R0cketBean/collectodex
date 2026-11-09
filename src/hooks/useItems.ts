@@ -9,6 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { Category, CollectionItem } from '../types/models';
 import { logger } from '../utils/logger';
+import { normalizeLinkUrl } from '../utils/itemLinks';
 import * as StorageService from '../services/StorageService';
 
 // Globale Flags für die Synchronisation (modul-intern, aus dem Context übernommen)
@@ -288,12 +289,9 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
     }
     
     // Verarbeite die URL - stelle sicher, dass es eine gültige URL ist
-    let processedUrl = url.trim();
-    // Füge das Protokoll hinzu, wenn es fehlt
-    if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
-      processedUrl = 'https://' + processedUrl;
-      logger.debug(`Protokoll hinzugefügt: ${processedUrl}`);
-    }
+    // (trimmen + Protokoll ergänzen). Gemeinsamer Helper, damit neu angelegte
+    // und nachträglich bearbeitete Links identisch normalisiert werden.
+    const processedUrl = normalizeLinkUrl(url);
     
     // Direkter Storage-Update-Ansatz, um Race Conditions zu vermeiden
     const updateStorageDirectly = async () => {
