@@ -14,7 +14,8 @@ import {
     CubeIcon,
     PhotoIcon,
     DocumentIcon,
-    ChevronUpIcon
+    ChevronUpIcon,
+    RectangleStackIcon
 } from '@heroicons/react/24/outline';
 import { useCategoriesData } from '../../context/CollectionContext';
 
@@ -52,6 +53,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Kategorien verwalten', href: '/category-management', icon: CogIcon },
     { name: 'Import/Export', href: '/import-export', icon: DocumentArrowDownIcon },
     { name: 'Statistik', href: '/statistics', icon: ChartBarIcon },
+    { name: 'Kartenkatalog', href: '/katalog', icon: RectangleStackIcon },
     { name: 'Einstellungen', href: '/settings', icon: Cog6ToothIcon },
   ];
 
@@ -103,7 +105,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   key={item.name}
                   to={item.href}
                   className={`${
-                    location.pathname === item.href
+                    (item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href))
                       ? 'bg-pokemon-light-blue text-white'
                       : 'text-white hover:bg-pokemon-light-blue'
                   } group flex items-center px-2 py-2 text-base font-medium rounded-md`}
@@ -174,7 +176,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     key={item.name}
                     to={item.href}
                     className={`${
-                      location.pathname === item.href
+                      (item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href))
                         ? 'bg-pokemon-light-blue text-white'
                         : 'text-white hover:bg-pokemon-light-blue'
                     } group flex items-center px-2 py-2 text-sm font-medium rounded-md ${sidebarCollapsed ? 'justify-center' : ''}`}
