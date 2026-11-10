@@ -189,9 +189,8 @@ export const sumSetValue = (cards: Array<Pick<CardDetail, 'pricing' | 'variants'
   return { total: Math.round(total * 100) / 100, priced };
 };
 
-const eurFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-export const formatEur = (v: number | null | undefined) =>
-  typeof v === 'number' && Number.isFinite(v) ? eurFormatter.format(v) : '–';
+// Betragsformat liegt zentral in utils/format; hier für bestehende Importe weitergereicht.
+export { formatEur } from '../utils/format';
 
 /** Cardmarket-Suche nach Kartenname (idProduct-Links sind nicht stabil dokumentiert). */
 export const cardmarketSearchUrl = (name: string) =>

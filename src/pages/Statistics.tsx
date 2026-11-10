@@ -14,6 +14,7 @@ import {
   formatHoldingDuration,
   formatPercent,
 } from '../utils/statistics';
+import { formatEur, formatSignedEur } from '../utils/format';
 
 // recharts verzögert laden (#19), wie auf dem Dashboard.
 const CategoryHistoryChart = lazy(() =>
@@ -161,8 +162,7 @@ const Statistics: React.FC = () => {
                     {formatPercent(s.roiFrac)}
                   </p>
                   <p className={`text-xs ${profitColor(s.profit)}`}>
-                    {s.profit >= 0 ? '+' : ''}
-                    {s.profit.toFixed(2)}€
+                    {formatSignedEur(s.profit)}
                   </p>
                 </div>
               </div>
@@ -195,11 +195,11 @@ const Statistics: React.FC = () => {
         <>
           {/* Kennzahlen */}
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard label="Investiert" value={`${summary.totalCost.toFixed(2)}€`} />
-            <StatCard label="Aktueller Wert" value={`${summary.totalValue.toFixed(2)}€`} />
+            <StatCard label="Investiert" value={formatEur(summary.totalCost)} />
+            <StatCard label="Aktueller Wert" value={formatEur(summary.totalValue)} />
             <StatCard
               label="Gewinn/Verlust"
-              value={`${summary.profitLoss >= 0 ? '+' : ''}${summary.profitLoss.toFixed(2)}€`}
+              value={formatSignedEur(summary.profitLoss)}
               hint={overallRoi != null ? `${formatPercent(overallRoi)} Gesamtrendite` : undefined}
               valueClass={profitColor(summary.profitLoss)}
             />

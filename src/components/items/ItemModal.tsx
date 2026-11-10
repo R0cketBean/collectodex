@@ -604,7 +604,7 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                             min={attr.id === 'quantity' ? "0" : undefined}
                             className={`mt-1 ${inputClass}`}
                             onFocus={(e) => e.target.select()}
-                            placeholder={attr.id.includes('price') || attr.id.includes('Value') ? "0.00 €" : "0"}
+                            placeholder={attr.id.includes('price') || attr.id.includes('Value') ? "0,00 €" : "0"}
                           />
                         )}
                         

@@ -17,6 +17,7 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import { formatEur, formatEurWhole } from '../../utils/format';
 
 export interface PieDatum {
   name: string;
@@ -55,7 +56,7 @@ const BarTooltip = ({
     <div style={TOOLTIP_CARD}>
       <div style={{ color: '#111827', fontWeight: 600, fontSize: 12 }}>{d.name}</div>
       <div style={{ color: d.fill, fontSize: 12 }}>
-        {d.value.toFixed(2)}€ ({pct}%)
+        {formatEur(d.value)} ({pct} %)
       </div>
     </div>
   );
@@ -75,7 +76,7 @@ const LineTooltip = ({
     <div style={TOOLTIP_CARD}>
       <div style={{ color: '#111827', fontWeight: 600, fontSize: 12 }}>{label}</div>
       <div style={{ color: '#3B4CCA', fontSize: 12 }}>
-        {Number(payload[0].value).toFixed(2)}€ Gesamtwert
+        {formatEur(Number(payload[0].value))} Gesamtwert
       </div>
     </div>
   );
@@ -100,7 +101,7 @@ const MultiLineTooltip = ({
       </div>
       {payload.map((p, i) => (
         <div key={i} style={{ color: p.color, fontSize: 12 }}>
-          {p.name}: {Number(p.value).toFixed(2)}€
+          {p.name}: {formatEur(Number(p.value))}
         </div>
       ))}
     </div>
@@ -165,7 +166,7 @@ export const ValueDistributionChart: React.FC<{
         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
         <XAxis
           type="number"
-          tickFormatter={(value) => `${Math.round(value)}€`}
+          tickFormatter={(value) => formatEurWhole(Number(value))}
           tick={{ fontSize: 10 }}
         />
         <YAxis
@@ -201,7 +202,7 @@ export const CategoryHistoryChart: React.FC<{
       <CartesianGrid strokeDasharray="3 3" />
       <XAxis dataKey="name" tick={{ fontSize: 10 }} />
       <YAxis
-        tickFormatter={(value) => `${Math.round(Number(value))}€`}
+        tickFormatter={(value) => formatEurWhole(Number(value))}
         tick={{ fontSize: 10 }}
         width={40}
       />
@@ -235,7 +236,7 @@ export const ValueHistoryChart: React.FC<{ valueData: ValueDatum[] }> = ({
       <CartesianGrid strokeDasharray="3 3" />
       <XAxis dataKey="name" tick={{ fontSize: 10 }} />
       <YAxis
-        tickFormatter={(value) => `${Math.round(value)}€`}
+        tickFormatter={(value) => formatEurWhole(Number(value))}
         tick={{ fontSize: 10 }}
         width={40}
       />
