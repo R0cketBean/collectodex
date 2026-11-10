@@ -56,6 +56,7 @@ export interface CollectionItem {
     [attributeId: string]: string; // URLs für Hyperlinks
   };
   catalog?: CatalogRef; // Verknüpfte Katalogkarte (zählt im Katalog als vorhanden)
+  valueCheckedAt?: string; // ISO-Zeitpunkt, zu dem der aktuelle Wert zuletzt gesetzt oder bestätigt wurde
   createdAt: Date;
   updatedAt: Date;
 }

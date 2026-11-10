@@ -15,7 +15,8 @@ import {
     PhotoIcon,
     DocumentIcon,
     ChevronUpIcon,
-    RectangleStackIcon
+    RectangleStackIcon,
+  CurrencyEuroIcon,
 } from '@heroicons/react/24/outline';
 import { useCategoriesData } from '../../context/CollectionContext';
 
@@ -54,6 +55,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Import/Export', href: '/import-export', icon: DocumentArrowDownIcon },
     { name: 'Statistik', href: '/statistics', icon: ChartBarIcon },
     { name: 'Kartenkatalog', href: '/katalog', icon: RectangleStackIcon },
+    { name: 'Preis-Check', href: '/preis-check', icon: CurrencyEuroIcon },
     { name: 'Einstellungen', href: '/settings', icon: Cog6ToothIcon },
   ];
 

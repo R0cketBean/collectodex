@@ -136,6 +136,35 @@ describe('useItems – Änderungen', () => {
     expect('catalog' in get(a)).toBe(false);
   });
 
+  it('merkt sich das Prüfdatum nur, wenn sich der aktuelle Wert ändert oder bestätigt wird', () => {
+    const { result, get } = setup();
+    let id = '';
+    act(() => {
+      id = result.current.addItem('singles', { name: 'C', currentValue: 10 });
+    });
+    const created = get(id).valueCheckedAt;
+    expect(created).toBeTruthy();
+    vi.advanceTimersByTime(5000);
+    act(() => result.current.updateItem(id, { name: 'C2', currentValue: 10 }));
+    expect(get(id).valueCheckedAt).toBe(created);
+    act(() => result.current.updateItem(id, { currentValue: 12 }));
+    const changed = get(id).valueCheckedAt!;
+    expect(changed > created!).toBe(true);
+    vi.advanceTimersByTime(5000);
+    act(() => result.current.markValueChecked(id));
+    expect(get(id).valueCheckedAt! > changed).toBe(true);
+    expect(get(id).values.currentValue).toBe(12);
+  });
+
+  it('wertet den Startwert aus dem Katalog nicht als geprüften Preis', () => {
+    const { result, get } = setup();
+    let id = '';
+    act(() => {
+      id = result.current.addItem('singles', { name: 'K', currentValue: 3 }, { catalog: { cardId: 'a-1', setId: 'a' } });
+    });
+    expect(get(id).valueCheckedAt).toBeUndefined();
+  });
+
   it('entfernt beim Löschen einer Kategorie deren Einträge', () => {
     const { result, a } = setup();
     act(() => result.current.deleteItemsByCategory('sealed'));

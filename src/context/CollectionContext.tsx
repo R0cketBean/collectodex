@@ -47,6 +47,7 @@ interface CollectionContextType {
     }
   ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
+  markValueChecked: (id: string) => void;
   updateMultipleItems: (ids: string[], values: { [key: string]: any }) => void;
   deleteItem: (id: string) => void;
   deleteMultipleItems: (ids: string[]) => void;
@@ -195,6 +196,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     setItems,
     addItem,
     updateItem,
+    markValueChecked,
     updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
@@ -337,6 +339,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     deleteAttribute,
     addItem,
     updateItem,
+    markValueChecked,
     updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
@@ -372,6 +375,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     // Item-Funktionen
     addItem: (...a) => latest.current.addItem(...a),
     updateItem: (...a) => latest.current.updateItem(...a),
+    markValueChecked: (...a) => latest.current.markValueChecked(...a),
     updateMultipleItems: (...a) => latest.current.updateMultipleItems(...a),
     deleteItem: (...a) => latest.current.deleteItem(...a),
     deleteMultipleItems: (...a) => latest.current.deleteMultipleItems(...a),

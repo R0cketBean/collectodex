@@ -30,6 +30,7 @@ export interface ItemsApi {
     }
   ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
+  markValueChecked: (id: string) => void;
   updateMultipleItems: (ids: string[], values: { [key: string]: any }) => void;
   deleteItem: (id: string) => void;
   deleteMultipleItems: (ids: string[]) => void;
@@ -107,6 +108,8 @@ export function useItems(): ItemsApi {
       id,
       categoryId,
       values,
+      // Aus dem Katalog übernommene Einträge starten mit einem Richtwert und gelten noch nicht als geprüft.
+      ...('currentValue' in values && !options?.catalog ? { valueCheckedAt: new Date().toISOString() } : {}),
       ...(options?.links && Object.keys(options.links).length > 0 ? { links: options.links } : {}),
       ...(options?.images && Object.keys(options.images).length > 0 ? { images: options.images } : {}),
       ...(options?.catalog ? { catalog: options.catalog } : {}),
@@ -117,8 +120,21 @@ export function useItems(): ItemsApi {
     return id;
   };
 
+  // Ändert sich der aktuelle Wert, gilt der Preis als frisch geprüft (#125).
+  const withValues = (item: CollectionItem, values: { [key: string]: any }): CollectionItem => ({
+    ...item,
+    values: { ...item.values, ...values },
+    ...('currentValue' in values && values.currentValue !== item.values?.currentValue
+      ? { valueCheckedAt: new Date().toISOString() }
+      : {}),
+  });
+
   const updateItem = (id: string, values: { [key: string]: any }) =>
-    patchItem(id, (item) => ({ ...item, values: { ...item.values, ...values } }));
+    patchItem(id, (item) => withValues(item, values));
+
+  /** Bestätigt den aktuellen Wert als geprüft, ohne ihn zu ändern. */
+  const markValueChecked = (id: string) =>
+    patchItem(id, (item) => ({ ...item, valueCheckedAt: new Date().toISOString() }));
 
   /**
    * Massenbearbeitung: setzt dieselben Attribut-Werte auf alle angegebenen
@@ -130,7 +146,7 @@ export function useItems(): ItemsApi {
     const idSet = new Set(ids);
     setItems((prev) =>
       prev.map((item) =>
-        idSet.has(item.id) ? { ...item, values: { ...item.values, ...values }, updatedAt: new Date() } : item
+        idSet.has(item.id) ? { ...withValues(item, values), updatedAt: new Date() } : item
       )
     );
   };
@@ -183,6 +199,7 @@ export function useItems(): ItemsApi {
     setItems,
     addItem,
     updateItem,
+    markValueChecked,
     updateMultipleItems,
     deleteItem,
     deleteMultipleItems,
