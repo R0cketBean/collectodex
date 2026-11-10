@@ -12,6 +12,9 @@ import { useCollectionActions } from '../context/CollectionContext';
 import { wrapBackup } from '../utils/backup';
 import { getCatalogOwned } from '../hooks/useCatalogOwned';
 import { inlineItemImages } from '../utils/imageStorage';
+import { updateCatalogSettings, useCatalogSettings } from '../hooks/useCatalogSettings';
+import type { CatalogSettings } from '../utils/catalogSettings';
+import { selectClass } from '../utils/formStyles';
 import {
   BackupSettings,
   DEFAULT_BACKUP_SETTINGS,
@@ -32,6 +35,7 @@ const THEME_OPTIONS: { value: ThemeChoice; label: string; icon: React.ElementTyp
 ];
 
 const Settings: React.FC = () => {
+  const catalog = useCatalogSettings();
   const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
   const [version, setVersion] = useState<string | undefined>(undefined);
   const [checkState, setCheckState] = useState<CheckState>('idle');
@@ -393,6 +397,87 @@ const Settings: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Katalog & Preise (#126, #140) */}
+      <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow">
+        <div className="px-4 py-5 sm:p-6">
+          <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100">Katalog &amp; Preise</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Der Katalogpreis ist ein Richtwert über alle Sprachen und Zustände. Deinen eigenen Wert pflegst du weiter
+            selbst, zum Beispiel im Preis-Check.
+          </p>
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            <label className="block text-sm text-gray-700 dark:text-gray-200">
+              Katalogpreis als Vergleich und Startwert
+              <select
+                className={`${selectClass} mt-1`}
+                value={catalog.priceBasis}
+                onChange={(e) => updateCatalogSettings({ priceBasis: e.target.value as CatalogSettings['priceBasis'] })}
+              >
+                <option value="trend">Trend</option>
+                <option value="avg30">Durchschnitt 30 Tage</option>
+                <option value="low">Günstigstes Angebot</option>
+              </select>
+            </label>
+            <label className="block text-sm text-gray-700 dark:text-gray-200">
+              Preis gilt als fällig nach
+              <select
+                className={`${selectClass} mt-1`}
+                value={catalog.dueAfterDays}
+                onChange={(e) => updateCatalogSettings({ dueAfterDays: Number(e.target.value) })}
+              >
+                <option value={7}>7 Tagen</option>
+                <option value={14}>14 Tagen</option>
+                <option value={30}>30 Tagen</option>
+                <option value={90}>90 Tagen</option>
+                <option value={180}>180 Tagen</option>
+              </select>
+            </label>
+          </div>
+          <h3 className="mt-6 text-sm font-medium text-gray-900 dark:text-gray-100">Filter für neue Cardmarket-Links</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Gilt für Einträge, die du aus dem Katalog übernimmst. Bestehende Links bleiben unverändert.
+          </p>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
+            <label className="block text-sm text-gray-700 dark:text-gray-200">
+              Verkäuferland
+              <select
+                className={`${selectClass} mt-1`}
+                value={catalog.sellerCountry}
+                onChange={(e) => updateCatalogSettings({ sellerCountry: e.target.value as CatalogSettings['sellerCountry'] })}
+              >
+                <option value="de">Deutschland</option>
+                <option value="all">Alle Länder</option>
+              </select>
+            </label>
+            <label className="block text-sm text-gray-700 dark:text-gray-200">
+              Sprache
+              <select
+                className={`${selectClass} mt-1`}
+                value={catalog.language}
+                onChange={(e) => updateCatalogSettings({ language: e.target.value as CatalogSettings['language'] })}
+              >
+                <option value="de">Deutsch</option>
+                <option value="en">Englisch</option>
+                <option value="jp">Japanisch</option>
+                <option value="all">Alle Sprachen</option>
+              </select>
+            </label>
+            <label className="block text-sm text-gray-700 dark:text-gray-200">
+              Mindestzustand
+              <select
+                className={`${selectClass} mt-1`}
+                value={catalog.minCondition}
+                onChange={(e) => updateCatalogSettings({ minCondition: e.target.value as CatalogSettings['minCondition'] })}
+              >
+                <option value="nm">Near Mint</option>
+                <option value="ex">Excellent</option>
+                <option value="all">Alle Zustände</option>
+              </select>
+            </label>
+          </div>
         </div>
       </div>
 

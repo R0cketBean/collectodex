@@ -5,6 +5,8 @@ import { useCategoriesData, useCollectionActions, useItemsData } from '../contex
 import { toggleCatalogOwned, useCatalogOwned } from '../hooks/useCatalogOwned';
 import type { CatalogVariant, Category, CollectionItem } from '../types/models';
 import { buildCatalogItem } from '../utils/catalogItem';
+import { useCatalogSettings } from '../hooks/useCatalogSettings';
+import { buildCardmarketFilter, pickCatalogPrice } from '../utils/catalogSettings';
 import {
   cardOwnership,
   linkedItemsByCard,
@@ -67,6 +69,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
   const categories = useCategoriesData();
   const { addItem, calculateItemValue, setItemCatalogRefs } = useCollectionActions();
   const checked = useCatalogOwned()[setId];
+  const settings = useCatalogSettings();
   const linked = useMemo(() => linkedItemsByCard(items, setId), [items, setId]);
   const ownershipOf = (cardId: string) => cardOwnership(checked?.[cardId], linked[cardId]);
 
@@ -423,9 +426,9 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
               name: selected.name,
               localId: selected.localId,
               variant,
-              price: variant === 'reverse' ? price?.reverseTrend ?? null : price?.trend ?? null,
+              price: pickCatalogPrice(price, settings.priceBasis, variant),
               imageUrl: image,
-              productUrl: cardmarketProductUrl(price?.idProduct, selected.name),
+              productUrl: cardmarketProductUrl(price?.idProduct, selected.name, buildCardmarketFilter(settings)),
             });
             const id = addItem(category.id, draft.values, {
               links: draft.links,
@@ -630,7 +633,7 @@ const CardModal: React.FC<{
                   </button>
                 </div>
                 <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Legt einen Eintrag mit Bild, Cardmarket-Link und dem Trendpreis als Startwert an. Kaufpreis und
+                  Legt einen Eintrag mit Bild, Cardmarket-Link und dem Katalogpreis als Startwert an. Kaufpreis und
                   Wert pflegst du danach wie gewohnt.
                 </p>
               </div>

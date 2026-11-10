@@ -15,7 +15,8 @@ export const STORAGE_KEYS = {
   ITEMS: 'pokemon_collection_items',
   VALUE_HISTORY: 'pokemon_collection_value_history',
   BACKUP_SETTINGS: 'collectodex_backup_settings',
-  CATALOG_OWNED: 'collectodex_catalog_owned'
+  CATALOG_OWNED: 'collectodex_catalog_owned',
+  CATALOG_SETTINGS: 'collectodex_catalog_settings'
 };
 
 // Globale Update-Warteschlange - Verhindert konkurrierende Updates der gleichen Resource
