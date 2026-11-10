@@ -104,6 +104,7 @@
       "build/**/*",
       "public/electron.js",
       "public/preload.js",
+      "public/imageStore.js",
       "node_modules/**/*",
       "!node_modules/**/*.{md,MD,txt,TXT}",
       "!node_modules/**/LICENSE*",
