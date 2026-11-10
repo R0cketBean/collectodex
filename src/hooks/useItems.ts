@@ -367,25 +367,6 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
         
         // Flag zurücksetzen
         directUpdateInProgress.value = false;
-        
-        // Optional: Verifizierung in Entwicklungsumgebung, wenn DEBUG flag gesetzt ist
-        if (process.env.NODE_ENV === 'development' && false) { // Deaktiviert für bessere Performance
-          setTimeout(async () => {
-            try {
-              const verifyItems = await StorageService.getData<any[]>(StorageService.STORAGE_KEYS.ITEMS);
-              const verifiedItem = verifyItems?.find(item => item.id === itemId);
-              
-              if (verifiedItem?.links?.[attributeId] === processedUrl) {
-                logger.debug('Verifizierung erfolgreich: Link wurde korrekt gespeichert');
-              } else {
-                console.error('Verifizierung fehlgeschlagen: Link wurde nicht korrekt gespeichert', 
-                  verifiedItem?.links?.[attributeId], 'statt', processedUrl);
-              }
-            } catch (error) {
-              console.error('Fehler bei der Verifizierung:', error);
-            }
-          }, 100);
-        }
       } catch (error) {
         console.error('Fehler beim Link-Update:', error);
         directUpdateInProgress.value = false;
@@ -410,7 +391,7 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
   
   const removeLinkFromItem = (itemId: string, attributeId: string) => {
     // Ähnlich radikale Methode zum Entfernen von Links
-    let updatedItems = [...items]; // Erstelle eine Kopie aller Items
+    const updatedItems = [...items]; // Erstelle eine Kopie aller Items
     
     // Finde das zu aktualisierende Item
     const itemIndex = updatedItems.findIndex(item => item.id === itemId);
@@ -456,7 +437,7 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
   
   // Neue Funktion zum Bereinigen von Excel-Import-Links
   const cleanupItemLinks = (itemId: string) => {
-    let updatedItems = [...items]; // Erstelle eine Kopie aller Items
+    const updatedItems = [...items]; // Erstelle eine Kopie aller Items
     
     // Finde das zu aktualisierende Item
     const itemIndex = updatedItems.findIndex(item => item.id === itemId);

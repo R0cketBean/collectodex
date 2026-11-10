@@ -65,7 +65,7 @@ const Dashboard: React.FC = () => {
   // Nur Kategorien mit Wert > 0 einbeziehen
   const pieData = Object.entries(summary.categorySummaries)
     .filter(([_, data]) => data.value > 0)
-    .map(([categoryId, data]) => ({
+    .map(([_categoryId, data]) => ({
       name: data.name,
       value: data.value
     }));
