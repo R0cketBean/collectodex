@@ -22,6 +22,7 @@ import { getOrderedImages, getPrimaryImage, countImages, ItemImage } from '../ut
 import ImageLightbox from '../components/common/ImageLightbox';
 import ItemModal from '../components/items/ItemModal';
 import BulkEditModal from '../components/items/BulkEditModal';
+import { formatAttributeNumber, formatEur } from '../utils/format';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
 // nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
@@ -578,7 +579,7 @@ const CategoryItemsList: React.FC = () => {
                     // Preisattribute suchen
                     const valueAttr = visibleAttributes.find(attr => attr.id === 'currentValue' || attr.id === 'totalValue');
                     const value = valueAttr && calculatedValues[valueAttr.id] !== undefined 
-                      ? Number(calculatedValues[valueAttr.id]).toFixed(2) + ' €' 
+                      ? formatEur(Number(calculatedValues[valueAttr.id]))
                       : '';
                     
                     // Hauptbild (Vorderseite, sonst erstes) für die Vorschau (#1)
@@ -642,7 +643,7 @@ const CategoryItemsList: React.FC = () => {
                               // Für Zahlen Formatierung mit €
                               if (attr.type === 'number' || attr.type === 'formula') {
                                 if (typeof attrValue === 'number') {
-                                  displayValue = attrValue.toFixed(2) + ' €';
+                                  displayValue = formatAttributeNumber(attr.id, attrValue);
                                 }
                               } else if (attr.type === 'boolean') {
                                 displayValue = attrValue ? 'Ja' : 'Nein';
@@ -813,18 +814,8 @@ const CategoryItemsList: React.FC = () => {
                                 displayValue = '';
                               } else if (attr.type === 'number' || attr.type === 'formula') {
                                 if (typeof value === 'number') {
-                                  // Preise und Werte mit €-Symbol anzeigen
-                                  if (attr.id.includes('price') || attr.id.includes('Price') || 
-                                      attr.id.includes('value') || attr.id.includes('Value') || 
-                                      attr.id.includes('cost') || attr.id.includes('Cost') ||
-                                      attr.id === 'profitLoss') {
-                                    displayValue = `${value.toFixed(2)} €`;
-                                  } else {
-                                    // Anzahl ohne Dezimalstellen
-                                    displayValue = attr.id === 'quantity' ? 
-                                      Math.round(value).toString() : 
-                                      value.toFixed(2);
-                                  }
+                                  // Beträge in Euro, Anzahl ohne Nachkommastellen (deutsches Format)
+                                  displayValue = formatAttributeNumber(attr.id, value);
                                 } else {
                                   displayValue = String(value);
                                 }
@@ -948,12 +939,7 @@ const CategoryItemsList: React.FC = () => {
                               
                               return (
                                 <td key={attr.id} className={cellClasses}>
-                                  {attr.id.includes('price') || attr.id.includes('Price') || 
-                                  attr.id.includes('value') || attr.id.includes('Value') || 
-                                  attr.id.includes('cost') || attr.id.includes('Cost') || 
-                                  attr.id === 'profitLoss' ? 
-                                  `${sums[attr.id].toFixed(2)} €` : 
-                                  (attr.id === 'quantity' ? Math.round(sums[attr.id]) : sums[attr.id].toFixed(2))}
+                                  {formatAttributeNumber(attr.id, sums[attr.id])}
                                 </td>
                               );
                             }

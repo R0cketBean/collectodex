@@ -32,6 +32,7 @@ const ChartFallback: React.FC = () => (
   </div>
 );
 import { SquaresPlusIcon, ArchiveBoxIcon as ArchiveBoxOutlineIcon, StarIcon, CubeIcon, DocumentIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { formatEur, formatSignedEur } from '../utils/format';
 
 // Map von Icon-Namen zu Icon-Komponenten
 const iconMap: Record<string, React.ElementType> = {
@@ -123,7 +124,7 @@ const Dashboard: React.FC = () => {
               <div className="ml-4 min-w-0 flex-1">
                 <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 truncate">Gesamtwert</h3>
                 <p className="mt-1 text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
-                  <span className="whitespace-nowrap">{summary.totalValue.toFixed(2)}€</span>
+                  <span className="whitespace-nowrap">{formatEur(summary.totalValue)}</span>
                 </p>
               </div>
             </div>
@@ -140,7 +141,7 @@ const Dashboard: React.FC = () => {
               <div className="ml-4 min-w-0 flex-1">
                 <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 truncate">Gewinn/Verlust</h3>
                 <p className={`mt-1 text-lg sm:text-xl font-semibold ${summary.profitLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {summary.profitLoss >= 0 ? '+' : ''}{summary.profitLoss.toFixed(2)}€
+                  {formatSignedEur(summary.profitLoss)}
                   {summary.totalCost > 0 && (
                     <span className="block text-xs sm:text-sm font-normal text-gray-500 dark:text-gray-400">
                       ({Math.round((summary.profitLoss / summary.totalCost) * 100)}%)
@@ -292,7 +293,7 @@ const Dashboard: React.FC = () => {
                                 {itemName}
                               </p>
                               <p className="ml-2 text-sm font-medium text-green-600 whitespace-nowrap">
-                                +{profitLoss.toFixed(2)}€
+                                {formatSignedEur(profitLoss)}
                               </p>
                             </div>
                             <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
@@ -339,7 +340,7 @@ const Dashboard: React.FC = () => {
                     <div className="ml-3 sm:ml-5 w-0 flex-1">
                       <h3 className="text-sm sm:text-base font-medium text-gray-900 dark:text-gray-100 truncate">{category.name}</h3>
                       <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400 truncate">
-                        {categorySummary.value.toFixed(2)}€ ({categorySummary.count} Einträge)
+                        {formatEur(categorySummary.value)} ({categorySummary.count} Einträge)
                       </p>
                     </div>
                   </div>

@@ -98,7 +98,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           
           <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
             <div className="flex-shrink-0 flex items-center px-4">
-              <h1 className="text-white text-xl font-bold">Pokémon Sammlung</h1>
+              <h1 className="text-white text-xl font-bold">CollectODex</h1>
             </div>
             <nav className="mt-5 px-2 space-y-1">
               {/* Statische Navigationselemente */}
@@ -153,7 +153,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               <div className={`flex items-center flex-shrink-0 px-4 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
                 {!sidebarCollapsed && (
                   <>
-                    <h1 className="text-white text-xl font-bold">Pokémon Sammlung</h1>
+                    <h1 className="text-white text-xl font-bold">CollectODex</h1>
                     <button
                       onClick={toggleSidebarCollapse}
                       className="text-white hover:bg-pokemon-light-blue rounded-md p-1"
