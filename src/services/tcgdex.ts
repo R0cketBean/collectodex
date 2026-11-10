@@ -109,16 +109,55 @@ export const englishAssetBase = (base: string) =>
 export const englishCardImageBase = (serieId: string | undefined, setId: string, localId: string) =>
   serieId ? `${ASSET_ROOT}/en/${serieId}/${setId}/${localId}` : undefined;
 
-/** Kartenbild: deutsch, sonst englisch (aus dem englischen Set, siehe fetchEnglishCardImages). */
+// --- Zweite Bildquelle: pokemontcg.io ---------------------------------------
+// TCGdex fehlen für etliche Sets die Bilder ganz (Trainer-Galerien, viele
+// Promo-Sets, Celebrations Klassische Kollektion). Die Bilder von
+// pokemontcg.io (nur englisch) schließen den größten Teil dieser Lücken. Die
+// Set-Kennungen weichen leicht ab: „sv03.5“ heißt dort „sv3pt5“, „sm7.5“
+// heißt „sm75“.
+
+const PTCG_IMAGE_ROOT = 'https://images.pokemontcg.io';
+const PTCG_SET_OVERRIDES: Record<string, string> = { cel25cc: 'cel25c', hgssp: 'hsp' };
+
+// Die Klassische Kollektion trägt dort die Nummern der Originalkarten.
+const PTCG_CEL25C_NUMBERS: Record<string, string> = {
+  CC001: '2_A', CC002: '4_A', CC003: '15_A', CC004: '73_A', CC005: '8_A',
+  CC006: '15_B', CC007: '15_C', CC008: '24_A', CC009: '20_A', CC010: '66_A',
+  CC011: '9_A', CC012: '86_A', CC013: '88_A', CC014: '93_A', CC015: '17_A',
+  CC016: '15_D', CC017: '109_A', CC018: '145_A', CC019: '107_A', CC020: '113_A',
+  CC021: '114_A', CC022: '54_A', CC023: '97_A', CC024: '76_A', CC025: '60_A',
+};
+
+/** Set-Kennung bei pokemontcg.io zur TCGdex-Kennung. */
+export const pokemonTcgIoSetId = (setId: string): string => {
+  if (PTCG_SET_OVERRIDES[setId]) return PTCG_SET_OVERRIDES[setId];
+  const half = /^(sv|swsh12|me)/.test(setId) ? setId.replace('.5', 'pt5') : setId.replace('.5', '5');
+  return half.replace(/^(sv|me|swsh|sm|xy|bw|dp|pl|hgss|ex|neo|base|ecard)0+(\d)/, '$1$2');
+};
+
+/** Bildadresse bei pokemontcg.io. Ob es das Bild gibt, zeigt erst das Laden. */
+export const pokemonTcgIoImage = (setId: string, localId: string, quality: 'low' | 'high' = 'low'): string => {
+  const set = pokemonTcgIoSetId(setId);
+  const number =
+    set === 'cel25c' ? (PTCG_CEL25C_NUMBERS[localId] ?? localId) : /^\d+$/.test(localId) ? String(Number(localId)) : localId;
+  return `${PTCG_IMAGE_ROOT}/${set}/${number}${quality === 'high' ? '_hires' : ''}.png`;
+};
+
+/**
+ * Kartenbild-Quellen in der Reihenfolge, in der sie versucht werden: deutsch
+ * (TCGdex), englisch (TCGdex), englisch (pokemontcg.io, wenn `card` angegeben).
+ */
 export const cardImageSources = (
   germanBase: string | undefined,
   englishBase: string | undefined,
-  quality: 'low' | 'high' = 'low'
+  quality: 'low' | 'high' = 'low',
+  card?: { setId: string; localId: string }
 ): ImageSource[] => {
   const sources: ImageSource[] = [];
   if (germanBase) sources.push({ url: `${germanBase}/${quality}.webp`, lang: 'de' });
   const en = englishBase ?? (germanBase ? englishAssetBase(germanBase) : undefined);
   if (en && en !== germanBase) sources.push({ url: `${en}/${quality}.webp`, lang: 'en' });
+  if (card) sources.push({ url: pokemonTcgIoImage(card.setId, card.localId, quality), lang: 'en' });
   return sources;
 };
 

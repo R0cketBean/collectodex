@@ -13,7 +13,8 @@ import {
   type SetDetail,
 } from '../services/tcgdex';
 import type { CatalogRef, CollectionItem } from '../types/models';
-import { getPrimaryImage, type ItemImage } from '../utils/itemImages';
+import { CATALOG_IMAGE_KEY, getPrimaryImage, type ItemImage } from '../utils/itemImages';
+import { firstLoadableImage } from '../utils/imageProbe';
 import { selectClass } from '../utils/formStyles';
 import {
   candidateSetIds,
@@ -43,7 +44,9 @@ const STATUS_LABEL: Record<MatchStatus, string> = {
 const CatalogLinkAssistant: React.FC = () => {
   const items = useItemsData();
   const categories = useCategoriesData();
-  const { setItemCatalogRefs } = useCollectionActions();
+  const { setItemCatalogRefs, addImageToItem } = useCollectionActions();
+  // Katalogbild beim Verknüpfen als zusätzliches Bild am Eintrag ablegen (nur die Adresse, keine Datei).
+  const [adoptImage, setAdoptImage] = useState(true);
 
   const [sets, setSets] = useState<CatalogSetName[] | null>(null);
   const [cardsBySet, setCardsBySet] = useState<Record<string, CatalogCardName[]>>({});
@@ -158,7 +161,10 @@ const CatalogLinkAssistant: React.FC = () => {
   };
 
   const imageSourcesOf = (pick: { setId: string; card: CatalogCardName }, quality: 'low' | 'high' = 'low') =>
-    cardImageSources(pick.card.image, englishCardImageBase(serieBySet[pick.setId], pick.setId, pick.card.localId), quality);
+    cardImageSources(pick.card.image, englishCardImageBase(serieBySet[pick.setId], pick.setId, pick.card.localId), quality, {
+      setId: pick.setId,
+      localId: pick.card.localId,
+    });
 
   const link = (targets: Row[]) => {
     const refs: Record<string, CatalogRef> = {};
@@ -168,6 +174,15 @@ const CatalogLinkAssistant: React.FC = () => {
     }
     setItemCatalogRefs(refs);
     setDone((n) => n + Object.keys(refs).length);
+    if (!adoptImage) return;
+    // Bilder im Hintergrund nachtragen; es zählt nur eine Adresse, die sich laden lässt.
+    const picks = targets
+      .map((row) => ({ id: row.item.id, has: Boolean(row.item.images?.[CATALOG_IMAGE_KEY]), pick: chosen(row) }))
+      .filter((p) => p.pick && !p.has);
+    void mapLimit(picks, 4, async ({ id, pick }) => {
+      const url = pick && (await firstLoadableImage(imageSourcesOf(pick, 'high')));
+      if (url) addImageToItem(id, CATALOG_IMAGE_KEY, url);
+    });
   };
 
   const renderRow = (row: Row) => {
@@ -177,16 +192,22 @@ const CatalogLinkAssistant: React.FC = () => {
     const candidates = candidatesOf(row);
     const selectedSet = manualSet[item.id] ?? pick?.setId ?? '';
     const severalSets = new Set(candidates.map((c) => c.setId)).size > 1;
-    const zoomImages: ItemImage[] = [
-      ...(pick ? imageSourcesOf(pick, 'high').slice(0, 1).map((s) => ({ key: 'catalog', label: 'Katalogkarte', data: s.url })) : []),
-      ...(ownImage ? [{ key: 'own', label: 'Dein Foto', data: ownImage }] : []),
-    ];
+    // Großansicht: Katalogkarte (erste Quelle, die sich laden lässt) und eigenes Foto.
+    const openZoom = async () => {
+      const catalogUrl = pick ? await firstLoadableImage(imageSourcesOf(pick, 'high')) : undefined;
+      const images: ItemImage[] = [
+        ...(catalogUrl ? [{ key: 'catalog', label: 'Katalogkarte', data: catalogUrl }] : []),
+        ...(ownImage ? [{ key: 'own', label: 'Dein Foto', data: ownImage }] : []),
+      ];
+      if (images.length > 0) setZoom(images);
+    };
+    const canZoom = Boolean(pick || ownImage);
     return (
       <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
         <button
           type="button"
-          onClick={() => zoomImages.length > 0 && setZoom(zoomImages)}
-          disabled={zoomImages.length === 0}
+          onClick={() => void openZoom()}
+          disabled={!canZoom}
           title="Bild vergrößern"
           aria-label={`Bild zu ${String(item.values?.name ?? 'Eintrag')} vergrößern`}
           className="h-20 w-14 flex-shrink-0 rounded bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center enabled:cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
@@ -308,6 +329,21 @@ const CatalogLinkAssistant: React.FC = () => {
           Verknüpfte Einträge gelten im Katalog als vorhanden und zählen mit ihrem gepflegten Wert zum Set. An deinen
           Einträgen ändert sich sonst nichts.
         </p>
+        <label className="mt-3 flex items-start gap-2 text-sm text-gray-700 dark:text-gray-200">
+          <input
+            type="checkbox"
+            checked={adoptImage}
+            onChange={(e) => setAdoptImage(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-pokemon-blue focus:ring-pokemon-blue"
+          />
+          <span>
+            Katalogbild als zusätzliches Bild am Eintrag ablegen
+            <span className="block text-xs text-gray-500 dark:text-gray-400">
+              Dein eigenes Foto bleibt das Hauptbild. Gespeichert wird nur die Internetadresse, es entsteht keine
+              Bilddatei.
+            </span>
+          </span>
+        </label>
         <p className="mt-3 text-sm text-gray-700 dark:text-gray-200 tabular-nums" aria-live="polite">
           {linkedCount} von {items.length} Einträgen verknüpft
           {done > 0 && ` · ${done} gerade eben`}

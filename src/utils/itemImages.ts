@@ -16,6 +16,8 @@
 export const FRONT_IMAGE_KEY = 'image';
 export const BACK_IMAGE_KEY = 'imageBack';
 export const EXTRA_IMAGE_PREFIX = 'imageExtra_';
+/** Bild der verknüpften Katalogkarte (eine Internetadresse, kein eigenes Foto). */
+export const CATALOG_IMAGE_KEY = 'imageCatalog';
 
 export interface ItemImage {
   /** Schlüssel in CollectionItem.images (für add/remove). */
@@ -57,9 +59,15 @@ export const getOrderedImages = (
   Object.keys(images)
     .filter(key => key !== FRONT_IMAGE_KEY && key !== BACK_IMAGE_KEY)
     .filter(key => Boolean(images[key]))
+    .filter(key => key !== CATALOG_IMAGE_KEY)
     .forEach((key, index) => {
       result.push({ key, label: `Foto ${index + 1}`, data: images[key] });
     });
+
+  // Das Katalogbild steht zuletzt: eigene Fotos haben Vorrang als Hauptbild.
+  if (images[CATALOG_IMAGE_KEY]) {
+    result.push({ key: CATALOG_IMAGE_KEY, label: 'Katalogbild', data: images[CATALOG_IMAGE_KEY] });
+  }
 
   return result;
 };
