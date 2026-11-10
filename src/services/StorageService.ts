@@ -142,6 +142,8 @@ export const atomicUpdateItem = async (itemId: string, updateFunction: (item: an
   }
 
   // Neues Update-Promise erstellen
+  // Der Speicherpfad wird in #123 neu gebaut; bis dahin bleibt die Konstruktion unverändert.
+  // eslint-disable-next-line no-async-promise-executor
   const updatePromise = new Promise<boolean>(async (resolve) => {
     try {
       logger.debug(`[StorageService] Starte atomares Update für Item ${itemId}`);

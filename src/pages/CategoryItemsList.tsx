@@ -408,7 +408,7 @@ const CategoryItemsList: React.FC = () => {
   
   // Funktion zum Öffnen externer Links
   const openExternalLink = (linkUrl: string) => {
-    if ('electronAPI' in window) {
+    if (window.electronAPI) {
       window.electronAPI.openExternalURL(linkUrl);
     } else {
       // Fallback für Browser
@@ -655,7 +655,7 @@ const CategoryItemsList: React.FC = () => {
                           
                           {/* Mobile Attribut-Liste - Zeige nur wichtige Attribute */}
                           <div className="mt-2 grid grid-cols-2 gap-x-2 gap-y-1">
-                            {visibleAttributes.slice(0, 4).map((attr, index) => {
+                            {visibleAttributes.slice(0, 4).map((attr) => {
                               if (attr.id === 'name') return null; // Name wird bereits angezeigt
                               
                               const attrValue = attr.type === 'formula' 
@@ -829,7 +829,7 @@ const CategoryItemsList: React.FC = () => {
                             
                             {visibleAttributes.map((attr) => {
                               // Wert bestimmen (berechnet oder direkt)
-                              let value = attr.isCalculated 
+                              const value = attr.isCalculated 
                                 ? calculatedValues[attr.id]
                                 : item.values[attr.id];
                                 

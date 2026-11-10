@@ -123,7 +123,7 @@ const renderColoredTick =
     y: number;
     payload: { value: string };
     index: number;
-  }): React.ReactElement => (
+  }): React.ReactElement<SVGElement> => (
     <text
       x={x}
       y={y}
