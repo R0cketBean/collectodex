@@ -288,6 +288,20 @@ export async function fetchCatalog(): Promise<SerieDetail[]> {
     .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''));
 }
 
+/**
+ * Alle deutschen Sets mit deutschem und englischem Namen – Grundlage, um
+ * Sammlungseinträge über Freitext oder Cardmarket-Link einem Set zuzuordnen.
+ * Die IDs sind in beiden Sprachen gleich.
+ */
+export async function fetchSetNames(): Promise<Array<{ id: string; names: string[] }>> {
+  const [de, en] = await Promise.all([
+    cachedJson<SetBrief[]>('/sets'),
+    cachedJson<SetBrief[]>('/sets', 'en').catch(() => [] as SetBrief[]),
+  ]);
+  const english = new Map(en.map((s) => [s.id, s.name]));
+  return de.map((s) => ({ id: s.id, names: [s.name, english.get(s.id)].filter((n): n is string => Boolean(n)) }));
+}
+
 export const fetchSet = (setId: string) =>
   cachedJson<SetDetail>(`/sets/${encodeURIComponent(setId)}`);
 
