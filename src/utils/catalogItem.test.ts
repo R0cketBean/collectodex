@@ -8,7 +8,6 @@ const source = {
   cardId: 'sv03.5-199',
   setId: 'sv03.5',
   setName: '151',
-  officialCount: 165,
   name: 'Glurak-ex',
   localId: '199',
   variant: 'normal' as const,
@@ -18,10 +17,9 @@ const source = {
 };
 
 describe('catalogItemName', () => {
-  it('hängt Nummer und Fassung an', () => {
-    expect(catalogItemName(source)).toBe('Glurak-ex 199/165');
-    expect(catalogItemName({ ...source, localId: '006', variant: 'reverse' })).toBe('Glurak-ex 006/165 (Reverse Holo)');
-    expect(catalogItemName({ ...source, localId: 'TG05' })).toBe('Glurak-ex TG05');
+  it('nimmt nur den Kartennamen und kennzeichnet Reverse Holo', () => {
+    expect(catalogItemName(source)).toBe('Glurak-ex');
+    expect(catalogItemName({ ...source, variant: 'reverse' })).toBe('Glurak-ex (Reverse Holo)');
   });
 });
 
@@ -29,7 +27,7 @@ describe('buildCatalogItem', () => {
   it('belegt die Felder der Zielkategorie vor', () => {
     const draft = buildCatalogItem(singles, source, '2026-11-10');
     expect(draft.values).toMatchObject({
-      name: 'Glurak-ex 199/165',
+      name: 'Glurak-ex',
       quantity: 1,
       purchasePrice: 0,
       currentValue: 317.02,

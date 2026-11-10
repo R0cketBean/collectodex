@@ -80,6 +80,23 @@ const namesAgree = (a: string, b: string) => {
 const isJapanese = (item: CollectionItem) =>
   typeof item.values?.language === 'string' && /^jap/i.test(item.values.language);
 
+/**
+ * Kandidaten für die manuelle Zuordnung: alle Karten des gewählten Sets,
+ * namensgleiche zuerst, sonst nach Kartennummer.
+ */
+export const manualCandidates = (
+  item: CollectionItem,
+  setId: string,
+  cards: CatalogCardName[]
+): Array<{ setId: string; card: CatalogCardName }> => {
+  const name = typeof item.values?.name === 'string' ? item.values.name : '';
+  const byNumber = (a: CatalogCardName, b: CatalogCardName) =>
+    a.localId.localeCompare(b.localId, 'de', { numeric: true, sensitivity: 'base' });
+  const matching = cards.filter((c) => namesAgree(name, c.name)).sort(byNumber);
+  const rest = cards.filter((c) => !matching.includes(c)).sort(byNumber);
+  return [...matching, ...rest].map((card) => ({ setId, card }));
+};
+
 export type MatchStatus = 'sure' | 'review' | 'none';
 
 export interface MatchSuggestion {

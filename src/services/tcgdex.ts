@@ -105,6 +105,10 @@ export interface ImageSource {
 export const englishAssetBase = (base: string) =>
   base.replace(`${ASSET_ROOT}/de/`, `${ASSET_ROOT}/en/`);
 
+/** Adresse des englischen Kartenbilds, wenn TCGdex für die deutsche Karte keins nennt. */
+export const englishCardImageBase = (serieId: string | undefined, setId: string, localId: string) =>
+  serieId ? `${ASSET_ROOT}/en/${serieId}/${setId}/${localId}` : undefined;
+
 /** Kartenbild: deutsch, sonst englisch (aus dem englischen Set, siehe fetchEnglishCardImages). */
 export const cardImageSources = (
   germanBase: string | undefined,
@@ -301,8 +305,19 @@ export async function fetchSetNames(): Promise<Array<{ id: string; names: string
   return de.map((s) => ({ id: s.id, names: [s.name, english.get(s.id)].filter((n): n is string => Boolean(n)) }));
 }
 
-export const fetchSet = (setId: string) =>
-  cachedJson<SetDetail>(`/sets/${encodeURIComponent(setId)}`);
+/**
+ * Ein Set mit seiner Kartenliste. Für einzelne deutsche Sets führt TCGdex
+ * keine Karten (z. B. „Celebrations Klassische Kollektion“); dann kommt die
+ * Liste aus der englischen Fassung – IDs und Nummern sind dieselben, nur die
+ * Kartennamen sind englisch.
+ */
+export async function fetchSet(setId: string): Promise<SetDetail> {
+  const path = `/sets/${encodeURIComponent(setId)}`;
+  const set = await cachedJson<SetDetail>(path);
+  if (Array.isArray(set.cards) && set.cards.length > 0) return set;
+  const english = await cachedJson<SetDetail>(path, 'en').catch(() => null);
+  return english?.cards?.length ? { ...set, cards: english.cards } : { ...set, cards: set.cards ?? [] };
+}
 
 /**
  * Englische Kartenbilder eines Sets, nach Kartennummer. Dient als Ersatz für
@@ -358,7 +373,12 @@ const writeCardCache = (card: CardDetail) => {
 export async function fetchCard(cardId: string, signal?: AbortSignal): Promise<CardDetail> {
   const cached = readCardCache(cardId);
   if (cached) return cached;
-  const card = await getJson<CardDetail>(`/cards/${encodeURIComponent(cardId)}`, signal);
+  const path = `/cards/${encodeURIComponent(cardId)}`;
+  // Karten, die es bei TCGdex nur englisch gibt (siehe fetchSet), von dort holen.
+  const card = await getJson<CardDetail>(path, signal).catch((error) => {
+    if (signal?.aborted) throw error;
+    return getJson<CardDetail>(path, signal, 'en');
+  });
   writeCardCache(card);
   return card;
 }

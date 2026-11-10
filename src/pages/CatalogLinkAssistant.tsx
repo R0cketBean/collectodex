@@ -3,11 +3,21 @@ import { Link } from 'react-router-dom';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../components/catalog/FallbackImage';
 import { useCategoriesData, useCollectionActions, useItemsData } from '../context/CollectionContext';
-import { cardImageSources, fetchSet, fetchSetNames, mapLimit } from '../services/tcgdex';
+import ImageLightbox from '../components/common/ImageLightbox';
+import {
+  cardImageSources,
+  englishCardImageBase,
+  fetchSet,
+  fetchSetNames,
+  mapLimit,
+  type SetDetail,
+} from '../services/tcgdex';
 import type { CatalogRef, CollectionItem } from '../types/models';
-import { getPrimaryImage } from '../utils/itemImages';
+import { getPrimaryImage, type ItemImage } from '../utils/itemImages';
+import { selectClass } from '../utils/formStyles';
 import {
   candidateSetIds,
+  manualCandidates,
   suggestMatch,
   type CatalogCardName,
   type CatalogSetName,
@@ -43,6 +53,10 @@ const CatalogLinkAssistant: React.FC = () => {
   // Vom Nutzer gewählte Karte je Eintrag (überschreibt die Vorauswahl).
   const [choice, setChoice] = useState<Record<string, string>>({});
   const [skipped, setSkipped] = useState<Record<string, boolean>>({});
+  // Vom Nutzer von Hand gewähltes Set je Eintrag (für „Kein Treffer“ oder falsche Vorschläge).
+  const [manualSet, setManualSet] = useState<Record<string, string>>({});
+  const [serieBySet, setSerieBySet] = useState<Record<string, string>>({});
+  const [zoom, setZoom] = useState<ItemImage[] | null>(null);
   const [done, setDone] = useState(0);
 
   const unlinked = useMemo(() => items.filter((i) => !i.catalog), [items]);
@@ -65,6 +79,28 @@ const CatalogLinkAssistant: React.FC = () => {
     return result;
   }, [sets, unlinked]);
 
+  const rememberSet = (set: SetDetail) => {
+    setCardsBySet((prev) => ({ ...prev, [set.id]: set.cards }));
+    setSetNamesById((prev) => ({ ...prev, [set.id]: set.name }));
+    if (set.serie?.id) setSerieBySet((prev) => ({ ...prev, [set.id]: set.serie.id }));
+  };
+
+  // Set von Hand wählen: Karten nachladen, die bisherige Kartenauswahl verwerfen.
+  const chooseSet = (itemId: string, setId: string) => {
+    setManualSet((prev) => ({ ...prev, [itemId]: setId }));
+    setChoice((prev) => {
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+    if (setId && !cardsBySet[setId]) void fetchSet(setId).then(rememberSet, () => undefined);
+  };
+
+  const sortedSets = useMemo(
+    () => [...(sets ?? [])].sort((a, b) => a.names[0].localeCompare(b.names[0], 'de', { numeric: true })),
+    [sets]
+  );
+
   const neededSetIds = useMemo(
     () => [...new Set(Object.values(setIdsByItem).flat())].sort(),
     [setIdsByItem]
@@ -83,8 +119,7 @@ const CatalogLinkAssistant: React.FC = () => {
     void mapLimit(missing, 6, async (id) => {
       const set = await fetchSet(id);
       if (!alive) return;
-      setCardsBySet((prev) => ({ ...prev, [id]: set.cards }));
-      setSetNamesById((prev) => ({ ...prev, [id]: set.name }));
+      rememberSet(set);
     }).then(() => alive && setLoadingSets(false));
     return () => {
       alive = false;
@@ -109,10 +144,21 @@ const CatalogLinkAssistant: React.FC = () => {
 
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
 
-  const chosen = (row: Row) => {
-    const cardId = choice[row.item.id] ?? row.suggestion.best?.card.id;
-    return row.suggestion.candidates.find((c) => c.card.id === cardId);
+  // Kandidaten einer Zeile: aus dem von Hand gewählten Set, sonst die Vorschläge.
+  const candidatesOf = (row: Row) => {
+    const setId = manualSet[row.item.id];
+    if (!setId) return row.suggestion.candidates;
+    return cardsBySet[setId] ? manualCandidates(row.item, setId, cardsBySet[setId]) : [];
   };
+
+  const chosen = (row: Row) => {
+    const candidates = candidatesOf(row);
+    const cardId = choice[row.item.id] ?? (manualSet[row.item.id] ? candidates[0]?.card.id : row.suggestion.best?.card.id);
+    return candidates.find((c) => c.card.id === cardId);
+  };
+
+  const imageSourcesOf = (pick: { setId: string; card: CatalogCardName }, quality: 'low' | 'high' = 'low') =>
+    cardImageSources(pick.card.image, englishCardImageBase(serieBySet[pick.setId], pick.setId, pick.card.localId), quality);
 
   const link = (targets: Row[]) => {
     const refs: Record<string, CatalogRef> = {};
@@ -128,20 +174,35 @@ const CatalogLinkAssistant: React.FC = () => {
     const pick = chosen(row);
     const { item, suggestion } = row;
     const ownImage = getPrimaryImage(item.images);
+    const candidates = candidatesOf(row);
+    const selectedSet = manualSet[item.id] ?? pick?.setId ?? '';
+    const severalSets = new Set(candidates.map((c) => c.setId)).size > 1;
+    const zoomImages: ItemImage[] = [
+      ...(pick ? imageSourcesOf(pick, 'high').slice(0, 1).map((s) => ({ key: 'catalog', label: 'Katalogkarte', data: s.url })) : []),
+      ...(ownImage ? [{ key: 'own', label: 'Dein Foto', data: ownImage }] : []),
+    ];
     return (
       <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-        <div className="h-16 w-12 flex-shrink-0 rounded bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center">
-          {/* Katalogbild; fehlt es (ältere Sets), das eigene Foto des Eintrags. */}
+        <button
+          type="button"
+          onClick={() => zoomImages.length > 0 && setZoom(zoomImages)}
+          disabled={zoomImages.length === 0}
+          title="Bild vergrößern"
+          aria-label={`Bild zu ${String(item.values?.name ?? 'Eintrag')} vergrößern`}
+          className="h-20 w-14 flex-shrink-0 rounded bg-gray-100 dark:bg-gray-900 overflow-hidden flex items-center justify-center enabled:cursor-zoom-in focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
+        >
+          {/* Katalogbild (deutsch, sonst englisch); fehlt beides, das eigene Foto des Eintrags. */}
           <FallbackImage
+            key={pick?.card.id ?? 'none'}
             sources={[
-              ...(pick ? cardImageSources(pick.card.image, undefined) : []),
+              ...(pick ? imageSourcesOf(pick) : []),
               ...(ownImage ? [{ url: ownImage, lang: 'de' as const }] : []),
             ]}
             alt=""
             loading="lazy"
             className="h-full w-full object-contain"
           />
-        </div>
+        </button>
         <div className="min-w-0 flex-1 basis-48">
           <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
             {String(item.values?.name ?? 'Ohne Namen')}
@@ -152,26 +213,47 @@ const CatalogLinkAssistant: React.FC = () => {
             {item.values?.language ? ` · ${item.values.language}` : ''}
           </div>
         </div>
-        <div className="min-w-0 flex-1 basis-56 text-sm">
-          {suggestion.candidates.length > 1 ? (
+        <div className="min-w-0 flex-1 basis-64 space-y-1.5 text-sm">
+          <select
+            value={selectedSet}
+            onChange={(e) => chooseSet(item.id, e.target.value)}
+            aria-label={`Set für ${String(item.values?.name ?? 'Eintrag')}`}
+            className={`${selectClass} py-1.5`}
+          >
+            <option value="">Set wählen…</option>
+            {sortedSets.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.names[0]}
+                {s.names[1] && s.names[1] !== s.names[0] ? ` (${s.names[1]})` : ''}
+              </option>
+            ))}
+          </select>
+          {manualSet[item.id] && !cardsBySet[manualSet[item.id]] ? (
+            <span className="text-gray-500 dark:text-gray-400">Karten werden geladen…</span>
+          ) : candidates.length > 1 ? (
             <select
               value={pick?.card.id ?? ''}
               onChange={(e) => setChoice((prev) => ({ ...prev, [item.id]: e.target.value }))}
               aria-label={`Katalogkarte für ${String(item.values?.name ?? 'Eintrag')}`}
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+              className={`${selectClass} py-1.5`}
             >
-              {suggestion.candidates.map((c) => (
+              {candidates.map((c) => (
                 <option key={c.card.id} value={c.card.id}>
-                  {c.card.name} · {setNamesById[c.setId] ?? c.setId} · Nr. {c.card.localId}
+                  Nr. {c.card.localId} · {c.card.name}
+                  {severalSets ? ` · ${setNamesById[c.setId] ?? c.setId}` : ''}
                 </option>
               ))}
             </select>
           ) : pick ? (
-            <span className="text-gray-900 dark:text-gray-100">
-              {pick.card.name} · {setNamesById[pick.setId] ?? pick.setId} · Nr. {pick.card.localId}
-            </span>
+            <div className="text-gray-900 dark:text-gray-100">
+              Nr. {pick.card.localId} · {pick.card.name}
+            </div>
+          ) : manualSet[item.id] ? (
+            <span className="text-gray-500 dark:text-gray-400">Für dieses Set liegen keine Karten vor.</span>
           ) : null}
-          <div className="text-xs text-gray-500 dark:text-gray-400">{suggestion.reason}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">
+            {manualSet[item.id] ? 'Von Hand gewählt' : suggestion.reason}
+          </div>
         </div>
         {pick && (
           <div className="flex gap-2">
@@ -265,6 +347,7 @@ const CatalogLinkAssistant: React.FC = () => {
                 </summary>
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                   Meist Sealed-Produkte, Zubehör oder Karten aus Sets, die es nicht auf Deutsch gibt (etwa japanische).
+                  Gehört eine Karte doch in ein deutsches Set, wähle Set und Karte von Hand.
                 </p>
                 <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
                   {groups.none.map(renderRow)}
@@ -274,6 +357,7 @@ const CatalogLinkAssistant: React.FC = () => {
           </>
         )}
       </div>
+      {zoom && <ImageLightbox images={zoom} onClose={() => setZoom(null)} />}
     </div>
   );
 };

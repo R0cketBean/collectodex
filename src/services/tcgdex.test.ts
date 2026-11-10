@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   cardImageSources,
   cardImageUrl,
+  fetchSet,
   mapLimit,
   normalizeSearch,
   setLogoSources,
@@ -108,5 +109,32 @@ describe('Ersatzbilder', () => {
       `${logo}.webp`,
       'https://assets.tcgdex.net/en/sv/sv10.5w/logo.webp',
     ]);
+  });
+});
+
+describe('fetchSet', () => {
+  const respond = (body: unknown, ok = true) => ({ ok, status: ok ? 200 : 404, json: async () => body }) as Response;
+
+  it('nimmt die englische Kartenliste, wenn die deutsche leer ist', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/de/sets/leer1')) return respond({ id: 'leer1', name: 'Deutsches Set', cards: [] });
+      if (url.includes('/en/sets/leer1'))
+        return respond({ id: 'leer1', name: 'English Set', cards: [{ id: 'leer1-CC001', localId: 'CC001', name: 'Blastoise' }] });
+      return respond({}, false);
+    });
+    const set = await fetchSet('leer1');
+    expect(set.name).toBe('Deutsches Set');
+    expect(set.cards).toEqual([{ id: 'leer1-CC001', localId: 'CC001', name: 'Blastoise' }]);
+    fetchMock.mockRestore();
+  });
+
+  it('fragt die englische Fassung nicht an, wenn deutsche Karten vorliegen', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      respond({ id: 'voll1', name: 'Set', cards: [{ id: 'voll1-1', localId: '1', name: 'Glurak' }] })
+    );
+    expect((await fetchSet('voll1')).cards).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    fetchMock.mockRestore();
   });
 });

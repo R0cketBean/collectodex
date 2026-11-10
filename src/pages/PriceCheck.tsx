@@ -97,8 +97,8 @@ const PriceCheck: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Preis-Check</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Einträge mit dem ältesten Preisstand zuerst. Öffne den Link, lies den Preis ab und trage ihn ein – oder
-          bestätige, dass er noch stimmt.
+          Einträge mit dem ältesten Preisstand zuerst. Öffne den Link und lies den Preis ab. Hat er sich geändert,
+          trage den neuen Wert ein und speichere; ist er gleich geblieben, genügt „Stimmt noch“.
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -243,11 +243,11 @@ const PriceCheck: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => markValueChecked(item.id)}
-                    title="Preis stimmt noch"
+                    title="Wert unverändert lassen und als heute geprüft vermerken"
                     aria-label={`Preis von ${name} stimmt noch`}
-                    className="inline-flex items-center justify-center rounded-md border border-gray-300 dark:border-gray-600 p-1.5 text-gray-700 dark:text-gray-200 hover:border-green-500 hover:text-green-600"
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2.5 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:border-green-500 hover:text-green-600"
                   >
-                    <CheckIcon className="h-5 w-5" />
+                    <CheckIcon className="h-4 w-4" /> Stimmt noch
                   </button>
                 </div>
               </li>
