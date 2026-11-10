@@ -30,6 +30,7 @@ import {
   type CardDetail,
   type SetDetail,
 } from '../services/tcgdex';
+import { firstLoadableImage } from '../utils/imageProbe';
 
 type SortKey = 'number' | 'price-desc' | 'price-asc' | 'name';
 type OwnedFilter = 'all' | 'owned' | 'missing';
@@ -370,7 +371,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
                 >
                 <div className="relative aspect-[5/7] bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
                   <FallbackImage
-                    sources={cardImageSources(card.image, englishImages[card.localId])}
+                    sources={cardImageSources(card.image, englishImages[card.localId], 'low', { setId, localId: card.localId })}
                     alt={card.name}
                     loading="lazy"
                     showLanguageBadge
@@ -411,13 +412,20 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
           card={selected}
           detail={selectedDetail}
           englishImage={englishImages[selected.localId]}
+          setId={setId}
           ownership={ownershipOf(selected.id)}
           categories={categories}
           onToggle={(variant) => toggleCatalogOwned(setId, selected.id, variant)}
-          onAdd={(category, variant) => {
+          onAdd={async (category, variant) => {
             if (!set) return;
             const price = selectedDetail ? summarizePricing(selectedDetail) : null;
-            const image = cardImageSources(selected.image, englishImages[selected.localId], 'high')[0]?.url;
+            // Nur ein Bild übernehmen, das sich wirklich laden lässt.
+            const image = await firstLoadableImage(
+              cardImageSources(selected.image, englishImages[selected.localId], 'high', {
+                setId,
+                localId: selected.localId,
+              })
+            );
             const draft = buildCatalogItem(category, {
               cardId: selected.id,
               setId,
@@ -464,13 +472,14 @@ const CardModal: React.FC<{
   card: CardBrief;
   detail?: CardDetail;
   englishImage?: string;
+  setId: string;
   ownership: CardOwnership;
   categories: Category[];
   onToggle: (variant: CatalogVariant) => void;
-  onAdd: (category: Category, variant: CatalogVariant) => void;
+  onAdd: (category: Category, variant: CatalogVariant) => void | Promise<void>;
   onUnlink: (itemId: string) => void;
   onClose: () => void;
-}> = ({ card, detail, englishImage, ownership, categories, onToggle, onAdd, onUnlink, onClose }) => {
+}> = ({ card, detail, englishImage, setId, ownership, categories, onToggle, onAdd, onUnlink, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
   const hasReverse = Boolean(detail?.variants?.reverse);
   // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
@@ -497,7 +506,7 @@ const CardModal: React.FC<{
         <div className="flex flex-col md:flex-row gap-6 p-6">
           <div className="relative md:w-1/2 flex-shrink-0">
             <FallbackImage
-              sources={cardImageSources(card.image, englishImage, 'high')}
+              sources={cardImageSources(card.image, englishImage, 'high', { setId, localId: card.localId })}
               alt={card.name}
               showLanguageBadge
               className="w-full rounded-lg shadow"
@@ -624,7 +633,7 @@ const CardModal: React.FC<{
                   )}
                   <button
                     type="button"
-                    onClick={() => onAdd(target, hasReverse ? addVariant : 'normal')}
+                    onClick={() => void onAdd(target, hasReverse ? addVariant : 'normal')}
                     disabled={!detail}
                     className="rounded-md bg-pokemon-blue px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
                   >

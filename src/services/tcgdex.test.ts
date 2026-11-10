@@ -3,6 +3,8 @@ import {
   cardImageSources,
   cardImageUrl,
   fetchSet,
+  pokemonTcgIoImage,
+  pokemonTcgIoSetId,
   mapLimit,
   normalizeSearch,
   setLogoSources,
@@ -136,5 +138,38 @@ describe('fetchSet', () => {
     expect((await fetchSet('voll1')).cards).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     fetchMock.mockRestore();
+  });
+});
+
+describe('pokemontcg.io als Bildquelle', () => {
+  it('übersetzt die Set-Kennungen', () => {
+    expect(pokemonTcgIoSetId('sv03.5')).toBe('sv3pt5');
+    expect(pokemonTcgIoSetId('swsh12.5gg')).toBe('swsh12pt5gg');
+    expect(pokemonTcgIoSetId('sm7.5')).toBe('sm75');
+    expect(pokemonTcgIoSetId('swsh4.5sv')).toBe('swsh45sv');
+    expect(pokemonTcgIoSetId('sv01')).toBe('sv1');
+    expect(pokemonTcgIoSetId('base1')).toBe('base1');
+    expect(pokemonTcgIoSetId('swsh9tg')).toBe('swsh9tg');
+    expect(pokemonTcgIoSetId('hgssp')).toBe('hsp');
+    expect(pokemonTcgIoSetId('cel25cc')).toBe('cel25c');
+  });
+
+  it('baut Bildadressen ohne führende Nullen und mit Sondernummern', () => {
+    expect(pokemonTcgIoImage('sv03.5', '006')).toBe('https://images.pokemontcg.io/sv3pt5/6.png');
+    expect(pokemonTcgIoImage('swsh9tg', 'TG05', 'high')).toBe('https://images.pokemontcg.io/swsh9tg/TG05_hires.png');
+    expect(pokemonTcgIoImage('cel25cc', 'CC001')).toBe('https://images.pokemontcg.io/cel25c/2_A.png');
+    expect(pokemonTcgIoImage('cel25cc', 'CC016', 'high')).toBe('https://images.pokemontcg.io/cel25c/15_D_hires.png');
+  });
+
+  it('hängt sie als letzte Quelle an, wenn die Karte bekannt ist', () => {
+    const de = 'https://assets.tcgdex.net/de/sv/sv03.5/006';
+    expect(cardImageSources(de, undefined, 'low', { setId: 'sv03.5', localId: '006' }).map((s) => s.url)).toEqual([
+      `${de}/low.webp`,
+      'https://assets.tcgdex.net/en/sv/sv03.5/006/low.webp',
+      'https://images.pokemontcg.io/sv3pt5/6.png',
+    ]);
+    expect(cardImageSources(undefined, undefined, 'low', { setId: 'cel25cc', localId: 'CC002' })).toEqual([
+      { url: 'https://images.pokemontcg.io/cel25c/4_A.png', lang: 'en' },
+    ]);
   });
 });

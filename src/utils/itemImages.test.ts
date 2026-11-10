@@ -75,3 +75,20 @@ describe('createExtraImageKey', () => {
     expect(a).not.toBe(b);
   });
 });
+
+describe('Katalogbild', () => {
+  it('steht hinter den eigenen Fotos und wird nie zum Hauptbild, solange es eigene gibt', () => {
+    const images = {
+      imageCatalog: 'https://images.pokemontcg.io/base1/4_hires.png',
+      imageExtra_a: 'cdx-image://local/a.webp',
+      image: 'cdx-image://local/front.webp',
+    };
+    expect(getOrderedImages(images).map((i) => [i.key, i.label])).toEqual([
+      ['image', 'Vorderseite'],
+      ['imageExtra_a', 'Foto 1'],
+      ['imageCatalog', 'Katalogbild'],
+    ]);
+    expect(getPrimaryImage(images)).toBe('cdx-image://local/front.webp');
+    expect(getPrimaryImage({ imageCatalog: 'https://x/y.png' })).toBe('https://x/y.png');
+  });
+});
