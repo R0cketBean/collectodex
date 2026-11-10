@@ -6,6 +6,8 @@ declare module '@heroicons/react/24/outline' {
   export const DocumentArrowDownIcon: ComponentType<SVGProps<SVGSVGElement>>;
   export const Bars3Icon: ComponentType<SVGProps<SVGSVGElement>>;
   export const XMarkIcon: ComponentType<SVGProps<SVGSVGElement>>;
+  export const ArrowLeftIcon: ComponentType<SVGProps<SVGSVGElement>>;
+  export const CheckIcon: ComponentType<SVGProps<SVGSVGElement>>;
   export const SquaresPlusIcon: ComponentType<SVGProps<SVGSVGElement>>;
   export const ArchiveBoxIcon: ComponentType<SVGProps<SVGSVGElement>>;
   export const StarIcon: ComponentType<SVGProps<SVGSVGElement>>;

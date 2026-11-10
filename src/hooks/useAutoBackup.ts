@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react';
 import type { Category, CollectionItem } from '../types/models';
 import { wrapBackup } from '../utils/backup';
+import { getCatalogOwned } from './useCatalogOwned';
 import {
   loadBackupSettings,
   saveBackupSettings,
@@ -48,7 +49,7 @@ export const useAutoBackup = ({
           return;
         }
 
-        const json = JSON.stringify(wrapBackup({ categories, items }), null, 2);
+        const json = JSON.stringify(wrapBackup({ categories, items, catalogOwned: getCatalogOwned() }), null, 2);
         const result = await api.writeBackup({
           folder: settings.folder,
           json,

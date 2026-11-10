@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo, ReactNode } from 'react';
 import {
   Category,
-  CollectionItem,
+  CatalogRef, CollectionItem,
   CollectionSummary,
   AttributeDefinition,
   DEFAULT_CATEGORIES,
@@ -43,6 +43,7 @@ interface CollectionContextType {
     options?: {
       links?: { [attributeId: string]: string };
       images?: { [attributeId: string]: string };
+      catalog?: CatalogRef;
     }
   ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
