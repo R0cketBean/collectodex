@@ -7,8 +7,6 @@ export interface CatalogItemSource {
   cardId: string;
   setId: string;
   setName: string;
-  /** Offizielle Kartenzahl des Sets, für die Nummer im Namen („199/165“). */
-  officialCount?: number;
   name: string;
   localId: string;
   variant: CatalogVariant;
@@ -29,13 +27,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
 export const todayIso = (now = new Date()) =>
   `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
-export const catalogItemName = (source: Pick<CatalogItemSource, 'name' | 'localId' | 'officialCount' | 'variant'>) => {
-  const number =
-    /^\d+$/.test(source.localId) && source.officialCount
-      ? `${source.localId}/${String(source.officialCount).padStart(source.localId.length, '0')}`
-      : source.localId;
-  return `${source.name} ${number}${source.variant === 'reverse' ? ' (Reverse Holo)' : ''}`;
-};
+/**
+ * Name des Eintrags: nur der Kartenname. Das Set steht im Feld „Erweiterung“,
+ * die Kartennummer ergibt sich über die Verknüpfung mit der Katalogkarte.
+ */
+export const catalogItemName = (source: Pick<CatalogItemSource, 'name' | 'variant'>) =>
+  `${source.name}${source.variant === 'reverse' ? ' (Reverse Holo)' : ''}`;
 
 export const buildCatalogItem = (
   category: Pick<Category, 'attributes'>,

@@ -422,7 +422,6 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
               cardId: selected.id,
               setId,
               setName: set.name,
-              officialCount: set.cardCount?.official,
               name: selected.name,
               localId: selected.localId,
               variant,

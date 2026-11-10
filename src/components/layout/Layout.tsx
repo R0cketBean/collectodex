@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
     HomeIcon,
@@ -38,6 +38,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const location = useLocation();
+  // Beim Seitenwechsel wieder oben anfangen. Der Inhalt scrollt in <main>,
+  // nicht im Fenster – ohne das behielt eine neue Seite die Scroll-Position der
+  // alten (z. B. landete man nach der langen Set-Übersicht mitten in einem Set).
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [location.pathname]);
   // Nur den Categories-Slice abonnieren (#18): Layout re-rendert dadurch nicht
   // mehr bei Item-/Snapshot-Änderungen, sondern nur bei Kategorie-Änderungen.
   const categories = useCategoriesData();
@@ -228,7 +235,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </button>
         </div>
         
-        <main className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
+        <main ref={mainRef} className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
           <div className="py-6">
             <div className="w-full px-4 sm:px-6 md:px-8">
               {children}

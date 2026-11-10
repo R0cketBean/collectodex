@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CollectionItem } from '../types/models';
-import { candidateSetIds, findSetIds, parseCardmarketLink, suggestMatch } from './catalogMatch';
+import { candidateSetIds, findSetIds, manualCandidates, parseCardmarketLink, suggestMatch } from './catalogMatch';
 
 const item = (values: Record<string, unknown>, product?: string): CollectionItem =>
   ({
@@ -97,5 +97,23 @@ describe('suggestMatch', () => {
     expect(suggestMatch(item({ name: 'Glurak' }), [], cards).status).toBe('none');
     expect(suggestMatch(item({ name: 'Mewtu' }), ['base1'], cards).status).toBe('none');
     expect(suggestMatch(item({ name: 'Glurak' }), ['unbekannt'], cards).status).toBe('none');
+  });
+});
+
+describe('manualCandidates', () => {
+  it('listet alle Karten des Sets, namensgleiche zuerst, sonst nach Nummer', () => {
+    const cards = [
+      { id: 'x-10', localId: '10', name: 'Bisaflor' },
+      { id: 'x-2', localId: '2', name: 'Turtok' },
+      { id: 'x-1', localId: '1', name: 'Glurak' },
+      { id: 'x-15', localId: '15', name: 'Turtok' },
+    ];
+    expect(manualCandidates(item({ name: 'Turtok' }), 'x', cards).map((c) => c.card.id)).toEqual([
+      'x-2',
+      'x-15',
+      'x-1',
+      'x-10',
+    ]);
+    expect(manualCandidates(item({}), 'x', cards)[0]).toEqual({ setId: 'x', card: cards[2] });
   });
 });
