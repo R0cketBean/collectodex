@@ -39,6 +39,8 @@ export interface ItemsApi {
   removeImageFromItem: (itemId: string, attributeId: string) => void;
   addLinkToItem: (itemId: string, attributeId: string, url: string) => void;
   removeLinkFromItem: (itemId: string, attributeId: string) => void;
+  /** Verknüpft Einträge mit Katalogkarten bzw. löst die Verknüpfung (`null`). */
+  setItemCatalogRefs: (refs: Record<string, CatalogRef | null>) => void;
 }
 
 /** Entfernt einen Schlüssel; liefert `undefined`, wenn nichts übrig bleibt. */
@@ -164,6 +166,18 @@ export function useItems(): ItemsApi {
     patchItem(itemId, (item) => ({ ...item, links: { ...(item.links || {}), [attributeId]: processedUrl } }));
   };
 
+  const setItemCatalogRefs = (refs: Record<string, CatalogRef | null>) => {
+    if (Object.keys(refs).length === 0) return;
+    setItems((prev) =>
+      prev.map((item) => {
+        if (!(item.id in refs)) return item;
+        const { catalog: _old, ...rest } = item;
+        const ref = refs[item.id];
+        return { ...rest, ...(ref ? { catalog: ref } : {}), updatedAt: new Date() };
+      })
+    );
+  };
+
   return {
     items,
     setItems,
@@ -178,5 +192,6 @@ export function useItems(): ItemsApi {
     removeImageFromItem,
     addLinkToItem,
     removeLinkFromItem,
+    setItemCatalogRefs,
   };
 }

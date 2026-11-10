@@ -125,6 +125,17 @@ describe('useItems – Änderungen', () => {
     expect(get(a).images).toBeUndefined();
   });
 
+  it('verknüpft Einträge mit Katalogkarten und löst die Verknüpfung wieder', () => {
+    const { result, a, b, get } = setup();
+    const untouched = get(b);
+    act(() => result.current.setItemCatalogRefs({ [a]: { cardId: 'base1-4', setId: 'base1', variant: 'normal' } }));
+    expect(get(a).catalog).toEqual({ cardId: 'base1-4', setId: 'base1', variant: 'normal' });
+    expect(get(a).links).toEqual({ product: 'https://x/a' });
+    expect(get(b)).toBe(untouched);
+    act(() => result.current.setItemCatalogRefs({ [a]: null }));
+    expect('catalog' in get(a)).toBe(false);
+  });
+
   it('entfernt beim Löschen einer Kategorie deren Einträge', () => {
     const { result, a } = setup();
     act(() => result.current.deleteItemsByCategory('sealed'));

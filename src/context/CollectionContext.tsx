@@ -58,6 +58,7 @@ interface CollectionContextType {
   removeImageFromItem: (itemId: string, attributeId: string) => void;
   addLinkToItem: (itemId: string, attributeId: string, url: string) => void;
   removeLinkFromItem: (itemId: string, attributeId: string) => void;
+  setItemCatalogRefs: (refs: Record<string, CatalogRef | null>) => void;
   
   // Berechnung und Werte
   calculateItemValue: (item: CollectionItem) => { [key: string]: any };
@@ -202,6 +203,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     removeImageFromItem,
     addLinkToItem,
     removeLinkFromItem,
+    setItemCatalogRefs,
   } = useItems();
 
   // Kategorie-Domäne (#18): Kategorie-/Attribut-CRUD, getCategoryById und die
@@ -344,6 +346,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     removeImageFromItem,
     addLinkToItem,
     removeLinkFromItem,
+    setItemCatalogRefs,
     calculateItemValue,
     calculateFormula,
     exportData,
@@ -381,6 +384,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     removeImageFromItem: (...a) => latest.current.removeImageFromItem(...a),
     addLinkToItem: (...a) => latest.current.addLinkToItem(...a),
     removeLinkFromItem: (...a) => latest.current.removeLinkFromItem(...a),
+    setItemCatalogRefs: (...a) => latest.current.setItemCatalogRefs(...a),
 
     // Berechnung und Werte
     calculateItemValue: (...a) => latest.current.calculateItemValue(...a),

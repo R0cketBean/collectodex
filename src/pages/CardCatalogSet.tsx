@@ -65,7 +65,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
   const navigate = useNavigate();
   const items = useItemsData();
   const categories = useCategoriesData();
-  const { addItem, calculateItemValue } = useCollectionActions();
+  const { addItem, calculateItemValue, setItemCatalogRefs } = useCollectionActions();
   const checked = useCatalogOwned()[setId];
   const linked = useMemo(() => linkedItemsByCard(items, setId), [items, setId]);
   const ownershipOf = (cardId: string) => cardOwnership(checked?.[cardId], linked[cardId]);
@@ -434,6 +434,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
             });
             navigate(`/category/${category.id}?highlight=${id}`);
           }}
+          onUnlink={(itemId) => setItemCatalogRefs({ [itemId]: null })}
           onClose={() => setSelected(null)}
         />
       )}
@@ -465,8 +466,9 @@ const CardModal: React.FC<{
   categories: Category[];
   onToggle: (variant: CatalogVariant) => void;
   onAdd: (category: Category, variant: CatalogVariant) => void;
+  onUnlink: (itemId: string) => void;
   onClose: () => void;
-}> = ({ card, detail, englishImage, ownership, categories, onToggle, onAdd, onClose }) => {
+}> = ({ card, detail, englishImage, ownership, categories, onToggle, onAdd, onUnlink, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
   const hasReverse = Boolean(detail?.variants?.reverse);
   // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
@@ -580,6 +582,13 @@ const CardModal: React.FC<{
                     >
                       Eintrag in „{categoryName(item)}“ öffnen
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => onUnlink(item.id)}
+                      className="ml-3 text-xs text-gray-500 dark:text-gray-400 hover:underline"
+                    >
+                      Verknüpfung lösen
+                    </button>
                   </li>
                 ))}
               </ul>

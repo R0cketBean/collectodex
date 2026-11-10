@@ -18,6 +18,7 @@ const CardCatalog: React.FC = () => {
   const owned = useCatalogOwned();
   const items = useItemsData();
   const ownedCounts = useMemo(() => ownedCountBySet(owned, items), [owned, items]);
+  const unlinkedCount = useMemo(() => items.filter((i) => !i.catalog).length, [items]);
 
   useEffect(() => {
     let alive = true;
@@ -62,6 +63,14 @@ const CardCatalog: React.FC = () => {
                 ? `${totals.sets} deutsche Sets · ${totals.cards.toLocaleString('de-DE')} Karten · Preise von Cardmarket`
                 : 'Deutsche Sets mit Cardmarket-Preisen'}
             </p>
+            {unlinkedCount > 0 && (
+              <Link
+                to="/katalog/verknuepfen"
+                className="mt-2 inline-block text-sm text-pokemon-blue dark:text-blue-300 hover:underline"
+              >
+                Sammlung mit dem Katalog verknüpfen ({unlinkedCount} Einträge offen)
+              </Link>
+            )}
           </div>
           <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 sm:ml-auto">
             <input
