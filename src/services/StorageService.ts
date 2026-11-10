@@ -3,7 +3,6 @@
  * Abstrahiert die Speichermethoden je nach Laufzeitumgebung (Browser oder Electron)
  */
 
-import { logger } from '../utils/logger';
 
 // Prüfe, ob die App in Electron läuft
 const isElectron = () => {
@@ -63,9 +62,6 @@ const processUpdateQueue = async () => {
     if (nextUpdate) {
       // Führe die Operation aus
       await nextUpdate.operation();
-      
-      // Kleine Pause, um sicherzustellen, dass Änderungen gespeichert werden
-      await new Promise(resolve => setTimeout(resolve, 50));
     }
   } catch (error) {
     console.error('Fehler bei der Verarbeitung der Update-Warteschlange:', error);
@@ -121,101 +117,4 @@ export const setData = async <T>(key: string, data: T): Promise<void> => {
       throw error;
     }
   });
-};
-
-// Spezielle Warteschlange für Item-Updates
-const itemUpdateQueue = new Map<string, Promise<boolean>>();
-
-/**
- * Führt ein atomares Update für ein einzelnes Item durch
- * Garantiert Konsistenz durch sequenzielle Verarbeitung pro Item
- * @param itemId ID des zu aktualisierenden Items
- * @param updateFunction Funktion, die das aktuelle Item als Parameter erhält und das aktualisierte Item zurückgibt
- * @returns Promise<boolean> - true wenn erfolgreich, false bei Fehlern
- */
-export const atomicUpdateItem = async (itemId: string, updateFunction: (item: any) => any): Promise<boolean> => {
-  // Wenn bereits ein Update für dieses Item läuft, warte darauf
-  if (itemUpdateQueue.has(itemId)) {
-    logger.debug(`[StorageService] Warte auf bereits laufendes Update für Item ${itemId}`);
-    const existingUpdate = itemUpdateQueue.get(itemId);
-    return await existingUpdate || false;
-  }
-
-  // Neues Update-Promise erstellen
-  // Der Speicherpfad wird in #123 neu gebaut; bis dahin bleibt die Konstruktion unverändert.
-  // eslint-disable-next-line no-async-promise-executor
-  const updatePromise = new Promise<boolean>(async (resolve) => {
-    try {
-      logger.debug(`[StorageService] Starte atomares Update für Item ${itemId}`);
-      
-      // Aktuelle Items aus dem Storage laden
-      const currentItems = await getData<any[]>(STORAGE_KEYS.ITEMS) || [];
-      
-      // Item finden
-      const index = currentItems.findIndex(item => item.id === itemId);
-      if (index === -1) {
-        console.error(`[StorageService] Item ${itemId} nicht gefunden`);
-        resolve(false);
-        return;
-      }
-      
-      // Das aktuelle Item extrahieren
-      const currentItem = currentItems[index];
-      
-      // Update-Funktion anwenden
-      let updatedItem;
-      try {
-        updatedItem = updateFunction(currentItem);
-        
-        // Optimierung: Prüfe, ob es wirklich Änderungen gibt
-        const currentValues = JSON.stringify(currentItem.values);
-        const updatedValues = JSON.stringify(updatedItem.values);
-        
-        if (currentValues === updatedValues) {
-          logger.debug(`[StorageService] Keine Änderungen an Item ${itemId} erkannt, überspringe Update`);
-          resolve(true);
-          return;
-        }
-      } catch (e) {
-        console.error('[StorageService] Fehler in der atomaren Update-Funktion:', e);
-        resolve(false);
-        return;
-      }
-      
-      // Stelle sicher, dass updatedAt aktualisiert wird
-      if (updatedItem.updatedAt instanceof Date) {
-        updatedItem.updatedAt = updatedItem.updatedAt.toISOString();
-      } else {
-        updatedItem.updatedAt = new Date().toISOString();
-      }
-      
-      // Stelle sicher, dass createdAt konsistent ist
-      if (updatedItem.createdAt instanceof Date) {
-        updatedItem.createdAt = updatedItem.createdAt.toISOString();
-      }
-      
-      logger.debug(`[StorageService] Atomic update speichert für Item ${itemId}:`, updatedItem.values);
-      
-      // Das aktualisierte Item in die Liste einfügen
-      currentItems[index] = updatedItem;
-      
-      // Speichern der aktualisierten Liste
-      await setData(STORAGE_KEYS.ITEMS, currentItems);
-      
-      logger.debug(`[StorageService] Atomic update für Item ${itemId} erfolgreich abgeschlossen`);
-      resolve(true);
-    } catch (error) {
-      console.error(`[StorageService] Fehler beim atomaren Update des Items ${itemId}:`, error);
-      resolve(false);
-    } finally {
-      // Entferne dieses Update aus der Warteschlange
-      itemUpdateQueue.delete(itemId);
-    }
-  });
-
-  // Speichere das Update-Promise in der Warteschlange
-  itemUpdateQueue.set(itemId, updatePromise);
-  
-  // Gib das Promise zurück
-  return updatePromise;
 };
