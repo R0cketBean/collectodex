@@ -32,6 +32,7 @@ import {
 } from '../utils/itemImages';
 import ImageLightbox from '../components/common/ImageLightbox';
 import { parseDateInput } from '../utils/dateInput';
+import { prepareImageFile, storeImage } from '../utils/imageStorage';
 import { normalizeLinkUrl } from '../utils/itemLinks';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
@@ -1324,18 +1325,17 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
     const file = event.target.files?.[0];
     if (!file || !key) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
-        const data = reader.result as string;
+    // Verkleinern, als Datei ablegen (in der App) und nur den Verweis merken (#120).
+    void prepareImageFile(file)
+      .then(storeImage)
+      .then((data) => {
         setNewImages(prev => ({ ...prev, [key]: data }));
         // Bei bestehenden Items das Bild sofort persistieren.
         if (item) {
           addImageToItem(item.id, key, data);
         }
-      }
-    };
-    reader.readAsDataURL(file);
+      })
+      .catch((error) => console.error('Bild konnte nicht übernommen werden:', error));
   };
 
   // Entfernt ein Bild aus einem Slot (lokal und – bei bestehenden Items – sofort

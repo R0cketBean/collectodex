@@ -1,7 +1,7 @@
 // Typen für die in public/preload.js via contextBridge bereitgestellte API.
 // Bisher wurde window.electronAPI nur über (window as any) bzw.
 // 'electronAPI' in window genutzt — diese Deklaration macht die Nutzung
-// typsicher (kein Typecheck in der CI, aber Editor-Unterstützung).
+// typsicher.
 
 export interface UpdateInfo {
   version?: string;
@@ -36,6 +36,10 @@ export interface ElectronAPI {
   // Manuelle Prüfung; { supported: false } im Dev-/ungepackten Modus.
   checkForUpdates: () => Promise<{ supported: boolean }>;
   getAppVersion: () => Promise<string>;
+
+  // Bilder (#120): Ablage als Datei, Rückgabe ist ein Verweis (cdx-image://…).
+  saveImage: (dataUrl: string) => Promise<string | null>;
+  readImage: (ref: string) => Promise<string | null>;
 
   // Auto-Backup (#91)
   chooseBackupFolder: () => Promise<string | null>;

@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import type { Category, CollectionItem } from '../types/models';
 import { wrapBackup } from '../utils/backup';
 import { getCatalogOwned } from './useCatalogOwned';
+import { inlineItemImages } from '../utils/imageStorage';
 import {
   loadBackupSettings,
   saveBackupSettings,
@@ -49,7 +50,13 @@ export const useAutoBackup = ({
           return;
         }
 
-        const json = JSON.stringify(wrapBackup({ categories, items, catalogOwned: getCatalogOwned() }), null, 2);
+        // Bilder für die Sicherung wieder einbetten, damit sie allein vollständig ist (#120).
+        const itemsWithImages = await inlineItemImages(items);
+        const json = JSON.stringify(
+          wrapBackup({ categories, items: itemsWithImages, catalogOwned: getCatalogOwned() }),
+          null,
+          2
+        );
         const result = await api.writeBackup({
           folder: settings.folder,
           json,

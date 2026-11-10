@@ -10,6 +10,7 @@ import { useCategoriesData, useCollectionActions } from '../context/CollectionCo
 import { useLoading } from '../context/LoadingContext';
 import { wrapBackup, validateBackup } from '../utils/backup';
 import { getCatalogOwned, replaceCatalogOwned } from '../hooks/useCatalogOwned';
+import { externalizeItemImages, inlineItemImages } from '../utils/imageStorage';
 
 const ImportExport: React.FC = () => {
   // Re-Render-Isolation (#18): nur den Categories-Slice + die (stabilen) Actions.
@@ -96,10 +97,12 @@ const ImportExport: React.FC = () => {
     try {
       await runWithLoading('Sammle Daten...', async (setPhase) => {
         const data = exportData();
+        setPhase('Sammle Bilder...');
+        const items = await inlineItemImages(data.items);
         setPhase('Erstelle Datei...');
         // In eine versionierte Hülle verpacken, damit künftige
         // Formatänderungen migrierbar bleiben (#30).
-        const dataStr = JSON.stringify(wrapBackup({ ...data, catalogOwned: getCatalogOwned() }), null, 2);
+        const dataStr = JSON.stringify(wrapBackup({ ...data, items, catalogOwned: getCatalogOwned() }), null, 2);
         const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
         setPhase('Speichere...');
         downloadBlob(blob, 'collectodex-export.json');
@@ -234,9 +237,11 @@ const ImportExport: React.FC = () => {
             showLoading('Importiere Daten in die Sammlung...');
 
             // Import in separatem Task ausführen, um UI nicht zu blockieren
-            setTimeout(() => {
+            setTimeout(async () => {
               try {
-                importData(validation.data);
+                // Mitgelieferte Bilder wieder als Dateien ablegen (#120).
+                const items = await externalizeItemImages(validation.data.items);
+                importData({ ...validation.data, items });
                 // Ältere Sicherungen kennen keine Katalog-Markierungen: dann bleiben die vorhandenen.
                 if (validation.data.catalogOwned) replaceCatalogOwned(validation.data.catalogOwned);
                 hideLoading();

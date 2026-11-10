@@ -48,6 +48,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Aktuelle App-Version (für die Anzeige im Settings-Tab).
   getAppVersion: () => ipcRenderer.invoke('app:version'),
 
+  // Bilder (#120): als Datei ablegen (liefert einen Verweis) bzw. wieder als
+  // Data-URL lesen (für Export und Backup).
+  saveImage: (dataUrl) => ipcRenderer.invoke('images:save', dataUrl),
+  readImage: (ref) => ipcRenderer.invoke('images:read', ref),
+
   // Auto-Backup (#91)
   chooseBackupFolder: () => ipcRenderer.invoke('backup:choose-folder'),
   writeBackup: (payload) => ipcRenderer.invoke('backup:write', payload),

@@ -1,9 +1,27 @@
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, protocol, net } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
+const imageStore = require('./imageStore');
+
+// Nur für Entwicklung und Tests: Datenordner umlenken, damit sich Änderungen
+// am Speicherformat an einer Kopie ausprobieren lassen, ohne die echte
+// Sammlung anzufassen. Muss vor allem anderen laufen, was userData liest.
+if (process.env.COLLECTODEX_USER_DATA) {
+  app.setPath('userData', path.resolve(process.env.COLLECTODEX_USER_DATA));
+}
+
+// Eigenes Schema für ausgelagerte Bilder (#120). Muss vor „ready“ als
+// vertrauenswürdig angemeldet werden, sonst lädt das Fenster daraus nichts.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: imageStore.IMAGE_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+  },
+]);
 
 // Einmalige Migration des Datenverzeichnisses (#21).
 //
@@ -58,6 +76,32 @@ const store = new Store({
     items: []
   }
 });
+
+const ITEMS_KEY = 'pokemon_collection_items';
+const imagesDir = () => path.join(app.getPath('userData'), 'images');
+
+// Einmalige Auslagerung der Bilder aus der Datendatei (#120). Läuft vor dem
+// ersten Fenster, damit die App nie die große Datei über IPC schieben muss.
+// Schlägt sie fehl, startet die App trotzdem – mit den Bildern wie bisher.
+function migrateImagesOutOfStore() {
+  try {
+    const result = imageStore.migrateInlineImages({
+      readItems: () => store.get(ITEMS_KEY) || [],
+      writeItems: (items) => store.set(ITEMS_KEY, items),
+      storeFile: store.path,
+      backupFile: path.join(path.dirname(store.path), 'collectodex-data.vor-bildauslagerung.json'),
+      dir: imagesDir(),
+    });
+    if (result.migrated > 0) {
+      console.log(`Bildauslagerung: ${result.migrated} Bilder nach ${imagesDir()} verschoben.`);
+      console.log(`Sicherungskopie der alten Datendatei: ${result.backupFile}`);
+    }
+  } catch (error) {
+    console.error('Bildauslagerung fehlgeschlagen, Daten bleiben unverändert:', error);
+  }
+}
+
+migrateImagesOutOfStore();
 
 let mainWindow;
 
@@ -249,8 +293,20 @@ function createWindow() {
   mainWindow.on('closed', () => (mainWindow = null));
 }
 
+// Liefert ausgelagerte Bilder an das Fenster aus.
+function registerImageProtocol() {
+  protocol.handle(imageStore.IMAGE_SCHEME, (request) => {
+    const file = imageStore.resolveRef(imagesDir(), request.url.split(/[?#]/)[0]);
+    if (!file) return new Response('Bild nicht gefunden', { status: 404 });
+    return net.fetch(pathToFileURL(file).toString());
+  });
+}
+
 // App Events
-app.on('ready', createWindow);
+app.on('ready', () => {
+  registerImageProtocol();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -282,6 +338,26 @@ ipcMain.handle('store-delete', async (event, key) => {
 ipcMain.handle('store-clear', async () => {
   store.clear();
   return true;
+});
+
+// Bilder (#120): neue Bilder als Datei ablegen bzw. für Export und Backup
+// wieder als Data-URL liefern.
+ipcMain.handle('images:save', async (event, dataUrl) => {
+  try {
+    return imageStore.saveDataUrl(imagesDir(), dataUrl);
+  } catch (error) {
+    console.error('Bild speichern fehlgeschlagen:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('images:read', async (event, ref) => {
+  try {
+    return imageStore.readAsDataUrl(imagesDir(), ref);
+  } catch (error) {
+    console.error('Bild lesen fehlgeschlagen:', error);
+    return null;
+  }
 });
 
 // IPC Handler für das Öffnen von externen URLs
