@@ -32,6 +32,16 @@ export interface Category {
   updatedAt: Date;
 }
 
+/** Fassung einer Katalogkarte. „normal“ meint die Standardfassung (auch Holo). */
+export type CatalogVariant = 'normal' | 'reverse';
+
+/** Verknüpfung eines Sammlungseintrags mit einer Karte aus dem Kartenkatalog. */
+export interface CatalogRef {
+  cardId: string;
+  setId: string;
+  variant?: CatalogVariant;
+}
+
 // Ein generischer Sammlungseintrag
 export interface CollectionItem {
   id: string;
@@ -45,6 +55,7 @@ export interface CollectionItem {
   links?: {
     [attributeId: string]: string; // URLs für Hyperlinks
   };
+  catalog?: CatalogRef; // Verknüpfte Katalogkarte (zählt im Katalog als vorhanden)
   createdAt: Date;
   updatedAt: Date;
 }

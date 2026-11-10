@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { Category, CollectionItem } from '../types/models';
+import { Category, CatalogRef, CollectionItem } from '../types/models';
 import { logger } from '../utils/logger';
 import { normalizeLinkUrl } from '../utils/itemLinks';
 import * as StorageService from '../services/StorageService';
@@ -32,6 +32,7 @@ export interface ItemsApi {
     options?: {
       links?: { [attributeId: string]: string };
       images?: { [attributeId: string]: string };
+      catalog?: CatalogRef;
     }
   ) => string;
   updateItem: (id: string, values: { [key: string]: any }) => void;
@@ -103,6 +104,7 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
     options?: {
       links?: { [attributeId: string]: string };
       images?: { [attributeId: string]: string };
+      catalog?: CatalogRef;
     }
   ): string => {
     const id = `item_${uuidv4()}`;
@@ -117,6 +119,7 @@ export function useItems({ categories }: UseItemsDeps): ItemsApi {
       ...(options?.images && Object.keys(options.images).length > 0
         ? { images: options.images }
         : {}),
+      ...(options?.catalog ? { catalog: options.catalog } : {}),
       createdAt: new Date(),
       updatedAt: new Date(),
     };

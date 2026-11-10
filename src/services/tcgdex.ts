@@ -197,6 +197,25 @@ export const formatEur = (v: number | null | undefined) =>
 export const cardmarketSearchUrl = (name: string) =>
   `https://www.cardmarket.com/de/Pokemon/Products/Search?searchString=${encodeURIComponent(name)}`;
 
+/**
+ * Cardmarket-Filter, mit denen neue Einträge aus dem Katalog verlinkt werden:
+ * Verkäufer aus Deutschland, Sprache Deutsch, mindestens Near Mint.
+ */
+export const DEFAULT_CARDMARKET_FILTER = 'sellerCountry=7&language=3&minCondition=2';
+
+/**
+ * Link zum Cardmarket-Produkt über die Produktnummer aus TCGdex, mit Filter.
+ * Ohne Produktnummer bleibt nur die Suche nach dem Kartennamen.
+ */
+export const cardmarketProductUrl = (
+  idProduct: number | null | undefined,
+  name: string,
+  filter = DEFAULT_CARDMARKET_FILTER
+) =>
+  typeof idProduct === 'number'
+    ? `https://www.cardmarket.com/de/Pokemon/Products?idProduct=${idProduct}${filter ? `&${filter}` : ''}`
+    : cardmarketSearchUrl(name);
+
 // --- Hilfen ---------------------------------------------------------------
 
 /** Normalisiert Text für die Suche: Kleinschreibung, ohne Akzente/Bindestriche. */

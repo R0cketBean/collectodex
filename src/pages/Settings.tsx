@@ -10,6 +10,7 @@ import {
 import { getThemeChoice, setThemeChoice, ThemeChoice } from '../utils/theme';
 import { useCollectionActions } from '../context/CollectionContext';
 import { wrapBackup } from '../utils/backup';
+import { getCatalogOwned } from '../hooks/useCatalogOwned';
 import {
   BackupSettings,
   DEFAULT_BACKUP_SETTINGS,
@@ -157,7 +158,7 @@ const Settings: React.FC = () => {
     }
     setBackupStatus('Sicherung läuft…');
     try {
-      const json = JSON.stringify(wrapBackup(exportData()), null, 2);
+      const json = JSON.stringify(wrapBackup({ ...exportData(), catalogOwned: getCatalogOwned() }), null, 2);
       const res = await api.writeBackup({ folder, json, keep: backup.keep });
       if (res.ok) {
         await persistBackup({ ...backup, folder, lastBackup: todayKey() });

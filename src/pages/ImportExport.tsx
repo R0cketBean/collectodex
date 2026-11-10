@@ -9,6 +9,7 @@ import {
 import { useCategoriesData, useCollectionActions } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
 import { wrapBackup, validateBackup } from '../utils/backup';
+import { getCatalogOwned, replaceCatalogOwned } from '../hooks/useCatalogOwned';
 
 const ImportExport: React.FC = () => {
   // Re-Render-Isolation (#18): nur den Categories-Slice + die (stabilen) Actions.
@@ -98,7 +99,7 @@ const ImportExport: React.FC = () => {
         setPhase('Erstelle Datei...');
         // In eine versionierte Hülle verpacken, damit künftige
         // Formatänderungen migrierbar bleiben (#30).
-        const dataStr = JSON.stringify(wrapBackup(data), null, 2);
+        const dataStr = JSON.stringify(wrapBackup({ ...data, catalogOwned: getCatalogOwned() }), null, 2);
         const blob = new Blob([dataStr], { type: 'application/json;charset=utf-8' });
         setPhase('Speichere...');
         downloadBlob(blob, 'collectodex-export.json');
@@ -236,6 +237,8 @@ const ImportExport: React.FC = () => {
             setTimeout(() => {
               try {
                 importData(validation.data);
+                // Ältere Sicherungen kennen keine Katalog-Markierungen: dann bleiben die vorhandenen.
+                if (validation.data.catalogOwned) replaceCatalogOwned(validation.data.catalogOwned);
                 hideLoading();
                 setIsLoading(false);
                 setImportError(null);

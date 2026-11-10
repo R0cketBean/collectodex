@@ -1,9 +1,20 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeftIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeftIcon, CheckIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useCategoriesData, useCollectionActions, useItemsData } from '../context/CollectionContext';
+import { toggleCatalogOwned, useCatalogOwned } from '../hooks/useCatalogOwned';
+import type { CatalogVariant, Category, CollectionItem } from '../types/models';
+import { buildCatalogItem } from '../utils/catalogItem';
+import {
+  cardOwnership,
+  linkedItemsByCard,
+  summarizeSetOwnership,
+  type CardOwnership,
+} from '../utils/catalogOwnership';
 import FallbackImage from '../components/catalog/FallbackImage';
 import {
   cardImageSources,
+  cardmarketProductUrl,
   cardmarketSearchUrl,
   fetchEnglishCardImages,
   fetchSet,
@@ -19,6 +30,7 @@ import {
 } from '../services/tcgdex';
 
 type SortKey = 'number' | 'price-desc' | 'price-asc' | 'name';
+type OwnedFilter = 'all' | 'owned' | 'missing';
 
 const openExternal = (url: string) => {
   if (window.electronAPI?.openExternalURL) {
@@ -48,6 +60,15 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('number');
   const [selected, setSelected] = useState<CardBrief | null>(null);
+  const [ownedFilter, setOwnedFilter] = useState<OwnedFilter>('all');
+
+  const navigate = useNavigate();
+  const items = useItemsData();
+  const categories = useCategoriesData();
+  const { addItem, calculateItemValue } = useCollectionActions();
+  const checked = useCatalogOwned()[setId];
+  const linked = useMemo(() => linkedItemsByCard(items, setId), [items, setId]);
+  const ownershipOf = (cardId: string) => cardOwnership(checked?.[cardId], linked[cardId]);
 
   // Set laden, danach die Kartendetails (Preise) nach und nach.
   useEffect(() => {
@@ -85,17 +106,46 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
   const cardTotal = set?.cards.length ?? 0;
   const setValue = useMemo(() => sumSetValue(Object.values(details)), [details]);
 
+  // Bestand: Haken und verknüpfte Einträge, Wert daraus errechnet.
+  const ownership = useMemo(
+    () =>
+      summarizeSetOwnership(
+        (set?.cards ?? []).map((c) => {
+          const detail = details[c.id];
+          if (!detail) return { id: c.id };
+          const p = summarizePricing(detail);
+          return {
+            id: c.id,
+            price: { trend: p.trend, reverseTrend: p.reverseTrend, hasReverse: Boolean(detail.variants?.reverse) },
+          };
+        }),
+        checked,
+        linked,
+        (item) => {
+          const total = calculateItemValue(item).totalValue;
+          return typeof total === 'number' && Number.isFinite(total) ? total : 0;
+        }
+      ),
+    // calculateItemValue ist referenz-stabil (Actions-Context).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [set, details, checked, linked]
+  );
+
   const visibleCards = useMemo(() => {
     if (!set) return [];
     const q = normalizeSearch(query);
-    const list = q
-      ? set.cards.filter(
-          (c) =>
-            normalizeSearch(c.name).includes(q) ||
-            normalizeSearch(c.localId).includes(q) ||
-            normalizeSearch(details[c.id]?.rarity ?? '').includes(q)
-        )
-      : [...set.cards];
+    const list = set.cards.filter((c) => {
+      if (ownedFilter !== 'all') {
+        const has = cardOwnership(checked?.[c.id], linked[c.id]).variants.length > 0;
+        if (has !== (ownedFilter === 'owned')) return false;
+      }
+      return (
+        !q ||
+        normalizeSearch(c.name).includes(q) ||
+        normalizeSearch(c.localId).includes(q) ||
+        normalizeSearch(details[c.id]?.rarity ?? '').includes(q)
+      );
+    });
     const price = (c: CardBrief) => summarizePricing(details[c.id] ?? {}).trend;
     list.sort((a, b) => {
       if (sort === 'name') return a.name.localeCompare(b.name, 'de');
@@ -111,7 +161,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
       return compareLocalId(a.localId, b.localId);
     });
     return list;
-  }, [set, details, query, sort]);
+  }, [set, details, query, sort, ownedFilter, checked, linked]);
 
   if (error) {
     return (
@@ -173,6 +223,67 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
           </div>
         )}
 
+        {/* Eigener Bestand in diesem Set */}
+        {set && (
+          <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                Dein Bestand
+                {ownership.complete && (
+                  <span className="ml-2 rounded-full bg-green-100 dark:bg-green-900/40 px-2 py-0.5 text-xs font-medium text-green-700 dark:text-green-300">
+                    Master Set vollständig
+                  </span>
+                )}
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-300 tabular-nums">
+                {ownership.ownedCards} von {ownership.total} Karten
+                {ownership.reverseTotal > 0 && ` · Reverse Holo ${ownership.reverseOwned} von ${ownership.reverseTotal}`}
+              </p>
+            </div>
+            <div
+              className="mt-2 h-2 w-full rounded bg-gray-200 dark:bg-gray-700 overflow-hidden"
+              role="progressbar"
+              aria-label="Fortschritt im Set"
+              aria-valuemin={0}
+              aria-valuemax={ownership.total}
+              aria-valuenow={ownership.ownedCards}
+            >
+              <div
+                className="h-full bg-green-500 transition-all"
+                style={{ width: `${ownership.total ? (ownership.ownedCards / ownership.total) * 100 : 0}%` }}
+              />
+            </div>
+            {ownership.ownedCards > 0 && (
+              <dl className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <dt className="text-gray-500 dark:text-gray-400">Wert deiner Karten</dt>
+                  <dd className="text-lg font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+                    {formatEur(ownership.entryValue + ownership.catalogValue)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-gray-500 dark:text-gray-400">davon Sammlungseinträge</dt>
+                  <dd className="font-medium text-gray-900 dark:text-gray-100 tabular-nums">
+                    {formatEur(ownership.entryValue)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-gray-500 dark:text-gray-400">davon Katalogwert (nur abgehakt)</dt>
+                  <dd className="font-medium text-gray-900 dark:text-gray-100 tabular-nums">
+                    {formatEur(ownership.catalogValue)}
+                  </dd>
+                </div>
+              </dl>
+            )}
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+              {ownership.ownedCards === 0
+                ? 'Hake Karten ab, die du besitzt, oder übernimm sie als Eintrag in deine Sammlung.'
+                : 'Der Katalogwert nutzt den Cardmarket-Trend und zählt nicht zum Sammlungswert.'}
+              {ownership.unpriced > 0 && ` ${ownership.unpriced} abgehakte Karten haben keinen Katalogpreis.`}
+            </p>
+          </div>
+        )}
+
         {/* Suche & Sortierung */}
         <div className="mt-6 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
@@ -186,6 +297,16 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
               className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
             />
           </div>
+          <select
+            value={ownedFilter}
+            onChange={(e) => setOwnedFilter(e.target.value as OwnedFilter)}
+            aria-label="Bestand filtern"
+            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+          >
+            <option value="all">Alle Karten</option>
+            <option value="owned">Vorhanden</option>
+            <option value="missing">Fehlt mir</option>
+          </select>
           <select
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
@@ -208,12 +329,42 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
           {visibleCards.map((card) => {
             const detail = details[card.id];
             const price = detail ? summarizePricing(detail) : null;
+            const own = ownershipOf(card.id);
+            const has = own.variants.length > 0;
+            const viaEntry = own.entryVariants.length > 0;
             return (
-              <button
+              <div
                 key={card.id}
-                onClick={() => setSelected(card)}
-                className="text-left rounded-lg bg-white dark:bg-gray-800 shadow overflow-hidden hover:ring-2 hover:ring-pokemon-blue transition focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
+                className={`relative rounded-lg bg-white dark:bg-gray-800 shadow overflow-hidden transition hover:ring-2 hover:ring-pokemon-blue ${
+                  has ? 'ring-2 ring-green-500' : ''
+                }`}
               >
+                <button
+                  type="button"
+                  onClick={() => toggleCatalogOwned(setId, card.id, 'normal')}
+                  disabled={own.entryVariants.includes('normal')}
+                  aria-pressed={has}
+                  aria-label={has ? `${card.name}: vorhanden` : `${card.name} als vorhanden markieren`}
+                  title={
+                    viaEntry
+                      ? 'In deiner Sammlung eingetragen'
+                      : has
+                        ? 'Vorhanden – Klick entfernt die Markierung'
+                        : 'Als vorhanden markieren'
+                  }
+                  className={`absolute top-1 left-1 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 shadow focus:outline-none focus:ring-2 focus:ring-pokemon-blue ${
+                    has
+                      ? 'border-green-500 bg-green-500 text-white'
+                      : 'border-white/80 bg-black/40 text-transparent hover:text-white'
+                  } ${viaEntry ? 'cursor-default' : ''}`}
+                >
+                  <CheckIcon className="h-4 w-4" strokeWidth={3} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelected(card)}
+                  className="block w-full text-left focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pokemon-blue"
+                >
                 <div className="relative aspect-[5/7] bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
                   <FallbackImage
                     sources={cardImageSources(card.image, englishImages[card.localId])}
@@ -241,7 +392,8 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
                     )}
                   </div>
                 </div>
-              </button>
+                </button>
+              </div>
             );
           })}
         </div>
@@ -256,6 +408,32 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
           card={selected}
           detail={selectedDetail}
           englishImage={englishImages[selected.localId]}
+          ownership={ownershipOf(selected.id)}
+          categories={categories}
+          onToggle={(variant) => toggleCatalogOwned(setId, selected.id, variant)}
+          onAdd={(category, variant) => {
+            if (!set) return;
+            const price = selectedDetail ? summarizePricing(selectedDetail) : null;
+            const image = cardImageSources(selected.image, englishImages[selected.localId], 'high')[0]?.url;
+            const draft = buildCatalogItem(category, {
+              cardId: selected.id,
+              setId,
+              setName: set.name,
+              officialCount: set.cardCount?.official,
+              name: selected.name,
+              localId: selected.localId,
+              variant,
+              price: variant === 'reverse' ? price?.reverseTrend ?? null : price?.trend ?? null,
+              imageUrl: image,
+              productUrl: cardmarketProductUrl(price?.idProduct, selected.name),
+            });
+            const id = addItem(category.id, draft.values, {
+              links: draft.links,
+              images: draft.images,
+              catalog: draft.catalog,
+            });
+            navigate(`/category/${category.id}?highlight=${id}`);
+          }}
           onClose={() => setSelected(null)}
         />
       )}
@@ -283,9 +461,24 @@ const CardModal: React.FC<{
   card: CardBrief;
   detail?: CardDetail;
   englishImage?: string;
+  ownership: CardOwnership;
+  categories: Category[];
+  onToggle: (variant: CatalogVariant) => void;
+  onAdd: (category: Category, variant: CatalogVariant) => void;
   onClose: () => void;
-}> = ({ card, detail, englishImage, onClose }) => {
+}> = ({ card, detail, englishImage, ownership, categories, onToggle, onAdd, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
+  const hasReverse = Boolean(detail?.variants?.reverse);
+  // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
+  const targets = categories.filter((c) => Array.isArray(c.attributes) && c.attributes.length > 0);
+  const [targetId, setTargetId] = useState(
+    () => (targets.find((c) => c.id === 'singles') ?? targets[0])?.id ?? ''
+  );
+  const [addVariant, setAddVariant] = useState<CatalogVariant>('normal');
+  const target = targets.find((c) => c.id === targetId);
+  const variantLabel = (v: CatalogVariant) => (v === 'reverse' ? 'Reverse Holo' : hasReverse ? 'Normal' : 'Vorhanden');
+  const categoryName = (item: CollectionItem) =>
+    categories.find((c) => c.id === item.categoryId)?.name ?? 'Sammlung';
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={card.name}>
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
@@ -346,10 +539,93 @@ const CardModal: React.FC<{
 
             <button
               onClick={() => openExternal(cardmarketSearchUrl(card.name))}
-              className="mt-6 inline-flex items-center rounded-md bg-pokemon-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+              className="mt-4 text-sm text-pokemon-blue dark:text-blue-300 hover:underline"
             >
               Auf Cardmarket suchen
             </button>
+
+            <h3 className="mt-6 text-sm font-semibold text-gray-900 dark:text-gray-100">Dein Bestand</h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(['normal', ...(hasReverse ? ['reverse'] : [])] as CatalogVariant[]).map((variant) => {
+                const has = ownership.variants.includes(variant);
+                const viaEntry = ownership.entryVariants.includes(variant);
+                return (
+                  <button
+                    key={variant}
+                    type="button"
+                    onClick={() => onToggle(variant)}
+                    disabled={viaEntry}
+                    aria-pressed={has}
+                    title={viaEntry ? 'Durch einen Sammlungseintrag vorhanden' : undefined}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm ${
+                      has
+                        ? 'border-green-500 bg-green-500 text-white'
+                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-green-500'
+                    } ${viaEntry ? 'cursor-default' : ''}`}
+                  >
+                    <CheckIcon className={`h-4 w-4 ${has ? '' : 'opacity-30'}`} strokeWidth={3} />
+                    {variantLabel(variant)}
+                  </button>
+                );
+              })}
+            </div>
+
+            {ownership.items.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm">
+                {ownership.items.map((item) => (
+                  <li key={item.id}>
+                    <Link
+                      to={`/category/${item.categoryId}?highlight=${item.id}`}
+                      className="text-pokemon-blue dark:text-blue-300 hover:underline"
+                    >
+                      Eintrag in „{categoryName(item)}“ öffnen
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {target && (
+              <div className="mt-4 rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={targetId}
+                    onChange={(e) => setTargetId(e.target.value)}
+                    aria-label="Zielkategorie"
+                    className="min-w-0 flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+                  >
+                    {targets.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                  {hasReverse && (
+                    <select
+                      value={addVariant}
+                      onChange={(e) => setAddVariant(e.target.value as CatalogVariant)}
+                      aria-label="Fassung"
+                      className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="reverse">Reverse Holo</option>
+                    </select>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onAdd(target, hasReverse ? addVariant : 'normal')}
+                    disabled={!detail}
+                    className="rounded-md bg-pokemon-blue px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  >
+                    In Sammlung übernehmen
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Legt einen Eintrag mit Bild, Cardmarket-Link und dem Trendpreis als Startwert an. Kaufpreis und
+                  Wert pflegst du danach wie gewohnt.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>

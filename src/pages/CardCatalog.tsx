@@ -2,7 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../components/catalog/FallbackImage';
+import { useItemsData } from '../context/CollectionContext';
+import { useCatalogOwned } from '../hooks/useCatalogOwned';
 import { fetchCatalog, normalizeSearch, setLogoSources, type SerieDetail } from '../services/tcgdex';
+import { ownedCountBySet } from '../utils/catalogOwnership';
 
 // Kartenkatalog: alle deutschen Sets, nach Serie (Ära) gruppiert, neueste zuerst.
 // Daten: TCGdex (offene API), siehe services/tcgdex.ts.
@@ -11,6 +14,10 @@ const CardCatalog: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
+  const [onlyStarted, setOnlyStarted] = useState(false);
+  const owned = useCatalogOwned();
+  const items = useItemsData();
+  const ownedCounts = useMemo(() => ownedCountBySet(owned, items), [owned, items]);
 
   useEffect(() => {
     let alive = true;
@@ -26,16 +33,18 @@ const CardCatalog: React.FC = () => {
   const filtered = useMemo(() => {
     if (!series) return [];
     const q = normalizeSearch(query);
-    if (!q) return series;
+    if (!q && !onlyStarted) return series;
     return series
       .map((s) => ({
         ...s,
         sets: s.sets.filter(
-          (set) => normalizeSearch(set.name).includes(q) || normalizeSearch(set.id).includes(q)
+          (set) =>
+            (!onlyStarted || (ownedCounts[set.id] ?? 0) > 0) &&
+            (!q || normalizeSearch(set.name).includes(q) || normalizeSearch(set.id).includes(q))
         ),
       }))
       .filter((s) => s.sets.length > 0);
-  }, [series, query]);
+  }, [series, query, onlyStarted, ownedCounts]);
 
   const totals = useMemo(() => {
     const sets = series?.flatMap((s) => s.sets) ?? [];
@@ -54,6 +63,15 @@ const CardCatalog: React.FC = () => {
                 : 'Deutsche Sets mit Cardmarket-Preisen'}
             </p>
           </div>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 sm:ml-auto">
+            <input
+              type="checkbox"
+              checked={onlyStarted}
+              onChange={(e) => setOnlyStarted(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-pokemon-blue focus:ring-pokemon-blue"
+            />
+            Nur begonnene Sets
+          </label>
           <div className="relative sm:w-72">
             <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
@@ -88,7 +106,9 @@ const CardCatalog: React.FC = () => {
         )}
 
         {series && filtered.length === 0 && (
-          <p className="mt-8 text-sm text-gray-500 dark:text-gray-400">Kein Set gefunden.</p>
+          <p className="mt-8 text-sm text-gray-500 dark:text-gray-400">
+            {onlyStarted && !query ? 'Du hast noch in keinem Set Karten markiert.' : 'Kein Set gefunden.'}
+          </p>
         )}
 
         {filtered.map((serie) => (
@@ -118,8 +138,22 @@ const CardCatalog: React.FC = () => {
                   </div>
                   <div className="mt-2 text-center">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{set.name}</div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">{set.cardCount?.total ?? '?'} Karten</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {(ownedCounts[set.id] ?? 0) > 0
+                        ? `${ownedCounts[set.id]} von ${set.cardCount?.total ?? '?'} Karten`
+                        : `${set.cardCount?.total ?? '?'} Karten`}
+                    </div>
                   </div>
+                  {(ownedCounts[set.id] ?? 0) > 0 && (
+                    <div className="mt-2 h-1 w-full rounded bg-gray-200 dark:bg-gray-700 overflow-hidden" aria-hidden="true">
+                      <div
+                        className="h-full bg-green-500"
+                        style={{
+                          width: `${Math.min(100, (ownedCounts[set.id] / (set.cardCount?.total || ownedCounts[set.id])) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  )}
                 </Link>
               ))}
             </div>

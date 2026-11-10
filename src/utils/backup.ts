@@ -7,6 +7,7 @@
 // beschädigen (#30).
 
 import type { Category, CollectionItem } from '../types/models';
+import { coerceOwnedMap, type OwnedMap } from './catalogOwnership';
 
 export const BACKUP_FORMAT_VERSION = 1;
 
@@ -14,6 +15,8 @@ export const BACKUP_FORMAT_VERSION = 1;
 export interface BackupPayload {
   categories: Category[];
   items: CollectionItem[];
+  /** Besitzmarkierungen des Kartenkatalogs; fehlt in älteren Sicherungen. */
+  catalogOwned?: OwnedMap;
 }
 
 /** Versionierte Backup-Hülle, wie sie der Export erzeugt. */
@@ -34,6 +37,7 @@ export const wrapBackup = (payload: BackupPayload): BackupEnvelope => ({
   data: {
     categories: payload.categories,
     items: payload.items,
+    ...(payload.catalogOwned ? { catalogOwned: payload.catalogOwned } : {}),
   },
 });
 
@@ -106,7 +110,7 @@ export const validateBackup = (parsed: unknown): ValidationResult => {
     return { ok: false, error: 'Die Backup-Struktur ist ungültig.' };
   }
 
-  const { categories, items } = payload as Record<string, unknown>;
+  const { categories, items, catalogOwned } = payload as Record<string, unknown>;
 
   if (!Array.isArray(categories)) {
     return { ok: false, error: 'Im Backup fehlt ein gültiges categories-Array.' };
@@ -127,6 +131,7 @@ export const validateBackup = (parsed: unknown): ValidationResult => {
     data: {
       categories: coercedCategories,
       items: coercedItems,
+      ...(catalogOwned !== undefined ? { catalogOwned: coerceOwnedMap(catalogOwned) } : {}),
     },
   };
 };
