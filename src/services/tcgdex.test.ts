@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cardImageSources,
   cardImageUrl,
   mapLimit,
   normalizeSearch,
+  setLogoSources,
   sumSetValue,
   summarizePricing,
   type CardDetail,
@@ -69,5 +71,42 @@ describe('mapLimit', () => {
     });
     expect(res).toEqual([10, 20, 30, null, 50, 60, 70]);
     expect(peak).toBeLessThanOrEqual(3);
+  });
+});
+
+describe('Ersatzbilder', () => {
+  const de = 'https://assets.tcgdex.net/de/sv/sv03.5/006';
+
+  it('versucht erst das deutsche, dann das englische Kartenbild', () => {
+    expect(cardImageSources(de, undefined)).toEqual([
+      { url: `${de}/low.webp`, lang: 'de' },
+      { url: 'https://assets.tcgdex.net/en/sv/sv03.5/006/low.webp', lang: 'en' },
+    ]);
+  });
+
+  it('nutzt ohne deutsches Bild das englische aus dem englischen Set', () => {
+    const en = 'https://assets.tcgdex.net/en/base/base1/4';
+    expect(cardImageSources(undefined, en, 'high')).toEqual([{ url: `${en}/high.webp`, lang: 'en' }]);
+  });
+
+  it('liefert ohne jede Quelle eine leere Liste', () => {
+    expect(cardImageSources(undefined, undefined)).toEqual([]);
+  });
+
+  it('baut für Sets ohne Logo die englische Logo-Adresse und hängt das Symbol an', () => {
+    expect(
+      setLogoSources({ id: 'base1', symbol: 'https://assets.tcgdex.net/univ/base/base1/symbol' }, 'base')
+    ).toEqual([
+      { url: 'https://assets.tcgdex.net/en/base/base1/logo.webp', lang: 'en' },
+      { url: 'https://assets.tcgdex.net/univ/base/base1/symbol.webp', lang: 'de' },
+    ]);
+  });
+
+  it('stellt dem deutschen Logo das englische als Ersatz nach', () => {
+    const logo = 'https://assets.tcgdex.net/de/sv/sv10.5w/logo';
+    expect(setLogoSources({ id: 'sv10.5w', logo }, 'sv').map((s) => s.url)).toEqual([
+      `${logo}.webp`,
+      'https://assets.tcgdex.net/en/sv/sv10.5w/logo.webp',
+    ]);
   });
 });

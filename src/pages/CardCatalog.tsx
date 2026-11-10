@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
-import { assetUrl, fetchCatalog, normalizeSearch, type SerieDetail } from '../services/tcgdex';
+import FallbackImage from '../components/catalog/FallbackImage';
+import { fetchCatalog, normalizeSearch, setLogoSources, type SerieDetail } from '../services/tcgdex';
 
 // Kartenkatalog: alle deutschen Sets, nach Serie (Ära) gruppiert, neueste zuerst.
 // Daten: TCGdex (offene API), siehe services/tcgdex.ts.
@@ -108,17 +109,12 @@ const CardCatalog: React.FC = () => {
                   className="group flex flex-col items-center justify-between rounded-lg bg-white dark:bg-gray-800 shadow p-3 hover:ring-2 hover:ring-pokemon-blue transition"
                 >
                   <div className="h-14 w-full flex items-center justify-center">
-                    {set.logo ? (
-                      <img
-                        src={assetUrl(set.logo)}
-                        alt=""
-                        loading="lazy"
-                        className="max-h-14 max-w-full object-contain"
-                        onError={(e) => (e.currentTarget.style.display = 'none')}
-                      />
-                    ) : set.symbol ? (
-                      <img src={assetUrl(set.symbol)} alt="" loading="lazy" className="h-8 w-8 object-contain" />
-                    ) : null}
+                    <FallbackImage
+                      sources={setLogoSources(set, serie.id)}
+                      alt=""
+                      loading="lazy"
+                      className="max-h-14 max-w-full object-contain"
+                    />
                   </div>
                   <div className="mt-2 text-center">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{set.name}</div>

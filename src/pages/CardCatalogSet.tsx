@@ -1,15 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import FallbackImage from '../components/catalog/FallbackImage';
 import {
-  assetUrl,
-  cardImageUrl,
+  cardImageSources,
   cardmarketSearchUrl,
+  fetchEnglishCardImages,
   fetchSet,
   formatEur,
   loadSetCards,
   normalizeSearch,
   sumSetValue,
+  setLogoSources,
   summarizePricing,
   type CardBrief,
   type CardDetail,
@@ -30,11 +32,19 @@ const openExternal = (url: string) => {
 const compareLocalId = (a: string, b: string) =>
   a.localeCompare(b, 'de', { numeric: true, sensitivity: 'base' });
 
-const CardCatalogSet: React.FC = () => {
+// Der Schlüssel sorgt dafür, dass Suche, Sortierung und Detailansicht beim
+// Wechsel auf ein anderes Set zurückgesetzt werden.
+const CardCatalogSetRoute: React.FC = () => {
   const { setId = '' } = useParams();
+  return <CardCatalogSet key={setId} setId={setId} />;
+};
+
+const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
   const [set, setSet] = useState<SetDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, CardDetail>>({});
+  // Englische Bilder nach Kartennummer, als Ersatz für fehlende deutsche.
+  const [englishImages, setEnglishImages] = useState<Record<string, string>>({});
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('number');
   const [selected, setSelected] = useState<CardBrief | null>(null);
@@ -44,7 +54,11 @@ const CardCatalogSet: React.FC = () => {
     const controller = new AbortController();
     setSet(null);
     setDetails({});
+    setEnglishImages({});
     setError(null);
+    void fetchEnglishCardImages(setId).then(
+      (images) => !controller.signal.aborted && setEnglishImages(images)
+    );
     fetchSet(setId)
       .then((data) => {
         if (controller.signal.aborted) return;
@@ -117,8 +131,12 @@ const CardCatalogSet: React.FC = () => {
 
         {/* Kopf mit Setwert */}
         <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 flex flex-col md:flex-row md:items-center gap-4">
-          {set?.logo && (
-            <img src={assetUrl(set.logo)} alt="" className="h-16 max-w-[12rem] object-contain" />
+          {set && (
+            <FallbackImage
+              sources={setLogoSources(set, set.serie?.id)}
+              alt=""
+              className="h-16 max-w-[12rem] object-contain"
+            />
           )}
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 break-words">
@@ -196,12 +214,15 @@ const CardCatalogSet: React.FC = () => {
                 onClick={() => setSelected(card)}
                 className="text-left rounded-lg bg-white dark:bg-gray-800 shadow overflow-hidden hover:ring-2 hover:ring-pokemon-blue transition focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
               >
-                <div className="aspect-[5/7] bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-                  {card.image ? (
-                    <img src={cardImageUrl(card.image)} alt={card.name} loading="lazy" className="h-full w-full object-contain" />
-                  ) : (
-                    <span className="text-xs text-gray-400 p-2 text-center">Kein Bild</span>
-                  )}
+                <div className="relative aspect-[5/7] bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+                  <FallbackImage
+                    sources={cardImageSources(card.image, englishImages[card.localId])}
+                    alt={card.name}
+                    loading="lazy"
+                    showLanguageBadge
+                    className="h-full w-full object-contain"
+                    fallback={<span className="text-xs text-gray-400 p-2 text-center">Kein Bild</span>}
+                  />
                 </div>
                 <div className="p-2">
                   <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
@@ -231,7 +252,12 @@ const CardCatalogSet: React.FC = () => {
       </div>
 
       {selected && (
-        <CardModal card={selected} detail={selectedDetail} onClose={() => setSelected(null)} />
+        <CardModal
+          card={selected}
+          detail={selectedDetail}
+          englishImage={englishImages[selected.localId]}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   );
@@ -253,11 +279,12 @@ const PriceRow: React.FC<{ label: string; value: number | null }> = ({ label, va
   </div>
 );
 
-const CardModal: React.FC<{ card: CardBrief; detail?: CardDetail; onClose: () => void }> = ({
-  card,
-  detail,
-  onClose,
-}) => {
+const CardModal: React.FC<{
+  card: CardBrief;
+  detail?: CardDetail;
+  englishImage?: string;
+  onClose: () => void;
+}> = ({ card, detail, englishImage, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={card.name}>
@@ -271,10 +298,18 @@ const CardModal: React.FC<{ card: CardBrief; detail?: CardDetail; onClose: () =>
           <XMarkIcon className="h-6 w-6" />
         </button>
         <div className="flex flex-col md:flex-row gap-6 p-6">
-          <div className="md:w-1/2 flex-shrink-0">
-            {card.image && (
-              <img src={cardImageUrl(card.image, 'high')} alt={card.name} className="w-full rounded-lg shadow" />
-            )}
+          <div className="relative md:w-1/2 flex-shrink-0">
+            <FallbackImage
+              sources={cardImageSources(card.image, englishImage, 'high')}
+              alt={card.name}
+              showLanguageBadge
+              className="w-full rounded-lg shadow"
+              fallback={
+                <div className="aspect-[5/7] rounded-lg bg-gray-100 dark:bg-gray-900 flex items-center justify-center text-sm text-gray-400">
+                  Kein Bild
+                </div>
+              }
+            />
           </div>
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 pr-8">{card.name}</h2>
@@ -322,4 +357,4 @@ const CardModal: React.FC<{ card: CardBrief; detail?: CardDetail; onClose: () =>
   );
 };
 
-export default CardCatalogSet;
+export default CardCatalogSetRoute;

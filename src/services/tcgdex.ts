@@ -6,7 +6,9 @@
 // eines Sets nachträglich mit begrenzter Parallelität (mapLimit) und hält sie
 // im Speicher plus localStorage vor, damit ein erneutes Öffnen schnell ist.
 
-const API_BASE = 'https://api.tcgdex.net/v2/de';
+const API_ROOT = 'https://api.tcgdex.net/v2';
+const ASSET_ROOT = 'https://assets.tcgdex.net';
+type Lang = 'de' | 'en';
 
 /** Preise werden bei TCGdex etwa einmal täglich aktualisiert. */
 const CARD_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -90,7 +92,48 @@ export interface CardDetail extends CardBrief {
 export const cardImageUrl = (base: string | undefined, quality: 'low' | 'high' = 'low') =>
   base ? `${base}/${quality}.webp` : undefined;
 
-export const assetUrl = (base: string | undefined) => (base ? `${base}.webp` : undefined);
+// TCGdex hat nicht für alle deutschen Karten und Sets Bilder (vor allem
+// ältere Sets und Promos). Dann weicht der Katalog auf die englische Fassung
+// aus; die Bildkomponente probiert die Quellen der Reihe nach durch.
+
+export interface ImageSource {
+  url: string;
+  lang: Lang;
+}
+
+/** Deutsche Asset-Adresse auf die englische Fassung umschreiben. */
+export const englishAssetBase = (base: string) =>
+  base.replace(`${ASSET_ROOT}/de/`, `${ASSET_ROOT}/en/`);
+
+/** Kartenbild: deutsch, sonst englisch (aus dem englischen Set, siehe fetchEnglishCardImages). */
+export const cardImageSources = (
+  germanBase: string | undefined,
+  englishBase: string | undefined,
+  quality: 'low' | 'high' = 'low'
+): ImageSource[] => {
+  const sources: ImageSource[] = [];
+  if (germanBase) sources.push({ url: `${germanBase}/${quality}.webp`, lang: 'de' });
+  const en = englishBase ?? (germanBase ? englishAssetBase(germanBase) : undefined);
+  if (en && en !== germanBase) sources.push({ url: `${en}/${quality}.webp`, lang: 'en' });
+  return sources;
+};
+
+/** Set-Logo: deutsch, sonst englisch, sonst das Set-Symbol. */
+export const setLogoSources = (
+  set: Pick<SetBrief, 'id' | 'logo' | 'symbol'>,
+  serieId: string | undefined
+): ImageSource[] => {
+  const sources: ImageSource[] = [];
+  if (set.logo) sources.push({ url: `${set.logo}.webp`, lang: 'de' });
+  const en = set.logo
+    ? englishAssetBase(set.logo)
+    : serieId
+      ? `${ASSET_ROOT}/en/${serieId}/${set.id}/logo`
+      : undefined;
+  if (en && en !== set.logo) sources.push({ url: `${en}.webp`, lang: 'en' });
+  if (set.symbol) sources.push({ url: `${set.symbol}.webp`, lang: 'de' });
+  return sources;
+};
 
 // --- Preise ---------------------------------------------------------------
 
@@ -195,19 +238,20 @@ export async function mapLimit<T, R>(
 
 const memory = new Map<string, Promise<unknown>>();
 
-async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { signal });
+async function getJson<T>(path: string, signal?: AbortSignal, lang: Lang = 'de'): Promise<T> {
+  const res = await fetch(`${API_ROOT}/${lang}${path}`, { signal });
   if (!res.ok) throw new Error(`TCGdex ${res.status} für ${path}`);
   return (await res.json()) as T;
 }
 
 /** Wie getJson, aber pro Pfad nur einmal pro App-Sitzung geladen. */
-function cachedJson<T>(path: string): Promise<T> {
-  let p = memory.get(path) as Promise<T> | undefined;
+function cachedJson<T>(path: string, lang: Lang = 'de'): Promise<T> {
+  const key = `${lang}:${path}`;
+  let p = memory.get(key) as Promise<T> | undefined;
   if (!p) {
-    p = getJson<T>(path);
-    memory.set(path, p);
-    p.catch(() => memory.delete(path));
+    p = getJson<T>(path, undefined, lang);
+    memory.set(key, p);
+    p.catch(() => memory.delete(key));
   }
   return p;
 }
@@ -227,6 +271,24 @@ export async function fetchCatalog(): Promise<SerieDetail[]> {
 
 export const fetchSet = (setId: string) =>
   cachedJson<SetDetail>(`/sets/${encodeURIComponent(setId)}`);
+
+/**
+ * Englische Kartenbilder eines Sets, nach Kartennummer. Dient als Ersatz für
+ * Karten ohne deutsches Bild. Gibt es das Set auf Englisch nicht (oder ist die
+ * API nicht erreichbar), bleibt die Zuordnung leer.
+ */
+export async function fetchEnglishCardImages(setId: string): Promise<Record<string, string>> {
+  try {
+    const set = await cachedJson<SetDetail>(`/sets/${encodeURIComponent(setId)}`, 'en');
+    const images: Record<string, string> = {};
+    for (const card of set.cards ?? []) {
+      if (card.image) images[card.localId] = card.image;
+    }
+    return images;
+  } catch {
+    return {};
+  }
+}
 
 const readCardCache = (id: string): CardDetail | null => {
   try {
