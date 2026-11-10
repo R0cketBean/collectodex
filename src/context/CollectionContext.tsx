@@ -58,7 +58,6 @@ interface CollectionContextType {
   removeImageFromItem: (itemId: string, attributeId: string) => void;
   addLinkToItem: (itemId: string, attributeId: string, url: string) => void;
   removeLinkFromItem: (itemId: string, attributeId: string) => void;
-  cleanupItemLinks: (itemId: string) => void;
   
   // Berechnung und Werte
   calculateItemValue: (item: CollectionItem) => { [key: string]: any };
@@ -73,9 +72,6 @@ interface CollectionContextType {
   exportCategoryAsExcel: (categoryId: string) => Promise<Blob | null>;
   createExcelTemplate: (categoryId: string) => Promise<Blob | null>;
   exportCollectionAsExcel: () => Promise<Blob | null>;
-  
-  // Fehlerkorrekturen
-  correctItemCategories: (sourceIdOrItemId: string, targetId: string, isSingleItem?: boolean) => { success: boolean, correctedCount: number, error: string | null };
 }
 
 // Re-Render-Isolation (#18): Statt EINES flachen Contexts wird die Schnittstelle
@@ -191,9 +187,8 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
   // Wert-Historie nicht den Vor-Lade-Nullwert als Snapshot schreibt).
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Items-Domäne (#18): items-State, Item-CRUD, Bilder/Links, Storage-Sync und
-  // Kategorie-Korrektur leben jetzt im useItems-Hook. categories wird lesend
-  // übergeben (correctItemCategories prüft die Ziel-Kategorie).
+  // Items-Domäne (#18): items-State, Item-CRUD, Bilder/Links und Speicherung
+  // leben im useItems-Hook.
   const {
     items,
     setItems,
@@ -207,9 +202,7 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     removeImageFromItem,
     addLinkToItem,
     removeLinkFromItem,
-    cleanupItemLinks,
-    correctItemCategories,
-  } = useItems({ categories });
+  } = useItems();
 
   // Kategorie-Domäne (#18): Kategorie-/Attribut-CRUD, getCategoryById und die
   // Kategorie-Storage-Sync leben im useCategories-Hook. categories/setCategories
@@ -351,7 +344,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     removeImageFromItem,
     addLinkToItem,
     removeLinkFromItem,
-    cleanupItemLinks,
     calculateItemValue,
     calculateFormula,
     exportData,
@@ -360,7 +352,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     exportCategoryAsExcel,
     createExcelTemplate,
     exportCollectionAsExcel,
-    correctItemCategories,
   };
 
   const actions = useMemo<CollectionActions>(() => ({
@@ -390,7 +381,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     removeImageFromItem: (...a) => latest.current.removeImageFromItem(...a),
     addLinkToItem: (...a) => latest.current.addLinkToItem(...a),
     removeLinkFromItem: (...a) => latest.current.removeLinkFromItem(...a),
-    cleanupItemLinks: (...a) => latest.current.cleanupItemLinks(...a),
 
     // Berechnung und Werte
     calculateItemValue: (...a) => latest.current.calculateItemValue(...a),
@@ -406,8 +396,6 @@ export const CollectionProvider: React.FC<CollectionProviderProps> = ({ children
     createExcelTemplate: (...a) => latest.current.createExcelTemplate(...a),
     exportCollectionAsExcel: (...a) => latest.current.exportCollectionAsExcel(...a),
 
-    // Fehlerkorrekturen
-    correctItemCategories: (...a) => latest.current.correctItemCategories(...a),
   }), [setItems]);
 
   // Abgeleitete Daten als ein memoisierter Slice — ändert sich nur, wenn
