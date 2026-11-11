@@ -4,11 +4,14 @@ import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../components/catalog/FallbackImage';
 import { useItemsData } from '../context/CollectionContext';
 import { useCatalogOwned } from '../hooks/useCatalogOwned';
-import { fetchCatalog, normalizeSearch, setLogoSources, type SerieDetail } from '../services/tcgdex';
-import { ownedCountBySet } from '../utils/catalogOwnership';
+import { CATALOG_LANGUAGES, fetchCatalog, normalizeSearch, setLogoSources, type SerieDetail } from '../services/tcgdex';
+import { updateCatalogSettings, useCatalogSettings } from '../hooks/useCatalogSettings';
+import { catalogSetKey, ownedCountBySet } from '../utils/catalogOwnership';
 
 // Kartenkatalog: alle deutschen Sets, nach Serie (Ära) gruppiert, neueste zuerst.
 // Daten: TCGdex (offene API), siehe services/tcgdex.ts.
+const LANG_ADJECTIVE = { de: 'deutsche', en: 'englische', ja: 'japanische' } as const;
+
 const CardCatalog: React.FC = () => {
   const [series, setSeries] = useState<SerieDetail[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,18 +21,21 @@ const CardCatalog: React.FC = () => {
   const owned = useCatalogOwned();
   const items = useItemsData();
   const ownedCounts = useMemo(() => ownedCountBySet(owned, items), [owned, items]);
+  const lang = useCatalogSettings().catalogLanguage;
+  const ownedIn = (setId: string) => ownedCounts[catalogSetKey(setId, lang)] ?? 0;
   const unlinkedCount = useMemo(() => items.filter((i) => !i.catalog).length, [items]);
 
   useEffect(() => {
     let alive = true;
     setError(null);
-    fetchCatalog()
+    setSeries(null);
+    fetchCatalog(lang)
       .then((data) => alive && setSeries(data))
       .catch(() => alive && setError('Der Katalog konnte nicht geladen werden. Bist du online?'));
     return () => {
       alive = false;
     };
-  }, [reloadKey]);
+  }, [reloadKey, lang]);
 
   const filtered = useMemo(() => {
     if (!series) return [];
@@ -40,12 +46,14 @@ const CardCatalog: React.FC = () => {
         ...s,
         sets: s.sets.filter(
           (set) =>
-            (!onlyStarted || (ownedCounts[set.id] ?? 0) > 0) &&
+            (!onlyStarted || ownedIn(set.id) > 0) &&
             (!q || normalizeSearch(set.name).includes(q) || normalizeSearch(set.id).includes(q))
         ),
       }))
       .filter((s) => s.sets.length > 0);
-  }, [series, query, onlyStarted, ownedCounts]);
+    // ownedIn hängt nur an ownedCounts und lang.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series, query, onlyStarted, ownedCounts, lang]);
 
   const totals = useMemo(() => {
     const sets = series?.flatMap((s) => s.sets) ?? [];
@@ -60,8 +68,8 @@ const CardCatalog: React.FC = () => {
             <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Kartenkatalog</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {series
-                ? `${totals.sets} deutsche Sets · ${totals.cards.toLocaleString('de-DE')} Karten · Preise von Cardmarket`
-                : 'Deutsche Sets mit Cardmarket-Preisen'}
+                ? `${totals.sets} ${LANG_ADJECTIVE[lang]} Sets · ${totals.cards.toLocaleString('de-DE')} Karten · Preise von Cardmarket`
+                : 'Sets mit Cardmarket-Preisen'}
             </p>
             {unlinkedCount > 0 && (
               <Link
@@ -72,7 +80,26 @@ const CardCatalog: React.FC = () => {
               </Link>
             )}
           </div>
-          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 sm:ml-auto">
+          <div className="inline-flex rounded-md shadow-sm sm:ml-auto" role="group" aria-label="Katalogsprache">
+            {CATALOG_LANGUAGES.map((l, i) => (
+              <button
+                key={l.id}
+                type="button"
+                aria-pressed={lang === l.id}
+                onClick={() => updateCatalogSettings({ catalogLanguage: l.id })}
+                className={`px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 ${i > 0 ? '-ml-px' : 'rounded-l-md'} ${
+                  i === CATALOG_LANGUAGES.length - 1 ? 'rounded-r-md' : ''
+                } ${
+                  lang === l.id
+                    ? 'bg-pokemon-blue text-white border-pokemon-blue z-10'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
             <input
               type="checkbox"
               checked={onlyStarted}
@@ -134,31 +161,38 @@ const CardCatalog: React.FC = () => {
               {serie.sets.map((set) => (
                 <Link
                   key={set.id}
-                  to={`/katalog/${encodeURIComponent(set.id)}`}
+                  to={lang === 'de' ? `/katalog/${encodeURIComponent(set.id)}` : `/katalog/${lang}/${encodeURIComponent(set.id)}`}
                   className="group flex flex-col items-center justify-between rounded-lg bg-white dark:bg-gray-800 shadow p-3 hover:ring-2 hover:ring-pokemon-blue transition"
                 >
                   <div className="h-14 w-full flex items-center justify-center">
                     <FallbackImage
-                      sources={setLogoSources(set, serie.id)}
+                      sources={setLogoSources(set, serie.id, lang)}
                       alt=""
                       loading="lazy"
                       className="max-h-14 max-w-full object-contain"
+                      fallback={
+                        // Ohne Logo (vor allem japanische Sets) steht das Set-Kürzel in der Kachel.
+                        <span className="font-mono text-lg font-semibold tracking-wide text-gray-400 dark:text-gray-500">
+                          {set.id.toUpperCase()}
+                        </span>
+                      }
                     />
                   </div>
                   <div className="mt-2 text-center">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{set.name}</div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {(ownedCounts[set.id] ?? 0) > 0
-                        ? `${ownedCounts[set.id]} von ${set.cardCount?.total ?? '?'} Karten`
+                      {lang === 'ja' && <span className="font-mono">{set.id} · </span>}
+                      {ownedIn(set.id) > 0
+                        ? `${ownedIn(set.id)} von ${set.cardCount?.total ?? '?'} Karten`
                         : `${set.cardCount?.total ?? '?'} Karten`}
                     </div>
                   </div>
-                  {(ownedCounts[set.id] ?? 0) > 0 && (
+                  {ownedIn(set.id) > 0 && (
                     <div className="mt-2 h-1 w-full rounded bg-gray-200 dark:bg-gray-700 overflow-hidden" aria-hidden="true">
                       <div
                         className="h-full bg-green-500"
                         style={{
-                          width: `${Math.min(100, (ownedCounts[set.id] / (set.cardCount?.total || ownedCounts[set.id])) * 100)}%`,
+                          width: `${Math.min(100, (ownedIn(set.id) / (set.cardCount?.total || ownedIn(set.id))) * 100)}%`,
                         }}
                       />
                     </div>

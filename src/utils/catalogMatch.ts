@@ -30,6 +30,8 @@ export interface CatalogCardName {
   id: string;
   localId: string;
   name: string;
+  /** Name in einer zweiten Sprache (z. B. deutsch zur englischen Karte), nur für den Vergleich. */
+  altName?: string;
   image?: string;
 }
 
@@ -45,8 +47,9 @@ export const parseCardmarketLink = (url: string | undefined): CardmarketLinkInfo
   const match = /\/Singles\/([^/?#]+)(?:\/([^/?#]+))?/.exec(url);
   if (!match) return null;
   const last = (match[2] ?? '').split('-').pop() ?? '';
-  // „BS4“ → 4, „TG05“ → 5. Reine Versionsangaben wie „V1“ sind keine Nummer.
-  const number = /^(?!V\d+$)[A-Za-z]*?(\d+)[a-z]?$/.exec(last);
+  // „BS4“ → 4, „TG05“ → 5, „sv2a201“ → 201 (Set-Kürzel und Nummer hängen bei
+  // japanischen Karten zusammen). Reine Versionsangaben wie „V1“ sind keine Nummer.
+  const number = /^V\d+$/.test(last) ? null : /(\d+)[a-z]?$/.exec(last);
   return { setSlug: match[1], number: number ? number[1].replace(/^0+(?=\d)/, '') : null };
 };
 
@@ -77,12 +80,23 @@ const namesAgree = (a: string, b: string) => {
   return x.length > 0 && y.length > 0 && (x.includes(y) || y.includes(x));
 };
 
+const cardNameAgrees = (name: string, card: CatalogCardName) =>
+  namesAgree(name, card.name) || (card.altName ? namesAgree(name, card.altName) : false);
+
+const sameNumber = (card: CatalogCardName, number: string | null | undefined) =>
+  Boolean(number) && card.localId.replace(/^0+(?=\d)/, '') === number;
+
+/** Ob die Nummer im Cardmarket-Link des Eintrags zur Karte passt. */
+export const linkNumberMatches = (item: CollectionItem, card: CatalogCardName) =>
+  sameNumber(card, parseCardmarketLink(itemProductLink(item))?.number);
+
 const isJapanese = (item: CollectionItem) =>
   typeof item.values?.language === 'string' && /^jap/i.test(item.values.language);
 
 /**
- * Kandidaten für die manuelle Zuordnung: alle Karten des gewählten Sets,
- * namensgleiche zuerst, sonst nach Kartennummer.
+ * Kandidaten für die manuelle Zuordnung: alle Karten des gewählten Sets. Zuerst
+ * die Karte, deren Nummer im Cardmarket-Link steht, dann namensgleiche, dann
+ * der Rest nach Kartennummer.
  */
 export const manualCandidates = (
   item: CollectionItem,
@@ -92,9 +106,11 @@ export const manualCandidates = (
   const name = typeof item.values?.name === 'string' ? item.values.name : '';
   const byNumber = (a: CatalogCardName, b: CatalogCardName) =>
     a.localId.localeCompare(b.localId, 'de', { numeric: true, sensitivity: 'base' });
-  const matching = cards.filter((c) => namesAgree(name, c.name)).sort(byNumber);
-  const rest = cards.filter((c) => !matching.includes(c)).sort(byNumber);
-  return [...matching, ...rest].map((card) => ({ setId, card }));
+  const number = parseCardmarketLink(itemProductLink(item))?.number;
+  const numbered = cards.filter((c) => sameNumber(c, number));
+  const matching = cards.filter((c) => !numbered.includes(c) && cardNameAgrees(name, c)).sort(byNumber);
+  const rest = cards.filter((c) => !numbered.includes(c) && !matching.includes(c)).sort(byNumber);
+  return [...numbered, ...matching, ...rest].map((card) => ({ setId, card }));
 };
 
 export type MatchStatus = 'sure' | 'review' | 'none';
@@ -129,8 +145,8 @@ export const suggestMatch = (
   const byName: MatchSuggestion['candidates'] = [];
   for (const setId of known) {
     for (const card of cardsBySet[setId] ?? []) {
-      if (link?.number && card.localId.replace(/^0+(?=\d)/, '') === link.number) byNumber.push({ setId, card });
-      if (namesAgree(name, card.name)) byName.push({ setId, card });
+      if (sameNumber(card, link?.number)) byNumber.push({ setId, card });
+      if (cardNameAgrees(name, card)) byName.push({ setId, card });
     }
   }
   const candidates = [...byNumber, ...byName.filter((c) => !byNumber.some((n) => n.card.id === c.card.id))];
@@ -142,7 +158,7 @@ export const suggestMatch = (
   if (isJapanese(item)) {
     return { status: 'review', best: candidates[0], candidates, reason: 'Japanische Karte – bitte prüfen' };
   }
-  const numberAndName = byNumber.filter((c) => namesAgree(name, c.card.name));
+  const numberAndName = byNumber.filter((c) => cardNameAgrees(name, c.card));
   if (numberAndName.length === 1) {
     return { status: 'sure', best: numberAndName[0], candidates, reason: 'Nummer und Name stimmen überein' };
   }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CATEGORIES } from '../types/models';
 import { cardmarketProductUrl } from '../services/tcgdex';
-import { buildCatalogItem, catalogItemName } from './catalogItem';
+import { buildCatalogItem, catalogItemName, catalogLangOfItem } from './catalogItem';
 
 const singles = DEFAULT_CATEGORIES.find((c) => c.id === 'singles')!;
 const source = {
@@ -53,5 +53,24 @@ describe('buildCatalogItem', () => {
     expect(draft.values.currentValue).toBe(0);
     expect(draft.images).toEqual({});
     expect(draft.links).toEqual({});
+  });
+});
+
+describe('Sprache', () => {
+  it('leitet die Katalogsprache aus dem Feld „Sprache“ ab', () => {
+    expect(['Japanisch', 'japanisch', 'JP'].map(catalogLangOfItem)).toEqual(['ja', 'ja', 'ja']);
+    expect(['Englisch', 'english', 'EN'].map(catalogLangOfItem)).toEqual(['en', 'en', 'en']);
+    expect(['Deutsch', '', undefined, 'Französisch'].map(catalogLangOfItem)).toEqual(['de', 'de', 'de', 'de']);
+  });
+
+  it('setzt Sprache und Verknüpfung für japanische Karten', () => {
+    const draft = buildCatalogItem(singles, { ...source, cardId: 'SV2a-201', setId: 'SV2a', lang: 'ja' });
+    expect(draft.values.language).toBe('japanisch');
+    expect(draft.catalog).toEqual({ cardId: 'SV2a-201', setId: 'SV2a', variant: 'normal', lang: 'ja' });
+  });
+
+  it('nimmt das deutsche Wort, wenn „Sprache“ ein Freitextfeld ist', () => {
+    const category = { attributes: [{ id: 'language', name: 'Sprache', type: 'text' as const, required: false, order: 1 }] };
+    expect(buildCatalogItem(category, { ...source, lang: 'en' }).values.language).toBe('Englisch');
   });
 });

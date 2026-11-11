@@ -31,6 +31,14 @@ describe('buildCardmarketFilter', () => {
   });
 });
 
+describe('Sprache der Karte im Link', () => {
+  it('überstimmt die eingestellte Sprache für englische und japanische Karten', () => {
+    expect(buildCardmarketFilter(DEFAULT_CATALOG_SETTINGS, 'ja')).toBe('sellerCountry=7&language=7&minCondition=2');
+    expect(buildCardmarketFilter(DEFAULT_CATALOG_SETTINGS, 'en')).toBe('sellerCountry=7&language=1&minCondition=2');
+    expect(buildCardmarketFilter(DEFAULT_CATALOG_SETTINGS, 'de')).toBe('sellerCountry=7&language=3&minCondition=2');
+  });
+});
+
 describe('pickCatalogPrice', () => {
   const price = { trend: 10, low: 6, avg30: 9, reverseTrend: 3, reverseLow: 2 };
 

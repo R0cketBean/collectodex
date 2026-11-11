@@ -32,6 +32,9 @@ export interface Category {
   updatedAt: Date;
 }
 
+/** Sprache eines Katalogs. Deutsche und englische Sets teilen ihre Kennungen, japanische haben eigene. */
+export type CatalogLang = 'de' | 'en' | 'ja';
+
 /** Fassung einer Katalogkarte. „normal“ meint die Standardfassung (auch Holo). */
 export type CatalogVariant = 'normal' | 'reverse';
 
@@ -40,6 +43,8 @@ export interface CatalogRef {
   cardId: string;
   setId: string;
   variant?: CatalogVariant;
+  /** Katalogsprache; fehlt bei älteren Verknüpfungen und bedeutet dann Deutsch. */
+  lang?: CatalogLang;
 }
 
 // Ein generischer Sammlungseintrag

@@ -61,16 +61,18 @@ const PriceCheck: React.FC = () => {
   const visible = rows.slice(0, limit);
 
   // Katalogpreise der sichtbaren, verknüpften Einträge nachladen (12 h Cache im Service).
-  const visibleKey = visible.map((i) => i.catalog?.cardId ?? '').join('|');
+  const priceKey = (item: CollectionItem) =>
+    item.catalog ? `${item.catalog.lang ?? 'de'}:${item.catalog.cardId}` : '';
+  const visibleKey = visible.map(priceKey).join('|');
   useEffect(() => {
     let alive = true;
-    const missing = [...new Set(visible.map((i) => i.catalog?.cardId).filter((id): id is string => Boolean(id)))].filter(
-      (id) => !(id in prices)
+    const missing = new Map(
+      visible.filter((i) => i.catalog && !(priceKey(i) in prices)).map((i) => [priceKey(i), i.catalog!] as const)
     );
-    if (missing.length === 0) return;
-    void mapLimit(missing, 6, async (cardId) => {
-      const summary = await fetchCard(cardId).then(summarizePricing, () => null);
-      if (alive) setPrices((prev) => ({ ...prev, [cardId]: summary }));
+    if (missing.size === 0) return;
+    void mapLimit([...missing], 6, async ([key, ref]) => {
+      const summary = await fetchCard(ref.cardId, undefined, ref.lang ?? 'de').then(summarizePricing, () => null);
+      if (alive) setPrices((prev) => ({ ...prev, [key]: summary }));
     });
     return () => {
       alive = false;
@@ -149,7 +151,7 @@ const PriceCheck: React.FC = () => {
             const link = itemProductLink(item);
             const days = daysSinceCheck(item, now);
             const checkedNow = wasChecked(item, now);
-            const summary = item.catalog ? prices[item.catalog.cardId] : undefined;
+            const summary = item.catalog ? prices[priceKey(item)] : undefined;
             const catalogPrice = pickCatalogPrice(summary, settings.priceBasis, item.catalog?.variant);
             const deviation = deviationPercent(item.values?.currentValue, catalogPrice);
             const name = String(item.values?.name ?? 'Ohne Namen');

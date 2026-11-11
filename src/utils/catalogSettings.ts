@@ -1,6 +1,6 @@
 // Einstellungen rund um Katalogpreise und Cardmarket-Links (#126, #140).
 
-import type { CatalogVariant } from '../types/models';
+import type { CatalogLang, CatalogVariant } from '../types/models';
 
 /** Welcher Cardmarket-Preis als Vergleichs- und Startwert dient. */
 export type PriceBasis = 'trend' | 'avg30' | 'low';
@@ -13,6 +13,8 @@ export interface CatalogSettings {
   minCondition: 'nm' | 'ex' | 'all';
   /** Ab wie vielen Tagen ein Preis im Preis-Check als fällig gilt. */
   dueAfterDays: number;
+  /** Zuletzt gewählte Sprache des Kartenkatalogs. */
+  catalogLanguage: CatalogLang;
 }
 
 export const DEFAULT_CATALOG_SETTINGS: CatalogSettings = {
@@ -21,6 +23,7 @@ export const DEFAULT_CATALOG_SETTINGS: CatalogSettings = {
   language: 'de',
   minCondition: 'nm',
   dueAfterDays: 30,
+  catalogLanguage: 'de',
 };
 
 export const PRICE_BASIS_LABEL: Record<PriceBasis, string> = {
@@ -43,6 +46,7 @@ export const coerceCatalogSettings = (raw: unknown): CatalogSettings => {
     language: oneOf(r.language, ['de', 'en', 'jp', 'all'] as const, d.language),
     minCondition: oneOf(r.minCondition, ['nm', 'ex', 'all'] as const, d.minCondition),
     dueAfterDays: Number.isFinite(days) && days >= 1 && days <= 365 ? Math.round(days) : d.dueAfterDays,
+    catalogLanguage: oneOf(r.catalogLanguage, ['de', 'en', 'ja'] as const, d.catalogLanguage),
   };
 };
 
@@ -53,11 +57,17 @@ const CONDITION_ID = { nm: '2', ex: '3' } as const;
 
 /** Query-Teil für Cardmarket-Links, z. B. `sellerCountry=7&language=3&minCondition=2`. */
 export const buildCardmarketFilter = (
-  s: Pick<CatalogSettings, 'sellerCountry' | 'language' | 'minCondition'>
+  s: Pick<CatalogSettings, 'sellerCountry' | 'language' | 'minCondition'>,
+  /** Sprache der Karte; hat Vorrang vor der eingestellten Sprache. */
+  cardLanguage?: CatalogLang
 ): string =>
   [
     s.sellerCountry === 'de' ? 'sellerCountry=7' : null,
-    s.language !== 'all' ? `language=${LANGUAGE_ID[s.language]}` : null,
+    cardLanguage && cardLanguage !== 'de'
+      ? `language=${LANGUAGE_ID[cardLanguage === 'ja' ? 'jp' : cardLanguage]}`
+      : s.language !== 'all'
+        ? `language=${LANGUAGE_ID[s.language]}`
+        : null,
     s.minCondition !== 'all' ? `minCondition=${CONDITION_ID[s.minCondition]}` : null,
   ]
     .filter(Boolean)

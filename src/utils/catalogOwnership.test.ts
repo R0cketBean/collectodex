@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { CollectionItem } from '../types/models';
 import {
   cardOwnership,
+  catalogSetKey,
+  parseCatalogSetKey,
   coerceOwnedMap,
   linkedItemsByCard,
   ownedCountBySet,
@@ -102,6 +104,30 @@ describe('Besitz aus Haken und Einträgen', () => {
     expect(summarizeSetOwnership(cards, { 'a-1': ['normal'] }, {}, total)).toMatchObject({
       catalogValue: 0,
       unpriced: 1,
+    });
+  });
+});
+
+describe('Sprachen', () => {
+  it('führt deutsche Sets unter der Kennung, andere mit Sprachpräfix', () => {
+    expect(catalogSetKey('base1')).toBe('base1');
+    expect(catalogSetKey('base1', 'en')).toBe('en:base1');
+    expect(parseCatalogSetKey('ja:SV2a')).toEqual({ lang: 'ja', setId: 'SV2a' });
+    expect(parseCatalogSetKey('sv03.5')).toEqual({ lang: 'de', setId: 'sv03.5' });
+  });
+
+  it('trennt Besitz gleicher Set-Kennungen nach Sprache', () => {
+    const german = item('d', 'base1-4', 400);
+    german.catalog = { cardId: 'base1-4', setId: 'base1' };
+    const english = item('e', 'base1-4', 300);
+    english.catalog = { cardId: 'base1-4', setId: 'base1', lang: 'en' };
+    const all = [german, english];
+    expect(linkedItemsByCard(all, 'base1')['base1-4'].map((i) => i.id)).toEqual(['d']);
+    expect(linkedItemsByCard(all, 'base1', 'en')['base1-4'].map((i) => i.id)).toEqual(['e']);
+    expect(ownedCountBySet({ 'ja:SV2a': { 'SV2a-201': ['normal'] } }, all)).toEqual({
+      base1: 1,
+      'en:base1': 1,
+      'ja:SV2a': 1,
     });
   });
 });

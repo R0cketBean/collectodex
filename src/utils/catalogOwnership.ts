@@ -8,15 +8,29 @@
 // ihrem gepflegten Wert, nur abgehakte Karten mit dem Katalogpreis. Jede
 // Karte/Fassung zählt dabei genau einmal – der Eintrag hat Vorrang.
 
-import type { CatalogRef, CatalogVariant, CollectionItem } from '../types/models';
+import type { CatalogLang, CatalogRef, CatalogVariant, CollectionItem } from '../types/models';
 
-/** setId → cardId → abgehakte Fassungen. */
+/**
+ * Set-Schlüssel → cardId → abgehakte Fassungen. Der Schlüssel ist für Deutsch
+ * die Set-Kennung selbst (so lagen die Daten schon vor), für andere Sprachen
+ * steht die Sprache davor – siehe `catalogSetKey`.
+ */
 export type OwnedMap = Record<string, Record<string, CatalogVariant[]>>;
+
+/** Schlüssel, unter dem Besitz und Fortschritt eines Sets geführt werden. */
+export const catalogSetKey = (setId: string, lang: CatalogLang | undefined = 'de') =>
+  lang === 'de' ? setId : `${lang}:${setId}`;
 
 const VARIANTS: CatalogVariant[] = ['normal', 'reverse'];
 
 const isObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Zerlegt einen Set-Schlüssel wieder in Sprache und Set-Kennung. */
+export const parseCatalogSetKey = (key: string): { lang: CatalogLang; setId: string } => {
+  const match = /^(en|ja):(.+)$/.exec(key);
+  return match ? { lang: match[1] as CatalogLang, setId: match[2] } : { lang: 'de', setId: key };
+};
 
 /** Bereinigt gespeicherte/importierte Daten; Unbrauchbares fällt weg. */
 export const coerceOwnedMap = (raw: unknown): OwnedMap => {
@@ -58,23 +72,28 @@ const variantOf = (ref: CatalogRef): CatalogVariant => ref.variant ?? 'normal';
 /** Verknüpfte Sammlungseinträge eines Sets, nach Karten-ID gruppiert. */
 export const linkedItemsByCard = (
   items: CollectionItem[],
-  setId: string
+  setId: string,
+  lang: CatalogLang = 'de'
 ): Record<string, CollectionItem[]> => {
   const result: Record<string, CollectionItem[]> = {};
   for (const item of items) {
-    if (item.catalog?.setId === setId) (result[item.catalog.cardId] ??= []).push(item);
+    if (item.catalog?.setId === setId && (item.catalog.lang ?? 'de') === lang) {
+      (result[item.catalog.cardId] ??= []).push(item);
+    }
   }
   return result;
 };
 
-/** Anzahl vorhandener Karten je Set (Haken und verknüpfte Einträge, ohne Doppelte). */
+/** Anzahl vorhandener Karten je Set-Schlüssel (Haken und verknüpfte Einträge, ohne Doppelte). */
 export const ownedCountBySet = (owned: OwnedMap, items: CollectionItem[]): Record<string, number> => {
   const sets: Record<string, Set<string>> = {};
-  for (const [setId, cards] of Object.entries(owned)) {
-    for (const cardId of Object.keys(cards)) (sets[setId] ??= new Set()).add(cardId);
+  for (const [setKey, cards] of Object.entries(owned)) {
+    for (const cardId of Object.keys(cards)) (sets[setKey] ??= new Set()).add(cardId);
   }
   for (const item of items) {
-    if (item.catalog) (sets[item.catalog.setId] ??= new Set()).add(item.catalog.cardId);
+    if (item.catalog) {
+      (sets[catalogSetKey(item.catalog.setId, item.catalog.lang)] ??= new Set()).add(item.catalog.cardId);
+    }
   }
   return Object.fromEntries(Object.entries(sets).map(([setId, ids]) => [setId, ids.size]));
 };
