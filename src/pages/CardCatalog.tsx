@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../components/catalog/FallbackImage';
-import { useItemsData } from '../context/CollectionContext';
+import { useCategoriesData, useItemsData } from '../context/CollectionContext';
 import { useCatalogOwned } from '../hooks/useCatalogOwned';
 import { CATALOG_LANGUAGES, fetchCatalog, normalizeSearch, setLogoSources, type SerieDetail } from '../services/tcgdex';
 import { updateCatalogSettings, useCatalogSettings } from '../hooks/useCatalogSettings';
+import { linkCategoryIds } from '../utils/catalogMatch';
 import { catalogSetKey, ownedCountBySet } from '../utils/catalogOwnership';
 
 // Kartenkatalog: alle deutschen Sets, nach Serie (Ära) gruppiert, neueste zuerst.
@@ -21,9 +22,14 @@ const CardCatalog: React.FC = () => {
   const owned = useCatalogOwned();
   const items = useItemsData();
   const ownedCounts = useMemo(() => ownedCountBySet(owned, items), [owned, items]);
-  const lang = useCatalogSettings().catalogLanguage;
+  const categories = useCategoriesData();
+  const { catalogLanguage: lang, linkCategories } = useCatalogSettings();
   const ownedIn = (setId: string) => ownedCounts[catalogSetKey(setId, lang)] ?? 0;
-  const unlinkedCount = useMemo(() => items.filter((i) => !i.catalog).length, [items]);
+  // Offen sind nur Einträge aus Kategorien mit Karten (ohne Sealed, Zubehör …).
+  const unlinkedCount = useMemo(() => {
+    const scope = linkCategoryIds(categories, linkCategories);
+    return items.filter((i) => !i.catalog && scope.has(i.categoryId)).length;
+  }, [items, categories, linkCategories]);
 
   useEffect(() => {
     let alive = true;
@@ -47,7 +53,10 @@ const CardCatalog: React.FC = () => {
         sets: s.sets.filter(
           (set) =>
             (!onlyStarted || ownedIn(set.id) > 0) &&
-            (!q || normalizeSearch(set.name).includes(q) || normalizeSearch(set.id).includes(q))
+            (!q ||
+              normalizeSearch(set.name).includes(q) ||
+              normalizeSearch(set.originalName ?? '').includes(q) ||
+              normalizeSearch(set.id).includes(q))
         ),
       }))
       .filter((s) => s.sets.length > 0);
@@ -180,6 +189,11 @@ const CardCatalog: React.FC = () => {
                   </div>
                   <div className="mt-2 text-center">
                     <div className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{set.name}</div>
+                    {set.originalName && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1" lang="ja">
+                        {set.originalName}
+                      </div>
+                    )}
                     <div className="text-xs text-gray-500 dark:text-gray-400">
                       {lang === 'ja' && <span className="font-mono">{set.id} · </span>}
                       {ownedIn(set.id) > 0

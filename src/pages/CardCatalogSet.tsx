@@ -73,7 +73,7 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
   const navigate = useNavigate();
   const items = useItemsData();
   const categories = useCategoriesData();
-  const { addItem, calculateItemValue, setItemCatalogRefs } = useCollectionActions();
+  const { addItem, calculateItemValue, deleteItem, setItemCatalogRefs } = useCollectionActions();
   const checked = useCatalogOwned()[setKey];
   const settings = useCatalogSettings();
   const linked = useMemo(() => linkedItemsByCard(items, setId, lang), [items, setId, lang]);
@@ -210,6 +210,7 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
             </h1>
             {set && (
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {set.originalName && <span lang="ja">{set.originalName} · </span>}
                 {set.serie?.name}
                 {set.releaseDate && ` · erschienen ${new Date(set.releaseDate).toLocaleDateString('de-DE')}`}
                 {` · ${set.cardCount.total} Karten`}
@@ -425,6 +426,7 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
           detail={selectedDetail}
           englishImage={englishImages[selected.localId]}
           setId={setId}
+          setName={set?.name}
           lang={lang}
           ownership={ownershipOf(selected.id)}
           categories={categories}
@@ -456,6 +458,12 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
             navigate(`/category/${category.id}?highlight=${id}`);
           }}
           onUnlink={(itemId) => setItemCatalogRefs({ [itemId]: null })}
+          onDelete={(item) => {
+            const name = String(item.values?.name ?? 'Ohne Namen');
+            if (window.confirm(`Eintrag „${name}“ aus deiner Sammlung löschen? Das lässt sich nicht rückgängig machen.`)) {
+              deleteItem(item.id);
+            }
+          }}
           onClose={() => setSelected(null)}
         />
       )}
@@ -484,14 +492,17 @@ const CardModal: React.FC<{
   detail?: CardDetail;
   englishImage?: string;
   setId: string;
+  /** Anzeigename des Sets (bei japanischen Sets der englische). */
+  setName?: string;
   lang: CatalogLang;
   ownership: CardOwnership;
   categories: Category[];
   onToggle: (variant: CatalogVariant) => void;
   onAdd: (category: Category, variant: CatalogVariant) => void | Promise<void>;
   onUnlink: (itemId: string) => void;
+  onDelete: (item: CollectionItem) => void;
   onClose: () => void;
-}> = ({ card, detail, englishImage, setId, lang, ownership, categories, onToggle, onAdd, onUnlink, onClose }) => {
+}> = ({ card, detail, englishImage, setId, setName, lang, ownership, categories, onToggle, onAdd, onUnlink, onDelete, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
   const hasReverse = lang !== 'ja' && Boolean(detail?.variants?.reverse);
   // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
@@ -532,7 +543,7 @@ const CardModal: React.FC<{
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 pr-8">{card.name}</h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {detail?.set.name} · Nr. {card.localId}
+              {setName ?? detail?.set.name} · Nr. {card.localId}
               {detail?.rarity && ` · ${detail.rarity}`}
             </p>
             {detail?.types && detail.types.length > 0 && (
@@ -598,7 +609,7 @@ const CardModal: React.FC<{
             {ownership.items.length > 0 && (
               <ul className="mt-3 space-y-1 text-sm">
                 {ownership.items.map((item) => (
-                  <li key={item.id}>
+                  <li key={item.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                     <Link
                       to={`/category/${item.categoryId}?highlight=${item.id}`}
                       className="text-pokemon-blue dark:text-blue-300 hover:underline"
@@ -608,9 +619,18 @@ const CardModal: React.FC<{
                     <button
                       type="button"
                       onClick={() => onUnlink(item.id)}
-                      className="ml-3 text-xs text-gray-500 dark:text-gray-400 hover:underline"
+                      title="Der Eintrag bleibt in deiner Sammlung, zählt hier aber nicht mehr als vorhanden"
+                      className="text-xs text-gray-500 dark:text-gray-400 hover:underline"
                     >
                       Verknüpfung lösen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(item)}
+                      title="Entfernt den Eintrag ganz aus deiner Sammlung, etwa nach einem Verkauf"
+                      className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                    >
+                      Eintrag löschen
                     </button>
                   </li>
                 ))}

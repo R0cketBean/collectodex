@@ -15,6 +15,14 @@ describe('coerceCatalogSettings', () => {
     });
     expect(coerceCatalogSettings({ dueAfterDays: '14' }).dueAfterDays).toBe(14);
   });
+
+  it('behält die Kategorienwahl für den Verknüpfungs-Assistenten und verwirft Unbrauchbares', () => {
+    expect(coerceCatalogSettings({ linkCategories: { sealed: true, singles: false, kaputt: 'ja' } }).linkCategories).toEqual({
+      sealed: true,
+      singles: false,
+    });
+    expect(coerceCatalogSettings({ linkCategories: ['sealed'] }).linkCategories).toEqual({});
+  });
 });
 
 describe('buildCardmarketFilter', () => {

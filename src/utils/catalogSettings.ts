@@ -15,6 +15,12 @@ export interface CatalogSettings {
   dueAfterDays: number;
   /** Zuletzt gewählte Sprache des Kartenkatalogs. */
   catalogLanguage: CatalogLang;
+  /**
+   * Vom Nutzer abweichend von der Vorgabe gewählt: Kategorien, deren Einträge
+   * der Verknüpfungs-Assistent anbietet (Kategorie → an/aus). Ohne Eintrag
+   * gilt die Vorgabe aus `isCardCategory`.
+   */
+  linkCategories: Record<string, boolean>;
 }
 
 export const DEFAULT_CATALOG_SETTINGS: CatalogSettings = {
@@ -24,6 +30,7 @@ export const DEFAULT_CATALOG_SETTINGS: CatalogSettings = {
   minCondition: 'nm',
   dueAfterDays: 30,
   catalogLanguage: 'de',
+  linkCategories: {},
 };
 
 export const PRICE_BASIS_LABEL: Record<PriceBasis, string> = {
@@ -47,6 +54,13 @@ export const coerceCatalogSettings = (raw: unknown): CatalogSettings => {
     minCondition: oneOf(r.minCondition, ['nm', 'ex', 'all'] as const, d.minCondition),
     dueAfterDays: Number.isFinite(days) && days >= 1 && days <= 365 ? Math.round(days) : d.dueAfterDays,
     catalogLanguage: oneOf(r.catalogLanguage, ['de', 'en', 'ja'] as const, d.catalogLanguage),
+    linkCategories: Object.fromEntries(
+      Object.entries(
+        typeof r.linkCategories === 'object' && r.linkCategories !== null && !Array.isArray(r.linkCategories)
+          ? r.linkCategories
+          : {}
+      ).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean')
+    ),
   };
 };
 
