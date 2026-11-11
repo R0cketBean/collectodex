@@ -33,6 +33,7 @@ function App() {
               <Route path="/katalog" element={<CardCatalog />} />
               <Route path="/katalog/verknuepfen" element={<CatalogLinkAssistant />} />
               <Route path="/katalog/:setId" element={<CardCatalogSet />} />
+              <Route path="/katalog/:lang/:setId" element={<CardCatalogSet />} />
               <Route path="/preis-check" element={<PriceCheck />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>

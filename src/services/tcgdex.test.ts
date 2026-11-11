@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   cardImageSources,
   cardImageUrl,
+  catalogCardImageSources,
+  displaySetName,
   fetchSet,
   pokemonTcgIoImage,
   pokemonTcgIoSetId,
@@ -101,6 +103,7 @@ describe('Ersatzbilder', () => {
       setLogoSources({ id: 'base1', symbol: 'https://assets.tcgdex.net/univ/base/base1/symbol' }, 'base')
     ).toEqual([
       { url: 'https://assets.tcgdex.net/en/base/base1/logo.webp', lang: 'en' },
+      { url: 'https://images.pokemontcg.io/base1/logo.png', lang: 'en' },
       { url: 'https://assets.tcgdex.net/univ/base/base1/symbol.webp', lang: 'de' },
     ]);
   });
@@ -110,6 +113,7 @@ describe('Ersatzbilder', () => {
     expect(setLogoSources({ id: 'sv10.5w', logo }, 'sv').map((s) => s.url)).toEqual([
       `${logo}.webp`,
       'https://assets.tcgdex.net/en/sv/sv10.5w/logo.webp',
+      'https://images.pokemontcg.io/sv10pt5w/logo.png',
     ]);
   });
 });
@@ -170,6 +174,33 @@ describe('pokemontcg.io als Bildquelle', () => {
     ]);
     expect(cardImageSources(undefined, undefined, 'low', { setId: 'cel25cc', localId: 'CC002' })).toEqual([
       { url: 'https://images.pokemontcg.io/cel25c/4_A.png', lang: 'en' },
+    ]);
+  });
+});
+
+describe('Katalogsprachen', () => {
+  it('schreibt „Classic Collection“ statt der deutschen Übersetzungen', () => {
+    expect(displaySetName('Celebrations Klassische Kollektion')).toBe('Celebrations Classic Collection');
+    expect(displaySetName('30 Jahre: Klassische Sammlung')).toBe('30 Jahre: Classic Collection');
+    expect(displaySetName('Zenit der Könige')).toBe('Zenit der Könige');
+  });
+
+  it('nimmt für englische Sets das englische Bild und pokemontcg.io, für japanische nur TCGdex', () => {
+    const en = { image: 'https://assets.tcgdex.net/en/base/base1/4', localId: '4' };
+    expect(catalogCardImageSources('en', en, 'base1').map((s) => s.url)).toEqual([
+      'https://assets.tcgdex.net/en/base/base1/4/low.webp',
+      'https://images.pokemontcg.io/base1/4.png',
+    ]);
+    const ja = { image: 'https://assets.tcgdex.net/ja/SV/SV2a/201', localId: '201' };
+    expect(catalogCardImageSources('ja', ja, 'SV2a', 'high')).toEqual([
+      { url: 'https://assets.tcgdex.net/ja/SV/SV2a/201/high.webp', lang: 'ja' },
+    ]);
+    expect(catalogCardImageSources('ja', { localId: '1' }, 'SV2a')).toEqual([]);
+  });
+
+  it('zeigt für japanische Sets kein englisches Ersatzlogo', () => {
+    expect(setLogoSources({ id: 'SV2a', symbol: 'https://assets.tcgdex.net/univ/SV/SV2a/symbol' }, 'SV', 'ja')).toEqual([
+      { url: 'https://assets.tcgdex.net/univ/SV/SV2a/symbol.webp', lang: 'ja' },
     ]);
   });
 });

@@ -6,9 +6,28 @@
 // eines Sets nachträglich mit begrenzter Parallelität (mapLimit) und hält sie
 // im Speicher plus localStorage vor, damit ein erneutes Öffnen schnell ist.
 
+import type { CatalogLang } from '../types/models';
+
 const API_ROOT = 'https://api.tcgdex.net/v2';
 const ASSET_ROOT = 'https://assets.tcgdex.net';
-type Lang = 'de' | 'en';
+type Lang = CatalogLang;
+
+/** Sprachen, zwischen denen der Katalog umschalten kann. */
+export const CATALOG_LANGUAGES: Array<{ id: CatalogLang; label: string }> = [
+  { id: 'de', label: 'Deutsch' },
+  { id: 'en', label: 'Englisch' },
+  { id: 'ja', label: 'Japanisch' },
+];
+
+export const isCatalogLang = (value: unknown): value is CatalogLang =>
+  CATALOG_LANGUAGES.some((l) => l.id === value);
+
+/**
+ * Anzeigename eines Sets. TCGdex übersetzt „Classic Collection“ ins Deutsche
+ * („Klassische Kollektion“, „Klassische Sammlung“); gebräuchlich ist auch im
+ * Deutschen der englische Begriff.
+ */
+export const displaySetName = (name: string) => name.replace(/Klassische (Kollektion|Sammlung)/g, 'Classic Collection');
 
 /** Preise werden bei TCGdex etwa einmal täglich aktualisiert. */
 const CARD_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
@@ -161,21 +180,53 @@ export const cardImageSources = (
   return sources;
 };
 
-/** Set-Logo: deutsch, sonst englisch, sonst das Set-Symbol. */
+/**
+ * Set-Logo: in der Katalogsprache, sonst englisch (TCGdex, dann
+ * pokemontcg.io), sonst das Set-Symbol. Für japanische Sets gibt es nur, was
+ * TCGdex selbst liefert.
+ */
 export const setLogoSources = (
   set: Pick<SetBrief, 'id' | 'logo' | 'symbol'>,
-  serieId: string | undefined
+  serieId: string | undefined,
+  lang: Lang = 'de'
 ): ImageSource[] => {
   const sources: ImageSource[] = [];
-  if (set.logo) sources.push({ url: `${set.logo}.webp`, lang: 'de' });
-  const en = set.logo
-    ? englishAssetBase(set.logo)
-    : serieId
-      ? `${ASSET_ROOT}/en/${serieId}/${set.id}/logo`
-      : undefined;
-  if (en && en !== set.logo) sources.push({ url: `${en}.webp`, lang: 'en' });
-  if (set.symbol) sources.push({ url: `${set.symbol}.webp`, lang: 'de' });
+  if (set.logo) sources.push({ url: `${set.logo}.webp`, lang });
+  if (lang !== 'ja') {
+    const en =
+      lang === 'en'
+        ? undefined
+        : set.logo
+          ? englishAssetBase(set.logo)
+          : serieId
+            ? `${ASSET_ROOT}/en/${serieId}/${set.id}/logo`
+            : undefined;
+    if (en && en !== set.logo) sources.push({ url: `${en}.webp`, lang: 'en' });
+    sources.push({ url: `${PTCG_IMAGE_ROOT}/${pokemonTcgIoSetId(set.id)}/logo.png`, lang: 'en' });
+  }
+  if (set.symbol) sources.push({ url: `${set.symbol}.webp`, lang });
   return sources;
+};
+
+/**
+ * Kartenbild-Quellen für eine Katalogsprache. Deutsch weicht auf Englisch aus,
+ * Englisch auf pokemontcg.io; für Japanisch gibt es nur das Bild von TCGdex.
+ */
+export const catalogCardImageSources = (
+  lang: Lang,
+  card: { image?: string; localId: string },
+  setId: string,
+  quality: 'low' | 'high' = 'low',
+  englishBase?: string
+): ImageSource[] => {
+  if (lang === 'ja') return card.image ? [{ url: `${card.image}/${quality}.webp`, lang }] : [];
+  if (lang === 'en') {
+    return [
+      ...(card.image ? [{ url: `${card.image}/${quality}.webp`, lang }] : []),
+      { url: pokemonTcgIoImage(setId, card.localId, quality), lang },
+    ];
+  }
+  return cardImageSources(card.image, englishBase, quality, { setId, localId: card.localId });
 };
 
 // --- Preise ---------------------------------------------------------------
@@ -318,15 +369,17 @@ function cachedJson<T>(path: string, lang: Lang = 'de'): Promise<T> {
 }
 
 /** Alle Serien mit ihren Sets, neueste Serie und neuestes Set zuerst. */
-export async function fetchCatalog(): Promise<SerieDetail[]> {
+export async function fetchCatalog(lang: Lang = 'de'): Promise<SerieDetail[]> {
   // "tcgp" = Pokémon TCG Pocket: rein digitale Karten, gehören nicht in den Katalog.
-  const series = (await cachedJson<SerieBrief[]>('/series')).filter((s) => !EXCLUDED_SERIES.has(s.id));
+  const series = (await cachedJson<SerieBrief[]>('/series', lang)).filter(
+    (s) => !EXCLUDED_SERIES.has(s.id.toLowerCase())
+  );
   const details = await mapLimit(series, 6, (s) =>
-    cachedJson<SerieDetail>(`/series/${encodeURIComponent(s.id)}`)
+    cachedJson<SerieDetail>(`/series/${encodeURIComponent(s.id)}`, lang)
   );
   return details
     .filter((d): d is SerieDetail => d !== null && Array.isArray(d.sets) && d.sets.length > 0)
-    .map((d) => ({ ...d, sets: [...d.sets].reverse() }))
+    .map((d) => ({ ...d, sets: [...d.sets].reverse().map((s) => ({ ...s, name: displaySetName(s.name) })) }))
     .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''));
 }
 
@@ -341,7 +394,17 @@ export async function fetchSetNames(): Promise<Array<{ id: string; names: string
     cachedJson<SetBrief[]>('/sets', 'en').catch(() => [] as SetBrief[]),
   ]);
   const english = new Map(en.map((s) => [s.id, s.name]));
-  return de.map((s) => ({ id: s.id, names: [s.name, english.get(s.id)].filter((n): n is string => Boolean(n)) }));
+  return de.map((s) => ({
+    id: s.id,
+    names: [displaySetName(s.name), english.get(s.id)].filter((n): n is string => Boolean(n)),
+  }));
+}
+
+/** Alle Sets einer Sprache mit Kennung und Namen (für die Auswahl von Hand). */
+export async function fetchSetList(lang: Lang): Promise<Array<{ id: string; names: string[] }>> {
+  if (lang === 'de') return fetchSetNames();
+  const sets = await cachedJson<SetBrief[]>('/sets', lang);
+  return sets.map((s) => ({ id: s.id, names: [s.name] }));
 }
 
 /**
@@ -350,10 +413,11 @@ export async function fetchSetNames(): Promise<Array<{ id: string; names: string
  * Liste aus der englischen Fassung – IDs und Nummern sind dieselben, nur die
  * Kartennamen sind englisch.
  */
-export async function fetchSet(setId: string): Promise<SetDetail> {
+export async function fetchSet(setId: string, lang: Lang = 'de'): Promise<SetDetail> {
   const path = `/sets/${encodeURIComponent(setId)}`;
-  const set = await cachedJson<SetDetail>(path);
-  if (Array.isArray(set.cards) && set.cards.length > 0) return set;
+  const raw = await cachedJson<SetDetail>(path, lang);
+  const set = { ...raw, name: displaySetName(raw.name) };
+  if (lang !== 'de' || (Array.isArray(set.cards) && set.cards.length > 0)) return { ...set, cards: set.cards ?? [] };
   const english = await cachedJson<SetDetail>(path, 'en').catch(() => null);
   return english?.cards?.length ? { ...set, cards: english.cards } : { ...set, cards: set.cards ?? [] };
 }
@@ -376,9 +440,12 @@ export async function fetchEnglishCardImages(setId: string): Promise<Record<stri
   }
 }
 
-const readCardCache = (id: string): CardDetail | null => {
+// Deutsche Karten behalten den bisherigen Schlüssel; andere Sprachen bekommen ein Präfix.
+const cardCacheKey = (id: string, lang: Lang) => CARD_CACHE_PREFIX + (lang === 'de' ? '' : `${lang}:`) + id;
+
+const readCardCache = (id: string, lang: Lang): CardDetail | null => {
   try {
-    const raw = localStorage.getItem(CARD_CACHE_PREFIX + id);
+    const raw = localStorage.getItem(cardCacheKey(id, lang));
     if (!raw) return null;
     const { at, card } = JSON.parse(raw) as { at: number; card: CardDetail };
     return Date.now() - at < CARD_CACHE_TTL_MS ? card : null;
@@ -387,7 +454,7 @@ const readCardCache = (id: string): CardDetail | null => {
   }
 };
 
-const writeCardCache = (card: CardDetail) => {
+const writeCardCache = (card: CardDetail, lang: Lang) => {
   try {
     // Nur die Felder speichern, die der Katalog anzeigt (Attacken etc. weglassen).
     const slim: CardDetail = {
@@ -403,22 +470,22 @@ const writeCardCache = (card: CardDetail) => {
       set: card.set,
       pricing: card.pricing?.cardmarket ? { cardmarket: card.pricing.cardmarket } : null,
     };
-    localStorage.setItem(CARD_CACHE_PREFIX + card.id, JSON.stringify({ at: Date.now(), card: slim }));
+    localStorage.setItem(cardCacheKey(card.id, lang), JSON.stringify({ at: Date.now(), card: slim }));
   } catch {
     // Speicher voll oder nicht verfügbar: dann eben ohne Cache.
   }
 };
 
-export async function fetchCard(cardId: string, signal?: AbortSignal): Promise<CardDetail> {
-  const cached = readCardCache(cardId);
+export async function fetchCard(cardId: string, signal?: AbortSignal, lang: Lang = 'de'): Promise<CardDetail> {
+  const cached = readCardCache(cardId, lang);
   if (cached) return cached;
   const path = `/cards/${encodeURIComponent(cardId)}`;
   // Karten, die es bei TCGdex nur englisch gibt (siehe fetchSet), von dort holen.
-  const card = await getJson<CardDetail>(path, signal).catch((error) => {
-    if (signal?.aborted) throw error;
+  const card = await getJson<CardDetail>(path, signal, lang).catch((error) => {
+    if (signal?.aborted || lang !== 'de') throw error;
     return getJson<CardDetail>(path, signal, 'en');
   });
-  writeCardCache(card);
+  writeCardCache(card, lang);
   return card;
 }
 
@@ -430,13 +497,14 @@ export async function fetchCard(cardId: string, signal?: AbortSignal): Promise<C
 export function loadSetCards(
   cards: CardBrief[],
   onCard: (card: CardDetail) => void,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  lang: Lang = 'de'
 ) {
   return mapLimit(
     cards,
     6,
     async (c) => {
-      const card = await fetchCard(c.id, signal);
+      const card = await fetchCard(c.id, signal, lang);
       if (!signal?.aborted) onCard(card);
       return card;
     },

@@ -117,3 +117,22 @@ describe('manualCandidates', () => {
     expect(manualCandidates(item({}), 'x', cards)[0]).toEqual({ setId: 'x', card: cards[2] });
   });
 });
+
+describe('Zuordnung über Nummer und Zweitnamen', () => {
+  const cards = [
+    { id: 'SV2a-006', localId: '006', name: 'リザードンex' },
+    { id: 'SV2a-201', localId: '201', name: 'リザードンex' },
+    { id: 'SV2a-001', localId: '001', name: 'フシギダネ' },
+  ];
+
+  it('stellt bei der Auswahl von Hand die Karte mit der Nummer aus dem Link voran', () => {
+    const entry = item({ name: 'Glurak ex', language: 'Japanisch' }, `${CM}/Pokemon-Card-151/Charizard-ex-V3-sv2a201`);
+    expect(manualCandidates(entry, 'ja:SV2a', cards)[0]).toEqual({ setId: 'ja:SV2a', card: cards[1] });
+  });
+
+  it('erkennt englische Karten auch am deutschen Namen', () => {
+    const english = { 'en:base1': [{ id: 'base1-4', localId: '4', name: 'Charizard', altName: 'Glurak' }] };
+    const s = suggestMatch(item({ name: 'Glurak', language: 'Englisch' }, `${CM}/Base-Set/Charizard-V1-BS4`), ['en:base1'], english);
+    expect(s).toMatchObject({ status: 'sure', best: { setId: 'en:base1' } });
+  });
+});

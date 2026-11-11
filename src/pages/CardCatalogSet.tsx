@@ -3,19 +3,21 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeftIcon, CheckIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useCategoriesData, useCollectionActions, useItemsData } from '../context/CollectionContext';
 import { toggleCatalogOwned, useCatalogOwned } from '../hooks/useCatalogOwned';
-import type { CatalogVariant, Category, CollectionItem } from '../types/models';
+import type { CatalogLang, CatalogVariant, Category, CollectionItem } from '../types/models';
 import { buildCatalogItem } from '../utils/catalogItem';
 import { useCatalogSettings } from '../hooks/useCatalogSettings';
 import { buildCardmarketFilter, pickCatalogPrice } from '../utils/catalogSettings';
 import {
   cardOwnership,
+  catalogSetKey,
   linkedItemsByCard,
   summarizeSetOwnership,
   type CardOwnership,
 } from '../utils/catalogOwnership';
 import FallbackImage from '../components/catalog/FallbackImage';
 import {
-  cardImageSources,
+  catalogCardImageSources,
+  isCatalogLang,
   cardmarketProductUrl,
   cardmarketSearchUrl,
   fetchEnglishCardImages,
@@ -50,11 +52,14 @@ const compareLocalId = (a: string, b: string) =>
 // Der Schlüssel sorgt dafür, dass Suche, Sortierung und Detailansicht beim
 // Wechsel auf ein anderes Set zurückgesetzt werden.
 const CardCatalogSetRoute: React.FC = () => {
-  const { setId = '' } = useParams();
-  return <CardCatalogSet key={setId} setId={setId} />;
+  const { setId = '', lang: langParam } = useParams();
+  const lang: CatalogLang = isCatalogLang(langParam) ? langParam : 'de';
+  return <CardCatalogSet key={`${lang}:${setId}`} setId={setId} lang={lang} />;
 };
 
-const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
+const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId, lang }) => {
+  // Besitz wird je Sprache geführt: deutsche und englische Sets teilen ihre Kennungen.
+  const setKey = catalogSetKey(setId, lang);
   const [set, setSet] = useState<SetDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, CardDetail>>({});
@@ -69,9 +74,9 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
   const items = useItemsData();
   const categories = useCategoriesData();
   const { addItem, calculateItemValue, setItemCatalogRefs } = useCollectionActions();
-  const checked = useCatalogOwned()[setId];
+  const checked = useCatalogOwned()[setKey];
   const settings = useCatalogSettings();
-  const linked = useMemo(() => linkedItemsByCard(items, setId), [items, setId]);
+  const linked = useMemo(() => linkedItemsByCard(items, setId, lang), [items, setId, lang]);
   const ownershipOf = (cardId: string) => cardOwnership(checked?.[cardId], linked[cardId]);
 
   // Set laden, danach die Kartendetails (Preise) nach und nach.
@@ -81,22 +86,24 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
     setDetails({});
     setEnglishImages({});
     setError(null);
-    void fetchEnglishCardImages(setId).then(
+    // Englische Ersatzbilder braucht nur der deutsche Katalog.
+    void (lang === 'de' ? fetchEnglishCardImages(setId) : Promise.resolve({})).then(
       (images) => !controller.signal.aborted && setEnglishImages(images)
     );
-    fetchSet(setId)
+    fetchSet(setId, lang)
       .then((data) => {
         if (controller.signal.aborted) return;
         setSet(data);
         void loadSetCards(
           data.cards,
           (card) => setDetails((prev) => ({ ...prev, [card.id]: card })),
-          controller.signal
+          controller.signal,
+          lang
         );
       })
       .catch(() => !controller.signal.aborted && setError('Das Set konnte nicht geladen werden.'));
     return () => controller.abort();
-  }, [setId]);
+  }, [setId, lang]);
 
   // Esc schließt die Detailansicht.
   useEffect(() => {
@@ -120,7 +127,12 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
           const p = summarizePricing(detail);
           return {
             id: c.id,
-            price: { trend: p.trend, reverseTrend: p.reverseTrend, hasReverse: Boolean(detail.variants?.reverse) },
+            // Japanische Sets haben keine Reverse-Holo-Fassungen; TCGdex kennzeichnet sie dort trotzdem.
+            price: {
+              trend: p.trend,
+              reverseTrend: p.reverseTrend,
+              hasReverse: lang !== 'ja' && Boolean(detail.variants?.reverse),
+            },
           };
         }),
         checked,
@@ -132,7 +144,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
       ),
     // calculateItemValue ist referenz-stabil (Actions-Context).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [set, details, checked, linked]
+    [set, details, checked, linked, lang]
   );
 
   const visibleCards = useMemo(() => {
@@ -187,7 +199,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
         <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 flex flex-col md:flex-row md:items-center gap-4">
           {set && (
             <FallbackImage
-              sources={setLogoSources(set, set.serie?.id)}
+              sources={setLogoSources(set, set.serie?.id, lang)}
               alt=""
               className="h-16 max-w-[12rem] object-contain"
             />
@@ -345,7 +357,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
               >
                 <button
                   type="button"
-                  onClick={() => toggleCatalogOwned(setId, card.id, 'normal')}
+                  onClick={() => toggleCatalogOwned(setKey, card.id, 'normal')}
                   disabled={own.entryVariants.includes('normal')}
                   aria-pressed={has}
                   aria-label={has ? `${card.name}: vorhanden` : `${card.name} als vorhanden markieren`}
@@ -371,10 +383,10 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
                 >
                 <div className="relative aspect-[5/7] bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
                   <FallbackImage
-                    sources={cardImageSources(card.image, englishImages[card.localId], 'low', { setId, localId: card.localId })}
+                    sources={catalogCardImageSources(lang, card, setId, 'low', englishImages[card.localId])}
                     alt={card.name}
                     loading="lazy"
-                    showLanguageBadge
+                    showLanguageBadge={lang === 'de'}
                     className="h-full w-full object-contain"
                     fallback={<span className="text-xs text-gray-400 p-2 text-center">Kein Bild</span>}
                   />
@@ -389,7 +401,7 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
                     <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
                       {detail ? formatEur(price?.trend) : <span className="inline-block h-4 w-12 rounded bg-gray-200 dark:bg-gray-700 animate-pulse align-middle" />}
                     </span>
-                    {price?.reverseTrend !== null && price?.reverseTrend !== undefined && (
+                    {lang !== 'ja' && price?.reverseTrend !== null && price?.reverseTrend !== undefined && (
                       <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums" title="Reverse Holo">
                         RH {formatEur(price.reverseTrend)}
                       </span>
@@ -413,29 +425,28 @@ const CardCatalogSet: React.FC<{ setId: string }> = ({ setId }) => {
           detail={selectedDetail}
           englishImage={englishImages[selected.localId]}
           setId={setId}
+          lang={lang}
           ownership={ownershipOf(selected.id)}
           categories={categories}
-          onToggle={(variant) => toggleCatalogOwned(setId, selected.id, variant)}
+          onToggle={(variant) => toggleCatalogOwned(setKey, selected.id, variant)}
           onAdd={async (category, variant) => {
             if (!set) return;
             const price = selectedDetail ? summarizePricing(selectedDetail) : null;
             // Nur ein Bild übernehmen, das sich wirklich laden lässt.
             const image = await firstLoadableImage(
-              cardImageSources(selected.image, englishImages[selected.localId], 'high', {
-                setId,
-                localId: selected.localId,
-              })
+              catalogCardImageSources(lang, selected, setId, 'high', englishImages[selected.localId])
             );
             const draft = buildCatalogItem(category, {
               cardId: selected.id,
               setId,
+              lang,
               setName: set.name,
               name: selected.name,
               localId: selected.localId,
               variant,
               price: pickCatalogPrice(price, settings.priceBasis, variant),
               imageUrl: image,
-              productUrl: cardmarketProductUrl(price?.idProduct, selected.name, buildCardmarketFilter(settings)),
+              productUrl: cardmarketProductUrl(price?.idProduct, selected.name, buildCardmarketFilter(settings, lang)),
             });
             const id = addItem(category.id, draft.values, {
               links: draft.links,
@@ -473,15 +484,16 @@ const CardModal: React.FC<{
   detail?: CardDetail;
   englishImage?: string;
   setId: string;
+  lang: CatalogLang;
   ownership: CardOwnership;
   categories: Category[];
   onToggle: (variant: CatalogVariant) => void;
   onAdd: (category: Category, variant: CatalogVariant) => void | Promise<void>;
   onUnlink: (itemId: string) => void;
   onClose: () => void;
-}> = ({ card, detail, englishImage, setId, ownership, categories, onToggle, onAdd, onUnlink, onClose }) => {
+}> = ({ card, detail, englishImage, setId, lang, ownership, categories, onToggle, onAdd, onUnlink, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
-  const hasReverse = Boolean(detail?.variants?.reverse);
+  const hasReverse = lang !== 'ja' && Boolean(detail?.variants?.reverse);
   // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
   const targets = categories.filter((c) => Array.isArray(c.attributes) && c.attributes.length > 0);
   const [targetId, setTargetId] = useState(
@@ -506,9 +518,9 @@ const CardModal: React.FC<{
         <div className="flex flex-col md:flex-row gap-6 p-6">
           <div className="relative md:w-1/2 flex-shrink-0">
             <FallbackImage
-              sources={cardImageSources(card.image, englishImage, 'high', { setId, localId: card.localId })}
+              sources={catalogCardImageSources(lang, card, setId, 'high', englishImage)}
               alt={card.name}
-              showLanguageBadge
+              showLanguageBadge={lang === 'de'}
               className="w-full rounded-lg shadow"
               fallback={
                 <div className="aspect-[5/7] rounded-lg bg-gray-100 dark:bg-gray-900 flex items-center justify-center text-sm text-gray-400">

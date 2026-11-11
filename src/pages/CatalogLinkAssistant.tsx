@@ -5,19 +5,23 @@ import FallbackImage from '../components/catalog/FallbackImage';
 import { useCategoriesData, useCollectionActions, useItemsData } from '../context/CollectionContext';
 import ImageLightbox from '../components/common/ImageLightbox';
 import {
-  cardImageSources,
+  catalogCardImageSources,
   englishCardImageBase,
   fetchSet,
+  fetchSetList,
   fetchSetNames,
   mapLimit,
   type SetDetail,
 } from '../services/tcgdex';
 import type { CatalogRef, CollectionItem } from '../types/models';
+import { catalogLangOfItem } from '../utils/catalogItem';
+import { catalogSetKey, parseCatalogSetKey } from '../utils/catalogOwnership';
 import { CATALOG_IMAGE_KEY, getPrimaryImage, type ItemImage } from '../utils/itemImages';
 import { firstLoadableImage } from '../utils/imageProbe';
 import { selectClass } from '../utils/formStyles';
 import {
   candidateSetIds,
+  linkNumberMatches,
   manualCandidates,
   suggestMatch,
   type CatalogCardName,
@@ -34,6 +38,9 @@ interface Row {
   item: CollectionItem;
   suggestion: MatchSuggestion;
 }
+
+/** Katalogsprache einer Zeile, abgeleitet aus dem Feld „Sprache“ des Eintrags. */
+const rowLang = (item: CollectionItem) => catalogLangOfItem(item.values?.language);
 
 const STATUS_LABEL: Record<MatchStatus, string> = {
   sure: 'Sichere Treffer',
@@ -58,6 +65,9 @@ const CatalogLinkAssistant: React.FC = () => {
   const [skipped, setSkipped] = useState<Record<string, boolean>>({});
   // Vom Nutzer von Hand gewähltes Set je Eintrag (für „Kein Treffer“ oder falsche Vorschläge).
   const [manualSet, setManualSet] = useState<Record<string, string>>({});
+  // Von Hand gewähltes Set je Sprache und Erweiterung: gilt für alle Einträge ohne eigenen Treffer mit derselben Erweiterung.
+  const [manualByExpansion, setManualByExpansion] = useState<Record<string, string>>({});
+  const [japaneseSets, setJapaneseSets] = useState<CatalogSetName[] | null>(null);
   const [serieBySet, setSerieBySet] = useState<Record<string, string>>({});
   const [zoom, setZoom] = useState<ItemImage[] | null>(null);
   const [done, setDone] = useState(0);
@@ -78,26 +88,68 @@ const CatalogLinkAssistant: React.FC = () => {
   // Mögliche Sets je Eintrag; daraus ergibt sich, welche Sets geladen werden müssen.
   const setIdsByItem = useMemo(() => {
     const result: Record<string, string[]> = {};
-    if (sets) for (const item of unlinked) result[item.id] = candidateSetIds(sets, item);
+    if (sets) {
+      for (const item of unlinked) {
+        // Deutsche und englische Sets teilen Kennungen und Namen; japanische wählt man von Hand.
+        const lang = rowLang(item);
+        result[item.id] = lang === 'ja' ? [] : candidateSetIds(sets, item).map((id) => catalogSetKey(id, lang));
+      }
+    }
     return result;
   }, [sets, unlinked]);
 
-  const rememberSet = (set: SetDetail) => {
-    setCardsBySet((prev) => ({ ...prev, [set.id]: set.cards }));
-    setSetNamesById((prev) => ({ ...prev, [set.id]: set.name }));
-    if (set.serie?.id) setSerieBySet((prev) => ({ ...prev, [set.id]: set.serie.id }));
+  // Lädt ein Set unter seinem Schlüssel (Sprache + Kennung). Englische Karten
+  // bekommen zusätzlich den deutschen Namen, weil Einträge oft deutsch benannt sind.
+  const loadSet = async (key: string): Promise<{ key: string; set: SetDetail; cards: CatalogCardName[] }> => {
+    const { lang, setId } = parseCatalogSetKey(key);
+    const set = await fetchSet(setId, lang);
+    let cards: CatalogCardName[] = set.cards;
+    if (lang === 'en') {
+      const german = await fetchSet(setId, 'de').catch(() => null);
+      const names = new Map((german?.cards ?? []).map((c) => [c.id, c.name]));
+      cards = set.cards.map((c) => ({ ...c, altName: names.get(c.id) }));
+    }
+    return { key, set, cards };
   };
 
+  const rememberSet = ({ key, set, cards }: { key: string; set: SetDetail; cards: CatalogCardName[] }) => {
+    setCardsBySet((prev) => ({ ...prev, [key]: cards }));
+    setSetNamesById((prev) => ({ ...prev, [key]: set.name }));
+    if (set.serie?.id) setSerieBySet((prev) => ({ ...prev, [key]: set.serie.id }));
+  };
+
+  const expansionKey = (item: CollectionItem) =>
+    typeof item.values?.expansion === 'string' && item.values.expansion.trim()
+      ? `${rowLang(item)}|${item.values.expansion.trim().toLowerCase()}`
+      : null;
+
   // Set von Hand wählen: Karten nachladen, die bisherige Kartenauswahl verwerfen.
-  const chooseSet = (itemId: string, setId: string) => {
-    setManualSet((prev) => ({ ...prev, [itemId]: setId }));
+  // Die Wahl gilt auch für andere Einträge ohne Treffer mit derselben Erweiterung.
+  const chooseSet = (item: CollectionItem, key: string) => {
+    setManualSet((prev) => ({ ...prev, [item.id]: key }));
+    const group = expansionKey(item);
+    if (group && key) setManualByExpansion((prev) => ({ ...prev, [group]: key }));
     setChoice((prev) => {
       const next = { ...prev };
-      delete next[itemId];
+      delete next[item.id];
       return next;
     });
-    if (setId && !cardsBySet[setId]) void fetchSet(setId).then(rememberSet, () => undefined);
+    if (key && !cardsBySet[key]) void loadSet(key).then(rememberSet, () => undefined);
   };
+
+  // Japanische Setliste nur laden, wenn es japanische Einträge gibt.
+  const hasJapanese = useMemo(() => unlinked.some((i) => rowLang(i) === 'ja'), [unlinked]);
+  useEffect(() => {
+    if (!hasJapanese || japaneseSets) return;
+    let alive = true;
+    void fetchSetList('ja').then(
+      (data) => alive && setJapaneseSets(data),
+      () => alive && setJapaneseSets([])
+    );
+    return () => {
+      alive = false;
+    };
+  }, [hasJapanese, japaneseSets]);
 
   const sortedSets = useMemo(
     () => [...(sets ?? [])].sort((a, b) => a.names[0].localeCompare(b.names[0], 'de', { numeric: true })),
@@ -119,10 +171,9 @@ const CatalogLinkAssistant: React.FC = () => {
       return;
     }
     setLoadingSets(true);
-    void mapLimit(missing, 6, async (id) => {
-      const set = await fetchSet(id);
-      if (!alive) return;
-      rememberSet(set);
+    void mapLimit(missing, 6, async (key) => {
+      const loaded = await loadSet(key);
+      if (alive) rememberSet(loaded);
     }).then(() => alive && setLoadingSets(false));
     return () => {
       alive = false;
@@ -148,29 +199,45 @@ const CatalogLinkAssistant: React.FC = () => {
   const categoryName = (id: string) => categories.find((c) => c.id === id)?.name ?? id;
 
   // Kandidaten einer Zeile: aus dem von Hand gewählten Set, sonst die Vorschläge.
+  // Von Hand gewähltes Set einer Zeile: die eigene Wahl, sonst – nur ohne
+  // eigenen Treffer – die Wahl für dieselbe Erweiterung.
+  const manualOf = (row: Row): string | undefined => {
+    if (row.item.id in manualSet) return manualSet[row.item.id] || undefined;
+    const group = expansionKey(row.item);
+    return row.suggestion.status === 'none' && group ? manualByExpansion[group] : undefined;
+  };
+
   const candidatesOf = (row: Row) => {
-    const setId = manualSet[row.item.id];
-    if (!setId) return row.suggestion.candidates;
-    return cardsBySet[setId] ? manualCandidates(row.item, setId, cardsBySet[setId]) : [];
+    const key = manualOf(row);
+    if (!key) return row.suggestion.candidates;
+    return cardsBySet[key] ? manualCandidates(row.item, key, cardsBySet[key]) : [];
   };
 
   const chosen = (row: Row) => {
     const candidates = candidatesOf(row);
-    const cardId = choice[row.item.id] ?? (manualSet[row.item.id] ? candidates[0]?.card.id : row.suggestion.best?.card.id);
+    const cardId = choice[row.item.id] ?? (manualOf(row) ? candidates[0]?.card.id : row.suggestion.best?.card.id);
     return candidates.find((c) => c.card.id === cardId);
   };
 
-  const imageSourcesOf = (pick: { setId: string; card: CatalogCardName }, quality: 'low' | 'high' = 'low') =>
-    cardImageSources(pick.card.image, englishCardImageBase(serieBySet[pick.setId], pick.setId, pick.card.localId), quality, {
-      setId: pick.setId,
-      localId: pick.card.localId,
-    });
+  // `pick.setId` ist hier der Set-Schlüssel (Sprache + Kennung).
+  const imageSourcesOf = (pick: { setId: string; card: CatalogCardName }, quality: 'low' | 'high' = 'low') => {
+    const { lang, setId } = parseCatalogSetKey(pick.setId);
+    return catalogCardImageSources(
+      lang,
+      pick.card,
+      setId,
+      quality,
+      englishCardImageBase(serieBySet[pick.setId], setId, pick.card.localId)
+    );
+  };
 
   const link = (targets: Row[]) => {
     const refs: Record<string, CatalogRef> = {};
     for (const row of targets) {
       const pick = chosen(row);
-      if (pick) refs[row.item.id] = { cardId: pick.card.id, setId: pick.setId, variant: 'normal' };
+      if (!pick) continue;
+      const { lang, setId } = parseCatalogSetKey(pick.setId);
+      refs[row.item.id] = { cardId: pick.card.id, setId, variant: 'normal', ...(lang !== 'de' ? { lang } : {}) };
     }
     setItemCatalogRefs(refs);
     setDone((n) => n + Object.keys(refs).length);
@@ -190,7 +257,10 @@ const CatalogLinkAssistant: React.FC = () => {
     const { item, suggestion } = row;
     const ownImage = getPrimaryImage(item.images);
     const candidates = candidatesOf(row);
-    const selectedSet = manualSet[item.id] ?? pick?.setId ?? '';
+    const lang = rowLang(item);
+    const manualKey = manualOf(row);
+    const selectedSet = manualKey ?? pick?.setId ?? '';
+    const setOptions = lang === 'ja' ? (japaneseSets ?? []) : sortedSets;
     const severalSets = new Set(candidates.map((c) => c.setId)).size > 1;
     // Großansicht: Katalogkarte (erste Quelle, die sich laden lässt) und eigenes Foto.
     const openZoom = async () => {
@@ -237,19 +307,19 @@ const CatalogLinkAssistant: React.FC = () => {
         <div className="min-w-0 flex-1 basis-64 space-y-1.5 text-sm">
           <select
             value={selectedSet}
-            onChange={(e) => chooseSet(item.id, e.target.value)}
+            onChange={(e) => chooseSet(item, e.target.value)}
             aria-label={`Set für ${String(item.values?.name ?? 'Eintrag')}`}
             className={`${selectClass} py-1.5`}
           >
-            <option value="">Set wählen…</option>
-            {sortedSets.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.names[0]}
-                {s.names[1] && s.names[1] !== s.names[0] ? ` (${s.names[1]})` : ''}
+            <option value="">{lang === 'ja' ? 'Japanisches Set wählen…' : 'Set wählen…'}</option>
+            {setOptions.map((s) => (
+              <option key={s.id} value={catalogSetKey(s.id, lang)}>
+                {lang === 'ja' ? `${s.id} · ${s.names[0]}` : s.names[0]}
+                {lang !== 'ja' && s.names[1] && s.names[1] !== s.names[0] ? ` (${s.names[1]})` : ''}
               </option>
             ))}
           </select>
-          {manualSet[item.id] && !cardsBySet[manualSet[item.id]] ? (
+          {manualKey && !cardsBySet[manualKey] ? (
             <span className="text-gray-500 dark:text-gray-400">Karten werden geladen…</span>
           ) : candidates.length > 1 ? (
             <select
@@ -269,11 +339,11 @@ const CatalogLinkAssistant: React.FC = () => {
             <div className="text-gray-900 dark:text-gray-100">
               Nr. {pick.card.localId} · {pick.card.name}
             </div>
-          ) : manualSet[item.id] ? (
+          ) : manualKey ? (
             <span className="text-gray-500 dark:text-gray-400">Für dieses Set liegen keine Karten vor.</span>
           ) : null}
           <div className="text-xs text-gray-500 dark:text-gray-400">
-            {manualSet[item.id] ? 'Von Hand gewählt' : suggestion.reason}
+            {manualKey ? (item.id in manualSet ? 'Von Hand gewählt' : 'Set von gleicher Erweiterung übernommen') : suggestion.reason}
           </div>
         </div>
         {pick && (
@@ -317,6 +387,12 @@ const CatalogLinkAssistant: React.FC = () => {
   };
 
   const sureOpen = groups.sure.filter((r) => !skipped[r.item.id]);
+  // Ohne automatischen Treffer, aber mit von Hand gewähltem Set und einer Karte,
+  // deren Nummer zum Cardmarket-Link passt: gefahrlos gesammelt verknüpfbar.
+  const manualByNumber = groups.none.filter((r) => {
+    const pick = manualOf(r) ? chosen(r) : undefined;
+    return Boolean(pick && linkNumberMatches(r.item, pick.card));
+  });
 
   return (
     <div className="py-6">
@@ -383,8 +459,18 @@ const CatalogLinkAssistant: React.FC = () => {
                 </summary>
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                   Meist Sealed-Produkte, Zubehör oder Karten aus Sets, die es nicht auf Deutsch gibt (etwa japanische).
-                  Gehört eine Karte doch in ein deutsches Set, wähle Set und Karte von Hand.
+                  Wähle Set und Karte von Hand; bei japanischen Karten stehen die japanischen Sets zur Auswahl. Die
+                  Wahl gilt gleich für alle Einträge mit derselben Erweiterung.
                 </p>
+                {manualByNumber.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => link(manualByNumber)}
+                    className="mt-3 rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                  >
+                    {manualByNumber.length} mit passender Kartennummer verknüpfen
+                  </button>
+                )}
                 <ul className="mt-3 divide-y divide-gray-100 dark:divide-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow">
                   {groups.none.map(renderRow)}
                 </ul>
