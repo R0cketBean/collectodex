@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, protocol, net, session } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 const { autoUpdater } = require('electron-updater');
@@ -6,6 +6,7 @@ const Store = require('electron-store');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const imageStore = require('./imageStore');
+const security = require('./security');
 
 // Nur für Entwicklung und Tests: Datenordner umlenken, damit sich Änderungen
 // am Speicherformat an einer Kopie ausprobieren lassen, ohne die echte
@@ -104,6 +105,19 @@ function migrateImagesOutOfStore() {
 migrateImagesOutOfStore();
 
 let mainWindow;
+// Adresse, unter der die App selbst geladen wird; alles andere gilt als fremd.
+let appUrl = null;
+
+// Öffnet eine Adresse im Standardbrowser – aber nur https (#133). Alles andere
+// (file:, smb:, eigene Schemata anderer Programme) wird verworfen.
+async function openExternal(url) {
+  if (!security.isSafeExternalUrl(url)) {
+    console.warn('Externe Adresse abgelehnt:', String(url).slice(0, 200));
+    return false;
+  }
+  await shell.openExternal(url);
+  return true;
+}
 
 // Verbesserte Fehlerbehandlung
 process.on('uncaughtException', (error) => {
@@ -172,6 +186,8 @@ function createWindow() {
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
+        sandbox: true,
+        webviewTag: false,
         preload: path.join(__dirname, 'preload.js')
       },
       icon: path.join(__dirname, isDev ? '../public/favicon.ico' : 'favicon.ico')
@@ -212,9 +228,10 @@ function createWindow() {
     }
     
     // Stellen Sie sicher, dass der richtige Pfad verwendet wird
-    const startUrl = isDev 
-      ? 'http://localhost:3000' 
-      : `file://${indexPath}`;
+    const startUrl = isDev
+      ? 'http://localhost:3000'
+      : pathToFileURL(indexPath).toString();
+    appUrl = startUrl;
     
     console.log('App wird geladen von:', startUrl);
     console.log('Aktuelles Verzeichnis:', __dirname);
@@ -233,42 +250,30 @@ function createWindow() {
       mainWindow.webContents.openDevTools();
     }
     
-    // Externe Links im Standardbrowser öffnen
+    // Externe Links im Standardbrowser öffnen; ein eigenes Fenster gibt es nie.
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      // Öffne externe URLs im Standardbrowser des Systems
-      shell.openExternal(url);
-      return { action: 'deny' }; // Verhindere, dass Electron ein neues Fenster öffnet
+      void openExternal(url).catch((error) => console.error('Link öffnen fehlgeschlagen:', error));
+      return { action: 'deny' };
     });
-    
+
+    // Das Fenster bleibt bei der App (#133): kein Wechsel auf fremde Seiten,
+    // auch nicht durch eine ins Fenster gezogene Datei. Seitenwechsel der App
+    // laufen über den Hash und lösen dieses Ereignis nicht aus.
+    mainWindow.webContents.on('will-navigate', (event, url) => {
+      if (!security.isAppUrl(url, appUrl)) {
+        event.preventDefault();
+        console.warn('Navigation unterbunden:', String(url).slice(0, 200));
+      }
+    });
+    mainWindow.webContents.on('will-attach-webview', (event) => event.preventDefault());
+
     // Fehlerbehandlung für Ladeprobleme
-    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      // Nur das Laden der App selbst zählt; -3 (ERR_ABORTED) ist eine
+      // abgebrochene bzw. oben unterbundene Navigation und kein Ladefehler.
+      if (!isMainFrame || errorCode === -3) return;
       console.error('Fehler beim Laden der App:', errorCode, errorDescription);
       console.error('Fehler beim Laden von URL:', startUrl);
-      
-      // Versuche, die index.html direkt zu laden
-      if (!isDev && errorCode === -6) { // ERR_FILE_NOT_FOUND
-        console.log('Versuche, die index.html direkt zu laden...');
-        
-        // Suche nach der Datei
-        const hardcodedPaths = [
-          '/Applications/CollectODex.app/Contents/build/index.html',
-          path.join(app.getAppPath(), 'build/index.html'),
-          path.join(process.resourcesPath, 'build/index.html')
-        ];
-        
-        for (const testPath of hardcodedPaths) {
-          try {
-            if (fs.existsSync(testPath)) {
-              console.log(`Gefunden: ${testPath}`);
-              const htmlContent = fs.readFileSync(testPath, 'utf8');
-              mainWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent));
-              return;
-            }
-          } catch (err) {
-            console.error(`Fehler beim Lesen von ${testPath}:`, err);
-          }
-        }
-      }
       
       // Zeige einen Fehler-Dialog
       dialog.showErrorBox(
@@ -305,6 +310,8 @@ function registerImageProtocol() {
 
 // App Events
 app.on('ready', () => {
+  // Die App braucht keine Browser-Berechtigungen (Kamera, Standort, Mitteilungen …).
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   registerImageProtocol();
   createWindow();
 });
@@ -321,29 +328,42 @@ app.on('activate', () => {
   }
 });
 
-// IPC Event Handler für Datenspeicherung
-ipcMain.handle('store-get', async (event, key) => {
+// IPC (#133): Anfragen nimmt der Hauptprozess nur vom Hauptfenster an, solange
+// dort die App selbst geladen ist.
+function isTrustedSender(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return false;
+  const frame = event.senderFrame;
+  return Boolean(frame) && security.isAppUrl(frame.url, appUrl);
+}
+
+function handle(channel, listener) {
+  ipcMain.handle(channel, (event, ...args) => {
+    if (!isTrustedSender(event)) {
+      throw new Error(`IPC ${channel}: Absender nicht erlaubt`);
+    }
+    return listener(event, ...args);
+  });
+}
+
+// Datenspeicherung: nur die bekannten Schlüssel, kein Löschen oder Leeren.
+handle('store-get', async (event, key) => {
+  if (!security.isAllowedStoreKey(key)) {
+    throw new Error(`Unbekannter Speicherschlüssel: ${String(key).slice(0, 80)}`);
+  }
   return store.get(key);
 });
 
-ipcMain.handle('store-set', async (event, key, data) => {
+handle('store-set', async (event, key, data) => {
+  if (!security.isAllowedStoreKey(key)) {
+    throw new Error(`Unbekannter Speicherschlüssel: ${String(key).slice(0, 80)}`);
+  }
   store.set(key, data);
-  return true;
-});
-
-ipcMain.handle('store-delete', async (event, key) => {
-  store.delete(key);
-  return true;
-});
-
-ipcMain.handle('store-clear', async () => {
-  store.clear();
   return true;
 });
 
 // Bilder (#120): neue Bilder als Datei ablegen bzw. für Export und Backup
 // wieder als Data-URL liefern.
-ipcMain.handle('images:save', async (event, dataUrl) => {
+handle('images:save', async (event, dataUrl) => {
   try {
     return imageStore.saveDataUrl(imagesDir(), dataUrl);
   } catch (error) {
@@ -353,7 +373,7 @@ ipcMain.handle('images:save', async (event, dataUrl) => {
 });
 
 // Vorschaubild zu einem abgelegten Bild speichern (#128).
-ipcMain.handle('images:save-thumb', async (event, ref, dataUrl) => {
+handle('images:save-thumb', async (event, ref, dataUrl) => {
   try {
     return imageStore.saveThumbnail(imagesDir(), ref, dataUrl);
   } catch (error) {
@@ -362,7 +382,7 @@ ipcMain.handle('images:save-thumb', async (event, ref, dataUrl) => {
   }
 });
 
-ipcMain.handle('images:read', async (event, ref) => {
+handle('images:read', async (event, ref) => {
   try {
     return imageStore.readAsDataUrl(imagesDir(), ref);
   } catch (error) {
@@ -372,22 +392,16 @@ ipcMain.handle('images:read', async (event, ref) => {
 });
 
 // IPC Handler für das Öffnen von externen URLs
-ipcMain.handle('open-external-url', async (event, url) => {
-  if (url) {
-    await shell.openExternal(url);
-    return true;
-  }
-  return false;
-});
+handle('open-external-url', async (event, url) => openExternal(url));
 
 // IPC Handler für Auto-Update (#20): Download bzw. Installation werden vom
 // Renderer (UpdateNotification) per Button-Klick angestoßen.
-ipcMain.handle('update:download', async () => {
+handle('update:download', async () => {
   await autoUpdater.downloadUpdate();
   return true;
 });
 
-ipcMain.handle('update:install', async () => {
+handle('update:install', async () => {
   // Beendet die App und installiert das geladene Update.
   autoUpdater.quitAndInstall();
   return true;
@@ -397,7 +411,7 @@ ipcMain.handle('update:install', async () => {
 // gibt es keine Update-Konfiguration — dann meldet { supported: false }
 // zurück, damit die UI einen passenden Hinweis statt eines Fehlers zeigt.
 // Im gepackten Betrieb laufen die Ergebnisse über die update:*-Events.
-ipcMain.handle('update:check', async () => {
+handle('update:check', async () => {
   if (isDev || !app.isPackaged) {
     return { supported: false };
   }
@@ -413,7 +427,7 @@ ipcMain.handle('update:check', async () => {
 });
 
 // Aktuelle App-Version für die Anzeige im Settings-Tab.
-ipcMain.handle('app:version', async () => app.getVersion());
+handle('app:version', async () => app.getVersion());
 
 // --- Auto-Backup (#91) -----------------------------------------------------
 // Das eigentliche Schreiben ins Dateisystem muss im Main-Prozess passieren.
@@ -422,7 +436,7 @@ ipcMain.handle('app:version', async () => app.getVersion());
 const BACKUP_PREFIX = 'collectodex-backup-';
 
 // Ordnerauswahl-Dialog; liefert den gewählten Pfad oder null bei Abbruch.
-ipcMain.handle('backup:choose-folder', async () => {
+handle('backup:choose-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Ordner für automatische Backups wählen',
     properties: ['openDirectory', 'createDirectory'],
@@ -434,7 +448,7 @@ ipcMain.handle('backup:choose-folder', async () => {
 });
 
 // Schreibt ein Backup und behält nur die jüngsten `keep` Dateien.
-ipcMain.handle('backup:write', async (event, payload) => {
+handle('backup:write', async (event, payload) => {
   try {
     const { folder, json, keep } = payload || {};
     if (!folder || typeof json !== 'string') {
@@ -473,8 +487,14 @@ ipcMain.handle('backup:write', async (event, payload) => {
 });
 
 // Öffnet den Backup-Ordner im Finder/Explorer.
-ipcMain.handle('backup:open-folder', async (event, folder) => {
-  if (!folder) return false;
+handle('backup:open-folder', async (event, folder) => {
+  // Nur vorhandene Ordner: openPath würde sonst auch Programme starten.
+  if (typeof folder !== 'string' || !folder) return false;
+  try {
+    if (!fs.statSync(folder).isDirectory()) return false;
+  } catch {
+    return false;
+  }
   await shell.openPath(folder);
   return true;
 });

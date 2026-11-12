@@ -74,7 +74,7 @@ Die fertigen Builds gibt es auf der **[Releases-Seite](https://github.com/R0cket
 
 ## Entwicklung
 
-Voraussetzungen: **Node.js 18+** und **npm 9+**.
+Voraussetzungen: **Node.js 22.12+** und **npm 10+**.
 
 ```bash
 npm install
