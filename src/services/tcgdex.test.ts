@@ -5,6 +5,8 @@ import {
   catalogCardImageSources,
   displaySetName,
   fetchSet,
+  fetchSetList,
+  localizeSet,
   pokemonTcgIoImage,
   pokemonTcgIoSetId,
   mapLimit,
@@ -202,5 +204,43 @@ describe('Katalogsprachen', () => {
     expect(setLogoSources({ id: 'SV2a', symbol: 'https://assets.tcgdex.net/univ/SV/SV2a/symbol' }, 'SV', 'ja')).toEqual([
       { url: 'https://assets.tcgdex.net/univ/SV/SV2a/symbol.webp', lang: 'ja' },
     ]);
+  });
+});
+
+describe('Englische Namen japanischer Sets', () => {
+  it('zeigt den englischen Namen und behält den japanischen', () => {
+    expect(localizeSet({ id: 'SV2a', name: 'ポケモンカード151' }, 'ja')).toEqual({
+      id: 'SV2a',
+      name: 'Pokémon Card 151',
+      originalName: 'ポケモンカード151',
+    });
+  });
+
+  it('lässt Sets ohne Eintrag und andere Sprachen unverändert', () => {
+    expect(localizeSet({ id: 'CS1a', name: 'トリプレットビート' }, 'ja')).toEqual({ id: 'CS1a', name: 'トリプレットビート' });
+    // Dieselbe Kennung in einer anderen Sprache bekommt keinen Namen aus der japanischen Tabelle.
+    expect(localizeSet({ id: 'SV2a', name: 'Something' }, 'en').name).toBe('Something');
+    expect(localizeSet({ id: 'cel25c', name: 'Celebrations Klassische Kollektion' }, 'de').name).toBe(
+      'Celebrations Classic Collection'
+    );
+  });
+
+  it('liefert für die Setliste englischen Namen, japanischen Namen und Cardmarket-Schreibweisen', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          json: async () => [
+            { id: 'SV8a', name: 'テラスタルフェスex' },
+            { id: 'CS1a', name: 'トリプレットビート' },
+          ],
+        }) as Response
+    );
+    expect(await fetchSetList('ja')).toEqual([
+      { id: 'SV8a', names: ['Terastal Fest ex', 'テラスタルフェスex', 'Terastal Festival ex'] },
+      { id: 'CS1a', names: ['トリプレットビート'] },
+    ]);
+    fetchMock.mockRestore();
   });
 });

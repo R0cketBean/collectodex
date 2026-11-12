@@ -9,7 +9,7 @@
 // übereinstimmen (Nummer UND Name, oder Set UND eindeutiger Name). Alles
 // andere wird dem Nutzer zur Auswahl vorgelegt, nie still übernommen.
 
-import type { CollectionItem } from '../types/models';
+import type { Category, CollectionItem } from '../types/models';
 
 /** Vereinheitlicht Text für Vergleiche: klein, ohne Akzente und Sonderzeichen. */
 export const normalizeName = (s: string) =>
@@ -74,10 +74,17 @@ export const candidateSetIds = (sets: CatalogSetName[], item: CollectionItem): s
   return [...ids];
 };
 
+// Japanische Schrift fällt beim Vereinheitlichen weg; von „リザードンex“ bliebe
+// nur „ex“ und passte dann zu jeder ex-Karte. Solche Namen sind nicht vergleichbar.
+const JAPANESE_SCRIPT = /[\u3040-\u30ff\u3400-\u9fff]/;
+
 const namesAgree = (a: string, b: string) => {
+  if (JAPANESE_SCRIPT.test(a) || JAPANESE_SCRIPT.test(b)) return false;
   const x = normalizeName(a);
   const y = normalizeName(b);
-  return x.length > 0 && y.length > 0 && (x.includes(y) || y.includes(x));
+  if (x.length === 0 || y.length === 0) return false;
+  // Sehr kurze Namen („d“ bei einzelnen Katalogkarten) stecken in fast jedem anderen.
+  return x === y || (Math.min(x.length, y.length) >= 3 && (x.includes(y) || y.includes(x)));
 };
 
 const cardNameAgrees = (name: string, card: CatalogCardName) =>
@@ -86,9 +93,28 @@ const cardNameAgrees = (name: string, card: CatalogCardName) =>
 const sameNumber = (card: CatalogCardName, number: string | null | undefined) =>
   Boolean(number) && card.localId.replace(/^0+(?=\d)/, '') === number;
 
-/** Ob die Nummer im Cardmarket-Link des Eintrags zur Karte passt. */
-export const linkNumberMatches = (item: CollectionItem, card: CatalogCardName) =>
-  sameNumber(card, parseCardmarketLink(itemProductLink(item))?.number);
+/**
+ * Kartennummer aus dem Link, wenn dessen letzter Abschnitt mit dem Kürzel des
+ * Sets beginnt. Cardmarket hängt bei japanischen Karten Set-Kürzel und Nummer
+ * zusammen: „sv2a201“ ist Nr. 201 in SV2a, „sm9001“ Nr. 1 in SM9 (und nicht
+ * Nr. 9001). Das Kürzel im Link bestätigt zugleich das Set.
+ * @param setKey Set-Kennung, auch mit Sprachpräfix („ja:SM9“)
+ */
+export const linkNumberWithSetCode = (item: Pick<CollectionItem, 'links'>, setKey: string): string | null => {
+  const tail = /\/Singles\/[^/?#]+\/([^/?#]+)/.exec(itemProductLink(item) ?? '')?.[1].split('-').pop() ?? '';
+  const code = setKey.replace(/^(en|ja):/, '').toLowerCase();
+  if (!code || !tail.toLowerCase().startsWith(code)) return null;
+  const rest = /^(\d+)[a-z]?$/.exec(tail.slice(code.length).toLowerCase());
+  return rest ? rest[1].replace(/^0+(?=\d)/, '') : null;
+};
+
+/** Nummer aus dem Link für ein bestimmtes Set: mit Set-Kürzel, sonst die allgemein gelesene. */
+const linkNumberIn = (item: CollectionItem, setKey: string | undefined) =>
+  (setKey ? linkNumberWithSetCode(item, setKey) : null) ?? parseCardmarketLink(itemProductLink(item))?.number;
+
+/** Ob die Nummer im Cardmarket-Link des Eintrags zur Karte passt (im Set `setKey`, falls angegeben). */
+export const linkNumberMatches = (item: CollectionItem, card: CatalogCardName, setKey?: string) =>
+  sameNumber(card, linkNumberIn(item, setKey));
 
 const isJapanese = (item: CollectionItem) =>
   typeof item.values?.language === 'string' && /^jap/i.test(item.values.language);
@@ -106,7 +132,7 @@ export const manualCandidates = (
   const name = typeof item.values?.name === 'string' ? item.values.name : '';
   const byNumber = (a: CatalogCardName, b: CatalogCardName) =>
     a.localId.localeCompare(b.localId, 'de', { numeric: true, sensitivity: 'base' });
-  const number = parseCardmarketLink(itemProductLink(item))?.number;
+  const number = linkNumberIn(item, setId);
   const numbered = cards.filter((c) => sameNumber(c, number));
   const matching = cards.filter((c) => !numbered.includes(c) && cardNameAgrees(name, c)).sort(byNumber);
   const rest = cards.filter((c) => !numbered.includes(c) && !matching.includes(c)).sort(byNumber);
@@ -138,14 +164,18 @@ export const suggestMatch = (
   const link = parseCardmarketLink(itemProductLink(item));
   const known = setIds.filter((id) => cardsBySet[id]);
   if (known.length === 0) {
-    return { status: 'none', candidates: [], reason: 'Set nicht im deutschen Katalog' };
+    return { status: 'none', candidates: [], reason: 'Set nicht im Katalog gefunden' };
   }
 
   const byNumber: MatchSuggestion['candidates'] = [];
   const byName: MatchSuggestion['candidates'] = [];
+  // Treffer, bei denen der Link das Set-Kürzel selbst nennt („sv2a201“ im Set SV2a).
+  const byCode: MatchSuggestion['candidates'] = [];
   for (const setId of known) {
+    const coded = linkNumberWithSetCode(item, setId);
     for (const card of cardsBySet[setId] ?? []) {
-      if (sameNumber(card, link?.number)) byNumber.push({ setId, card });
+      if (sameNumber(card, coded ?? link?.number)) byNumber.push({ setId, card });
+      if (sameNumber(card, coded)) byCode.push({ setId, card });
       if (cardNameAgrees(name, card)) byName.push({ setId, card });
     }
   }
@@ -154,8 +184,13 @@ export const suggestMatch = (
     return { status: 'none', candidates: [], reason: 'Keine passende Karte im Set gefunden' };
   }
 
-  // Japanische Karten stammen aus anderen Sets; gleiche Namen sind Zufall.
+  // Japanische Karten heißen im Katalog japanisch, der Name taugt nicht zum
+  // Vergleich. Sicher ist ein Treffer nur, wenn Set (über Name oder Link
+  // gefunden) und Set-Kürzel im Link übereinstimmen und die Nummer eindeutig ist.
   if (isJapanese(item)) {
+    if (byCode.length === 1) {
+      return { status: 'sure', best: byCode[0], candidates, reason: 'Set-Kürzel und Nummer aus dem Link stimmen überein' };
+    }
     return { status: 'review', best: candidates[0], candidates, reason: 'Japanische Karte – bitte prüfen' };
   }
   const numberAndName = byNumber.filter((c) => cardNameAgrees(name, c.card));
@@ -175,3 +210,25 @@ export const suggestMatch = (
         : 'Mehrere Karten kommen in Frage',
   };
 };
+
+// --- Welche Einträge überhaupt Karten sind ---------------------------------
+
+/**
+ * Ob eine Kategorie von Haus aus Karten enthält: Sie führt das Feld
+ * „Erweiterung“ (wie Einzelkarten und gegradete Karten). Sealed-Produkte,
+ * Zubehör und Ähnliches gehören zwar zu einem Set, sind aber keine Karte aus
+ * dem Katalog.
+ */
+export const isCardCategory = (category: Pick<Category, 'attributes'>) =>
+  (category.attributes ?? []).some((a) => a.id === 'expansion');
+
+/**
+ * Kategorien, deren Einträge der Verknüpfungs-Assistent anbietet. Die
+ * Vorgabe ergibt sich aus `isCardCategory`; `overrides` (Kategorie → an/aus)
+ * hält fest, was der Nutzer davon abweichend gewählt hat.
+ */
+export const linkCategoryIds = (
+  categories: Array<Pick<Category, 'id' | 'attributes'>>,
+  overrides: Record<string, boolean> = {}
+): Set<string> =>
+  new Set(categories.filter((c) => overrides[c.id] ?? isCardCategory(c)).map((c) => c.id));

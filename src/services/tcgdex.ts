@@ -6,6 +6,7 @@
 // eines Sets nachträglich mit begrenzter Parallelität (mapLimit) und hält sie
 // im Speicher plus localStorage vor, damit ein erneutes Öffnen schnell ist.
 
+import { JAPANESE_SET_ALIASES, japaneseSetName } from '../data/japaneseSetNames';
 import type { CatalogLang } from '../types/models';
 
 const API_ROOT = 'https://api.tcgdex.net/v2';
@@ -29,6 +30,16 @@ export const isCatalogLang = (value: unknown): value is CatalogLang =>
  */
 export const displaySetName = (name: string) => name.replace(/Klassische (Kollektion|Sammlung)/g, 'Classic Collection');
 
+/**
+ * Setzt den Anzeigenamen eines Sets. Japanische Sets bekommen den englischen
+ * Namen aus der festen Tabelle (so heißen sie auch bei Cardmarket); der
+ * japanische bleibt als `originalName` erhalten.
+ */
+export const localizeSet = <T extends { id: string; name: string }>(set: T, lang: Lang): T & { originalName?: string } => {
+  const english = lang === 'ja' ? japaneseSetName(set.id) : undefined;
+  return english ? { ...set, name: english, originalName: set.name } : { ...set, name: displaySetName(set.name) };
+};
+
 /** Preise werden bei TCGdex etwa einmal täglich aktualisiert. */
 const CARD_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const CARD_CACHE_PREFIX = 'tcgdex:card:';
@@ -42,6 +53,8 @@ export interface CardCount {
 export interface SetBrief {
   id: string;
   name: string;
+  /** Name in der Sprache des Sets, wenn `name` eine Übersetzung ist (japanische Sets). */
+  originalName?: string;
   logo?: string;
   symbol?: string;
   cardCount: CardCount;
@@ -379,7 +392,7 @@ export async function fetchCatalog(lang: Lang = 'de'): Promise<SerieDetail[]> {
   );
   return details
     .filter((d): d is SerieDetail => d !== null && Array.isArray(d.sets) && d.sets.length > 0)
-    .map((d) => ({ ...d, sets: [...d.sets].reverse().map((s) => ({ ...s, name: displaySetName(s.name) })) }))
+    .map((d) => ({ ...d, sets: [...d.sets].reverse().map((s) => localizeSet(s, lang)) }))
     .sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''));
 }
 
@@ -400,11 +413,18 @@ export async function fetchSetNames(): Promise<Array<{ id: string; names: string
   }));
 }
 
-/** Alle Sets einer Sprache mit Kennung und Namen (für die Auswahl von Hand). */
+/**
+ * Alle Sets einer Sprache mit Kennung und Namen. Der erste Name dient der
+ * Anzeige. Japanische Sets tragen zuerst den englischen Namen, dann den
+ * japanischen, danach abweichende Schreibweisen nur für den Vergleich.
+ */
 export async function fetchSetList(lang: Lang): Promise<Array<{ id: string; names: string[] }>> {
   if (lang === 'de') return fetchSetNames();
   const sets = await cachedJson<SetBrief[]>('/sets', lang);
-  return sets.map((s) => ({ id: s.id, names: [s.name] }));
+  return sets.map((s) => {
+    const english = lang === 'ja' ? japaneseSetName(s.id) : undefined;
+    return { id: s.id, names: english ? [english, s.name, ...(JAPANESE_SET_ALIASES[s.id] ?? [])] : [s.name] };
+  });
 }
 
 /**
@@ -416,7 +436,7 @@ export async function fetchSetList(lang: Lang): Promise<Array<{ id: string; name
 export async function fetchSet(setId: string, lang: Lang = 'de'): Promise<SetDetail> {
   const path = `/sets/${encodeURIComponent(setId)}`;
   const raw = await cachedJson<SetDetail>(path, lang);
-  const set = { ...raw, name: displaySetName(raw.name) };
+  const set = localizeSet(raw, lang);
   if (lang !== 'de' || (Array.isArray(set.cards) && set.cards.length > 0)) return { ...set, cards: set.cards ?? [] };
   const english = await cachedJson<SetDetail>(path, 'en').catch(() => null);
   return english?.cards?.length ? { ...set, cards: english.cards } : { ...set, cards: set.cards ?? [] };

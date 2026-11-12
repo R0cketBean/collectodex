@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { CollectionItem } from '../types/models';
-import { candidateSetIds, findSetIds, manualCandidates, parseCardmarketLink, suggestMatch } from './catalogMatch';
+import {
+  candidateSetIds,
+  findSetIds,
+  isCardCategory,
+  linkCategoryIds,
+  linkNumberMatches,
+  linkNumberWithSetCode,
+  manualCandidates,
+  parseCardmarketLink,
+  suggestMatch,
+} from './catalogMatch';
 
 const item = (values: Record<string, unknown>, product?: string): CollectionItem =>
   ({
@@ -134,5 +144,78 @@ describe('Zuordnung über Nummer und Zweitnamen', () => {
     const english = { 'en:base1': [{ id: 'base1-4', localId: '4', name: 'Charizard', altName: 'Glurak' }] };
     const s = suggestMatch(item({ name: 'Glurak', language: 'Englisch' }, `${CM}/Base-Set/Charizard-V1-BS4`), ['en:base1'], english);
     expect(s).toMatchObject({ status: 'sure', best: { setId: 'en:base1' } });
+  });
+});
+
+describe('Japanische Karten über Set-Kürzel und Nummer im Link', () => {
+  const ja = (name: string, product: string) => item({ name, language: 'japanisch' }, `${CM}/${product}`);
+  const jaSets = [
+    { id: 'SV2a', names: ['Pokémon Card 151', 'ポケモンカード151'] },
+    { id: 'SM9', names: ['Tag Bolt', 'タッグボルト'] },
+    { id: 'SM12a', names: ['TAG TEAM GX: Tag All Stars', 'TAG TEAM GX タッグオールスターズ', 'Tag All Stars'] },
+  ];
+  const cards = {
+    'ja:SV2a': [
+      { id: 'SV2a-006', localId: '006', name: 'リザードンex' },
+      { id: 'SV2a-201', localId: '201', name: 'リザードンex' },
+    ],
+    'ja:SM9': [{ id: 'SM9-001', localId: '001', name: 'セレビィ&フシギバナGX' }],
+  };
+
+  it('findet das japanische Set über den englischen Namen und die Cardmarket-Schreibweise', () => {
+    expect(candidateSetIds(jaSets, item({ name: 'Glurak ex', expansion: 'Pokémon Card 151' }))).toEqual(['SV2a']);
+    expect(candidateSetIds(jaSets, ja('Willi', 'Tag-All-Stars/Will'))).toEqual(['SM12a']);
+  });
+
+  it('trennt Set-Kürzel und Nummer, auch wenn das Kürzel auf eine Ziffer endet', () => {
+    const celebi = ja('Celebi & Venusaur GX', 'Tag-Bolt/Celebi-Venusaur-GX-V1-sm9001');
+    expect(parseCardmarketLink(celebi.links?.product)?.number).toBe('9001');
+    expect(linkNumberWithSetCode(celebi, 'ja:SM9')).toBe('1');
+    expect(linkNumberMatches(celebi, cards['ja:SM9'][0], 'ja:SM9')).toBe(true);
+    expect(linkNumberMatches(celebi, cards['ja:SM9'][0])).toBe(false);
+    // Ein anderes Set oder ein Buchstabe nach dem Kürzel (SM9a) passt nicht.
+    expect(linkNumberWithSetCode(celebi, 'ja:SV2a')).toBeNull();
+    expect(linkNumberWithSetCode(ja('X', 'Night-Unison/X-sm9a012'), 'ja:SM9')).toBeNull();
+    expect(linkNumberWithSetCode(item({ name: 'Glurak' }, `${CM}/Base-Set/Charizard-V1-BS4`), 'base1')).toBeNull();
+  });
+
+  it('ist sicher, wenn Set-Kürzel und Nummer im Link zum gefundenen Set passen', () => {
+    const glurak = suggestMatch(ja('Glurak ex', 'Pokemon-Card-151/Charizard-ex-V3-sv2a201'), ['ja:SV2a'], cards);
+    expect(glurak).toMatchObject({ status: 'sure', best: { setId: 'ja:SV2a', card: { id: 'SV2a-201' } } });
+    const celebi = suggestMatch(ja('Celebi & Venusaur GX', 'Tag-Bolt/Celebi-Venusaur-GX-V1-sm9001'), ['ja:SM9'], cards);
+    expect(celebi).toMatchObject({ status: 'sure', best: { card: { id: 'SM9-001' } } });
+  });
+
+  it('hält japanische und sehr kurze Katalognamen nicht für eine Übereinstimmung', () => {
+    // „リザードンex“ würde vereinheitlicht zu „ex“, ein Kartenname „d“ steckt in „Despotar“.
+    const odd = { 'ja:neo2': [{ id: 'neo2-025', localId: '025', name: 'd' }, ...cards['ja:SV2a']] };
+    expect(suggestMatch(ja('Despotar ex', 'Crossing-the-Ruins/Tyranitar-CTR'), ['ja:neo2'], odd).status).toBe('none');
+  });
+
+  it('bleibt ohne Set-Kürzel im Link bei „kein Treffer“ oder „bitte prüfen“', () => {
+    expect(suggestMatch(ja('Glurak ex', 'Pokemon-Card-151/Charizard-ex'), ['ja:SV2a'], cards).status).toBe('none');
+    // Nummer ohne Set-Kürzel: nur ein Vorschlag.
+    expect(suggestMatch(ja('Glurak ex', 'Pokemon-Card-151/Charizard-ex-201'), ['ja:SV2a'], cards).status).toBe('review');
+  });
+});
+
+describe('Kategorien mit Karten', () => {
+  const attr = (id: string) => ({ id, name: id, type: 'text' as const, required: false, order: 0 });
+  const categories = [
+    { id: 'singles', attributes: [attr('name'), attr('expansion')] },
+    { id: 'graded', attributes: [attr('name'), attr('expansion'), attr('grade')] },
+    // Sealed führt die Erweiterung als selbst angelegtes Feld mit eigener Kennung.
+    { id: 'sealed', attributes: [attr('name'), attr('attr_1234')] },
+    { id: 'cat_zubehoer', attributes: [attr('name')] },
+  ];
+
+  it('nimmt in der Vorgabe nur Kategorien mit dem Feld „Erweiterung“', () => {
+    expect(isCardCategory(categories[0])).toBe(true);
+    expect(isCardCategory(categories[2])).toBe(false);
+    expect([...linkCategoryIds(categories)]).toEqual(['singles', 'graded']);
+  });
+
+  it('folgt der abweichenden Wahl des Nutzers', () => {
+    expect([...linkCategoryIds(categories, { graded: false, cat_zubehoer: true })]).toEqual(['singles', 'cat_zubehoer']);
   });
 });
