@@ -196,7 +196,10 @@ export const ValueDistributionChart: React.FC<{
 export const CategoryHistoryChart: React.FC<{
   data: Array<Record<string, number | string>>;
   series: { key: string; name: string; color: string }[];
-}> = ({ data, series }) => (
+  /** Einzelne Messpunkte zeigen – für kurze Reihen, bei denen jeder Punkt zählt. */
+  dots?: boolean;
+  legend?: boolean;
+}> = ({ data, series, dots = false, legend = true }) => (
   <ResponsiveContainer width="100%" height="100%">
     <LineChart data={data} margin={{ top: 5, right: 20, left: 5, bottom: 5 }}>
       <CartesianGrid strokeDasharray="3 3" />
@@ -204,10 +207,10 @@ export const CategoryHistoryChart: React.FC<{
       <YAxis
         tickFormatter={(value) => formatEurWhole(Number(value))}
         tick={{ fontSize: 10 }}
-        width={40}
+        width={56}
       />
       <Tooltip content={<MultiLineTooltip />} />
-      <Legend />
+      {legend && <Legend />}
       {series.map((s) => (
         <Line
           key={s.key}
@@ -215,7 +218,7 @@ export const CategoryHistoryChart: React.FC<{
           dataKey={s.key}
           name={s.name}
           stroke={s.color}
-          dot={false}
+          dot={dots ? { r: 3 } : false}
           activeDot={{ r: 5 }}
           isAnimationActive={false}
         />
@@ -238,7 +241,7 @@ export const ValueHistoryChart: React.FC<{ valueData: ValueDatum[] }> = ({
       <YAxis
         tickFormatter={(value) => formatEurWhole(Number(value))}
         tick={{ fontSize: 10 }}
-        width={40}
+        width={56}
       />
       <Tooltip content={<LineTooltip />} />
       <Legend />

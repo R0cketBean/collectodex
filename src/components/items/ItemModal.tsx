@@ -6,6 +6,7 @@ import { logger } from '../../utils/logger';
 import { inputClass, primaryButtonClass, secondaryButtonClass, selectClass } from '../../utils/formStyles';
 import { getOrderedImages, createExtraImageKey, FRONT_IMAGE_KEY, BACK_IMAGE_KEY, ItemImage } from '../../utils/itemImages';
 import ImageLightbox from '../common/ImageLightbox';
+import ItemValueTrail from './ItemValueTrail';
 import { parseDateInput } from '../../utils/dateInput';
 import { prepareImageFile, storeImage } from '../../utils/imageStorage';
 import { normalizeLinkUrl } from '../../utils/itemLinks';
@@ -661,6 +662,10 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
                       </div>
                     ))}
                   </div>
+
+                  {item && category.attributes.some((attr) => attr.id === 'currentValue') && (
+                    <ItemValueTrail trail={item.valueTrail} />
+                  )}
                 </div>
               </div>
             </div>

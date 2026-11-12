@@ -13,6 +13,8 @@ import {
   averageHoldingDays,
   formatHoldingDuration,
   formatPercent,
+  topPerformers,
+  worstPerformers,
 } from '../utils/statistics';
 import { formatEur, formatSignedEur } from '../utils/format';
 import { ChartBarIcon } from '@heroicons/react/24/outline';
@@ -85,12 +87,12 @@ const Statistics: React.FC = () => {
   );
   const overallRoi = roi(summary.totalCost, summary.totalValue);
 
-  // Rangliste nach Rendite-% (nur Positionen mit gültiger Rendite).
-  const ranked = itemStats
-    .filter((s) => s.roiFrac != null)
-    .sort((a, b) => (b.roiFrac as number) - (a.roiFrac as number));
-  const top = ranked.slice(0, 5);
-  const flop = ranked.length > 5 ? ranked.slice(5).slice(-5).reverse() : [];
+  // Ranglisten nach Rendite: oben nur Einträge im Plus, unten nur Einträge im Minus (#132).
+  // Einträge ohne aktuellen Wert bleiben außen vor: Sie sind noch nicht bewertet, kein Totalverlust.
+  const valued = itemStats.filter((s) => s.value > 0);
+  const unvalued = itemStats.filter((s) => s.cost > 0 && s.value <= 0).length;
+  const top = topPerformers(valued);
+  const flop = worstPerformers(valued);
 
   // Wertverlauf je Kategorie aus den gespeicherten Snapshots.
   const sortedHistory = [...valueHistory].sort((a, b) => a.date.localeCompare(b.date));
@@ -158,7 +160,7 @@ const Statistics: React.FC = () => {
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                     {s.categoryName} · Haltedauer {formatHoldingDuration(s.days)}
-                    {s.paFrac != null && <> · {formatPercent(s.paFrac)} p.a.</>}
+                    {s.paFrac != null && <> · {formatPercent(s.paFrac)} pro Jahr</>}
                   </p>
                 </div>
                 <div className="text-right whitespace-nowrap">
@@ -233,16 +235,22 @@ const Statistics: React.FC = () => {
           </div>
 
           {/* Top / Flop nach Rendite */}
-          <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <p className="mt-8 text-sm text-gray-500 dark:text-gray-400">
+            Die Rendite pro Jahr steht nur bei Einträgen, die du seit mindestens einem Jahr hältst. Bei kürzerer
+            Haltedauer wäre sie eine Hochrechnung.
+            {unvalued > 0 &&
+              ` ${unvalued === 1 ? '1 Eintrag ohne aktuellen Wert ist' : `${unvalued} Einträge ohne aktuellen Wert sind`} in den Listen nicht berücksichtigt.`}
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <PerformanceList
               title="Beste Rendite"
               rows={top}
-              empty="Noch keine Positionen mit Kaufpreis."
+              empty="Noch kein Eintrag mit Kaufpreis liegt im Plus."
             />
             <PerformanceList
-              title="Schwächste Rendite"
+              title="Größte Verluste"
               rows={flop}
-              empty="Zu wenige Positionen für einen Vergleich."
+              empty="Kein Eintrag liegt im Minus."
             />
           </div>
         </>

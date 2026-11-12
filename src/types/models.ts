@@ -47,6 +47,12 @@ export interface CatalogRef {
   lang?: CatalogLang;
 }
 
+/** Ein Punkt im Wertverlauf eines Eintrags: Wert je Stück an einem Tag ('YYYY-MM-DD'). */
+export interface ValuePoint {
+  date: string;
+  value: number;
+}
+
 // Ein generischer Sammlungseintrag
 export interface CollectionItem {
   id: string;
@@ -62,6 +68,7 @@ export interface CollectionItem {
   };
   catalog?: CatalogRef; // Verknüpfte Katalogkarte (zählt im Katalog als vorhanden)
   valueCheckedAt?: string; // ISO-Zeitpunkt, zu dem der aktuelle Wert zuletzt gesetzt oder bestätigt wurde
+  valueTrail?: ValuePoint[]; // Verlauf des aktuellen Werts, ein Punkt je Tag mit Änderung (#132)
   createdAt: Date;
   updatedAt: Date;
 }

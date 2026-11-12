@@ -172,3 +172,24 @@ describe('useItems – Änderungen', () => {
     expect(result.current.getItemsByCategoryId('singles')).toHaveLength(1);
   });
 });
+
+describe('useItems – Wertverlauf', () => {
+  it('beginnt beim Anlegen und hält Wertänderungen fest, andere Änderungen nicht', () => {
+    vi.setSystemTime(new Date(2026, 10, 1, 12));
+    const { result } = renderHook(() => useItems());
+    let id = '';
+    act(() => {
+      id = result.current.addItem('singles', { name: 'Glurak', currentValue: 10 });
+    });
+    expect(result.current.items[0].valueTrail).toEqual([{ date: '2026-11-01', value: 10 }]);
+
+    vi.setSystemTime(new Date(2026, 10, 12, 12));
+    act(() => result.current.updateItem(id, { name: 'Glurak ex' }));
+    expect(result.current.items[0].valueTrail).toHaveLength(1);
+    act(() => result.current.updateMultipleItems([id], { currentValue: 25 }));
+    expect(result.current.items[0].valueTrail).toEqual([
+      { date: '2026-11-01', value: 10 },
+      { date: '2026-11-12', value: 25 },
+    ]);
+  });
+});
