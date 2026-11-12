@@ -40,6 +40,8 @@ export interface ElectronAPI {
   // Bilder (#120): Ablage als Datei, Rückgabe ist ein Verweis (cdx-image://…).
   saveImage: (dataUrl: string) => Promise<string | null>;
   readImage: (ref: string) => Promise<string | null>;
+  // Vorschaubild (#128) zu einem abgelegten Bild; fehlt in älteren App-Versionen.
+  saveThumbnail?: (ref: string, dataUrl: string) => Promise<string | null>;
 
   // Auto-Backup (#91)
   chooseBackupFolder: () => Promise<string | null>;

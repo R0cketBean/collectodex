@@ -12,6 +12,10 @@ import {
   useCollectionActions,
 } from '../context/CollectionContext';
 import { colorClassForCategory } from '../utils/categoryVisuals';
+import GettingStarted from '../components/dashboard/GettingStarted';
+import EmptyState from '../components/common/EmptyState';
+import { primaryButtonClass } from '../utils/formStyles';
+import { firstEntryHref } from '../utils/onboarding';
 
 // recharts (~1 MB) wird verzögert geladen, damit es nicht im Start-Bundle
 // liegt (#19). Bis die Charts geladen sind, zeigt Suspense einen Platzhalter.
@@ -111,6 +115,9 @@ const Dashboard: React.FC = () => {
   return (
     <div>
       <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Dashboard</h1>
+
+      {/* Einstieg für neue Nutzer; verschwindet, sobald alles eingerichtet ist. */}
+      <GettingStarted />
       
       {/* Kennzahlen-Karten */}
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -182,8 +189,8 @@ const Dashboard: React.FC = () => {
             </Suspense>
           </div>
           {pieData.length === 0 && (
-            <div className="text-center mt-4 text-gray-500 dark:text-gray-400">
-              Keine Daten verfügbar. Füge Einträge hinzu, um die Verteilung zu sehen.
+            <div className="text-center mt-4 text-sm text-gray-500 dark:text-gray-400">
+              Hier siehst du, wie sich der Wert auf deine Kategorien verteilt, sobald Einträge einen Wert haben.
             </div>
           )}
         </div>
@@ -244,9 +251,18 @@ const Dashboard: React.FC = () => {
         <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-3 sm:mb-4 text-center sm:text-left">Top-Performer</h2>
         <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-lg">
           {items.length === 0 ? (
-            <div className="text-center py-6 px-4">
-              <p className="text-gray-500 dark:text-gray-400">Keine Einträge verfügbar. Füge Einträge hinzu, um Top-Performer zu sehen.</p>
-            </div>
+            <EmptyState
+              plain
+              icon={ChartBarIcon}
+              title="Noch keine Einträge"
+              actions={
+                <Link to={firstEntryHref(categories)} className={primaryButtonClass}>
+                  Ersten Eintrag anlegen
+                </Link>
+              }
+            >
+              Hier stehen die Einträge mit dem größten Gewinn, sobald du Kaufpreis und aktuellen Wert gepflegt hast.
+            </EmptyState>
           ) : (
             <ul className="divide-y divide-gray-200 dark:divide-gray-700">
               {items
@@ -353,21 +369,19 @@ const Dashboard: React.FC = () => {
       
       {/* Hinweis, wenn keine Kategorien vorhanden sind */}
       {categories.length === 0 && (
-        <div className="text-center py-12 bg-white dark:bg-gray-800 shadow rounded-lg mt-8">
-          <ArchiveBoxOutlineIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-          <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">Keine Kategorien vorhanden</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Beginne damit, Kategorien für deine Sammlung anzulegen.
-          </p>
-          <div className="mt-6">
-            <Link
-              to="/category-management"
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-pokemon-blue hover:bg-blue-700"
-            >
-              Kategorien verwalten
+        <EmptyState
+          className="mt-8"
+          icon={ArchiveBoxOutlineIcon}
+          title="Keine Kategorien vorhanden"
+          actions={
+            <Link to="/category-management" className={primaryButtonClass}>
+              Kategorie anlegen
             </Link>
-          </div>
-        </div>
+          }
+        >
+          Kategorien ordnen deine Sammlung, zum Beispiel Sealed-Produkte, gegradete Karten und Einzelkarten. Lege die
+          erste an, danach kannst du Einträge erfassen.
+        </EmptyState>
       )}
     </div>
   );

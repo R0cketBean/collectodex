@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { inputClass } from '../utils/formStyles';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../components/catalog/FallbackImage';
 import { useItemsData } from '../context/CollectionContext';
@@ -116,7 +117,7 @@ const CardCatalog: React.FC = () => {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Set suchen…"
               aria-label="Set suchen"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
+              className={`${inputClass} pl-10`}
             />
           </div>
         </div>

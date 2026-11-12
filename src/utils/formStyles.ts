@@ -19,9 +19,28 @@ export const inputClass = FIELD_BASE;
 /** Mehrzeilige Eingaben. */
 export const textareaClass = FIELD_BASE;
 
-/** Auswahlfelder (etwas mehr rechter Innenabstand für den nativen Pfeil). */
-export const selectClass = `${FIELD_BASE} pr-9`;
+/**
+ * Auswahlfelder. Der Pfeil kommt aus `.cdx-select` (index.css) und sitzt mit
+ * festem Abstand zum Rand; rechts bleibt Platz dafür frei.
+ */
+export const selectClass = `${FIELD_BASE} cdx-select pr-9`;
 
 /** Einheitliche Feld-Beschriftung. */
 export const labelClass =
   'block text-sm font-medium text-gray-700 dark:text-gray-200';
+
+// --- Knöpfe ----------------------------------------------------------------
+// Gleiche Höhe wie die Felder (px-4 py-2, text-sm), damit Knopf und Feld in
+// einer Zeile bündig stehen.
+
+const BUTTON_BASE =
+  'inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-pokemon-blue dark:focus-visible:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed';
+
+/** Hauptaktion einer Seite oder eines Dialogs. */
+export const primaryButtonClass = `${BUTTON_BASE} bg-pokemon-blue text-white shadow-sm hover:bg-blue-700`;
+
+/** Nebenaktion. */
+export const secondaryButtonClass = `${BUTTON_BASE} border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-sm hover:bg-gray-50 dark:hover:bg-gray-700`;
+
+/** Löschen und andere Aktionen, die sich nicht zurücknehmen lassen. */
+export const dangerButtonClass = `${BUTTON_BASE} bg-red-600 text-white shadow-sm hover:bg-red-700`;

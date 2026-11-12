@@ -61,6 +61,29 @@ export const prepareImageFile = async (file: Blob): Promise<string> => {
 };
 
 /**
+ * Verkleinert ein Bild (als Data-URL) auf höchstens `maxEdge` und liefert es
+ * als WebP. null, wenn sich das Bild nicht lesen lässt.
+ */
+export const shrinkDataUrl = async (dataUrl: string, maxEdge: number, quality = 0.8): Promise<string | null> => {
+  try {
+    const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+    const { width, height } = fitWithin(bitmap.width, bitmap.height, maxEdge);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+    const result = canvas.toDataURL('image/webp', quality);
+    return result.startsWith('data:image/webp') ? result : null;
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Legt ein Bild ab und liefert den Wert für `item.images`: in der App einen
  * Verweis, sonst (oder wenn das Ablegen scheitert) die Data-URL selbst.
  */

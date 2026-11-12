@@ -15,6 +15,10 @@ import {
   formatPercent,
 } from '../utils/statistics';
 import { formatEur, formatSignedEur } from '../utils/format';
+import { ChartBarIcon } from '@heroicons/react/24/outline';
+import EmptyState from '../components/common/EmptyState';
+import { primaryButtonClass } from '../utils/formStyles';
+import { firstEntryHref } from '../utils/onboarding';
 
 // recharts verzögert laden (#19), wie auf dem Dashboard.
 const CategoryHistoryChart = lazy(() =>
@@ -178,19 +182,19 @@ const Statistics: React.FC = () => {
       <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Statistik</h1>
 
       {items.length === 0 ? (
-        <div className="mt-6 text-center py-12 bg-white dark:bg-gray-800 shadow rounded-lg">
-          <p className="text-gray-500 dark:text-gray-400">
-            Noch keine Einträge. Füge Einträge hinzu, um Auswertungen zu sehen.
-          </p>
-          <div className="mt-4">
-            <Link
-              to="/"
-              className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white bg-pokemon-blue hover:bg-blue-700"
-            >
-              Zum Dashboard
+        <EmptyState
+          className="mt-6"
+          icon={ChartBarIcon}
+          title="Noch nichts auszuwerten"
+          actions={
+            <Link to={firstEntryHref(categories)} className={primaryButtonClass}>
+              Ersten Eintrag anlegen
             </Link>
-          </div>
-        </div>
+          }
+        >
+          Die Statistik zeigt Rendite, Haltedauer und den Verlauf je Kategorie, sobald deine Sammlung Einträge mit
+          Kaufpreis und Wert enthält.
+        </EmptyState>
       ) : (
         <>
           {/* Kennzahlen */}
