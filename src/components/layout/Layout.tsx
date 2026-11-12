@@ -18,8 +18,10 @@ import {
   ChevronDoubleRightIcon,
   RectangleStackIcon,
   CurrencyEuroIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { useCategoriesData } from '../../context/CollectionContext';
+import GlobalSearch, { searchShortcutLabel } from '../common/GlobalSearch';
 
 // Map von Icon-Namen zu Icon-Komponenten
 const iconMap: Record<string, React.ElementType> = {
@@ -81,7 +83,28 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
+  const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
+
+  // Cmd/Strg+K öffnet die Suche über alle Kategorien (#130) und schließt sie
+  // auch wieder. Solange ein anderer Dialog offen ist (Eintrag bearbeiten,
+  // Großansicht), bleibt das Kürzel ohne Wirkung, damit dort nichts verloren geht.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'k') return;
+      event.preventDefault();
+      setSearchOpen((open) => {
+        if (open) return false;
+        return !document.querySelector('[aria-modal="true"], .fixed.inset-0.overflow-y-auto');
+      });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const openSearch = () => {
+    setSidebarOpen(false);
+    setSearchOpen(true);
+  };
   // Beim Seitenwechsel wieder oben anfangen. Der Inhalt scrollt in <main>,
   // nicht im Fenster – ohne das behielt eine neue Seite die Scroll-Position der
   // alten (z. B. landete man nach der langen Set-Übersicht mitten in einem Set).
@@ -149,6 +172,26 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const renderNavigation = (options: { collapsed: boolean; large: boolean; onNavigate?: () => void }) => (
     <nav className="mt-5 flex flex-1 flex-col px-2" aria-label="Hauptnavigation">
+      <button
+        type="button"
+        onClick={openSearch}
+        aria-label="Sammlung durchsuchen"
+        aria-keyshortcuts="Meta+K Control+K"
+        title={options.collapsed ? `Suchen (${searchShortcutLabel()})` : undefined}
+        className={`mb-3 flex items-center rounded-md bg-white/10 px-2 py-2 text-white/80 transition-colors hover:bg-white/20 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 ${
+          options.large ? 'text-base' : 'text-sm'
+        } ${options.collapsed ? 'justify-center' : ''}`}
+      >
+        <MagnifyingGlassIcon className={`${options.collapsed ? '' : 'mr-3'} h-5 w-5 flex-shrink-0`} aria-hidden="true" />
+        {!options.collapsed && (
+          <>
+            <span className="flex-1 text-left">Suchen</span>
+            <kbd className="hidden rounded border border-white/30 px-1.5 text-xs font-sans text-white/70 md:inline dark:border-gray-700 dark:text-gray-500">
+              {searchShortcutLabel()}
+            </kbd>
+          </>
+        )}
+      </button>
       <div className="space-y-1">{MAIN_NAVIGATION.map((entry) => navLink(entry, isActive(entry.href), options))}</div>
 
       {groupLabel('Kategorien', options.collapsed)}
@@ -242,7 +285,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
       {/* Main content */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
+        <div className="md:hidden flex items-center justify-between pl-1 pr-1 pt-1 sm:pl-3 sm:pr-3 sm:pt-3">
           <button
             type="button"
             aria-label="Navigation öffnen"
@@ -250,6 +293,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             onClick={() => setSidebarOpen(true)}
           >
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label="Sammlung durchsuchen"
+            className="h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pokemon-blue"
+            onClick={openSearch}
+          >
+            <MagnifyingGlassIcon className="h-6 w-6" aria-hidden="true" />
           </button>
         </div>
 
@@ -261,6 +312,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </main>
       </div>
+
+      {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
     </div>
   );
 };
