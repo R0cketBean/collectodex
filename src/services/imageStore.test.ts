@@ -116,3 +116,27 @@ describe('migrateInlineImages', () => {
     expect(fs.readFileSync(backupFile, 'utf8')).toBe('ältere Sicherung');
   });
 });
+
+describe('Vorschaubilder', () => {
+  // Der Hauptprozess prüft nur den Typ der Data-URL, nicht den Bildinhalt.
+  const WEBP = 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4TAYAAAAvAAAAAAfQ//73v/+BiOh/AAA=';
+
+  it('legt das Vorschaubild neben das Original und liefert dessen Verweis', () => {
+    const ref = imageStore.saveDataUrl(dir, PNG);
+    const thumb = imageStore.saveThumbnail(dir, ref, WEBP);
+    expect(thumb).toBe(ref.replace(/\.png$/, '_thumb.webp'));
+    expect(imageStore.resolveRef(dir, thumb)).not.toBeNull();
+    expect(fs.readdirSync(dir).some((f: string) => f.endsWith('.tmp'))).toBe(false);
+  });
+
+  it('lehnt fehlende Originale, andere Formate und Vorschaubilder von Vorschaubildern ab', () => {
+    const ref = imageStore.saveDataUrl(dir, PNG);
+    expect(imageStore.saveThumbnail(dir, 'cdx-image://local/fehlt.png', WEBP)).toBeNull();
+    expect(imageStore.saveThumbnail(dir, ref, PNG)).toBeNull();
+    expect(imageStore.saveThumbnail(dir, 'cdx-image://local/../x.png', WEBP)).toBeNull();
+    const thumb = imageStore.saveThumbnail(dir, ref, WEBP);
+    expect(imageStore.saveThumbnail(dir, thumb, WEBP)).toBeNull();
+    expect(imageStore.thumbFileName('abc.jpg')).toBe('abc_thumb.webp');
+    expect(imageStore.thumbFileName('abc_thumb.webp')).toBeNull();
+  });
+});

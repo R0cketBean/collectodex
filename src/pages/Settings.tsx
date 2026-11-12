@@ -365,7 +365,7 @@ const Settings: React.FC = () => {
                     id="backup-keep"
                     value={backup.keep}
                     onChange={(e) => handleKeepChange(Number(e.target.value))}
-                    className="mt-1 block rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-pokemon-blue focus:border-pokemon-blue"
+                    className={`${selectClass} mt-1 w-28`}
                   >
                     {[3, 5, 10, 20].map((n) => (
                       <option key={n} value={n}>

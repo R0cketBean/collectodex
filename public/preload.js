@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Data-URL lesen (für Export und Backup).
   saveImage: (dataUrl) => ipcRenderer.invoke('images:save', dataUrl),
   readImage: (ref) => ipcRenderer.invoke('images:read', ref),
+  // Vorschaubild zu einem abgelegten Bild speichern (#128); liefert dessen Verweis.
+  saveThumbnail: (ref, dataUrl) => ipcRenderer.invoke('images:save-thumb', ref, dataUrl),
 
   // Auto-Backup (#91)
   chooseBackupFolder: () => ipcRenderer.invoke('backup:choose-folder'),

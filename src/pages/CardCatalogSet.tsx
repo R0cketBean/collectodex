@@ -33,6 +33,7 @@ import {
   type SetDetail,
 } from '../services/tcgdex';
 import { firstLoadableImage } from '../utils/imageProbe';
+import { inputClass, selectClass } from '../utils/formStyles';
 
 type SortKey = 'number' | 'price-desc' | 'price-asc' | 'name';
 type OwnedFilter = 'all' | 'owned' | 'missing';
@@ -311,14 +312,14 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Name, Nummer oder Seltenheit…"
               aria-label="Karte suchen"
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-10 pr-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
+              className={`${inputClass} pl-10`}
             />
           </div>
           <select
             value={ownedFilter}
             onChange={(e) => setOwnedFilter(e.target.value as OwnedFilter)}
             aria-label="Bestand filtern"
-            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+            className={`${selectClass} sm:w-auto`}
           >
             <option value="all">Alle Karten</option>
             <option value="owned">Vorhanden</option>
@@ -328,7 +329,7 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
             value={sort}
             onChange={(e) => setSort(e.target.value as SortKey)}
             aria-label="Sortierung"
-            className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100"
+            className={`${selectClass} sm:w-auto`}
           >
             <option value="number">Nach Nummer</option>
             <option value="price-desc">Teuerste zuerst</option>
@@ -644,7 +645,7 @@ const CardModal: React.FC<{
                     value={targetId}
                     onChange={(e) => setTargetId(e.target.value)}
                     aria-label="Zielkategorie"
-                    className="min-w-0 flex-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+                    className={`${selectClass} min-w-0 flex-1 py-1.5`}
                   >
                     {targets.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -657,7 +658,7 @@ const CardModal: React.FC<{
                       value={addVariant}
                       onChange={(e) => setAddVariant(e.target.value as CatalogVariant)}
                       aria-label="Fassung"
-                      className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1.5 text-sm text-gray-900 dark:text-gray-100"
+                      className={`${selectClass} w-auto py-1.5`}
                     >
                       <option value="normal">Normal</option>
                       <option value="reverse">Reverse Holo</option>

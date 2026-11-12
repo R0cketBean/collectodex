@@ -81,6 +81,34 @@ const saveDataUrl = (dir, dataUrl) => {
   return fileNameToRef(name);
 };
 
+// Vorschaubilder (#128): zu `<name>.<endung>` gehört `<name>_thumb.webp` im
+// selben Ordner. Sie sind reiner Zwischenspeicher, entstehen bei Bedarf im
+// Fenster und stehen in keinem Eintrag – fehlt eines, wird es neu erzeugt.
+const THUMB_SUFFIX = '_thumb';
+
+/** Dateiname des Vorschaubilds zu einer Bilddatei; null für Vorschaubilder selbst. */
+const thumbFileName = (name) => {
+  if (typeof name !== 'string' || !SAFE_FILE.test(name)) return null;
+  const base = name.slice(0, name.lastIndexOf('.'));
+  return base.endsWith(THUMB_SUFFIX) ? null : `${base}${THUMB_SUFFIX}.webp`;
+};
+
+/**
+ * Legt das Vorschaubild zu einem vorhandenen Bild ab und liefert dessen
+ * Verweis. Nur WebP, nur zu einem Bild, das es gibt; sonst null.
+ */
+const saveThumbnail = (dir, ref, dataUrl) => {
+  const original = resolveRef(dir, ref);
+  const name = original && thumbFileName(path.basename(original));
+  const parsed = parseDataUrl(dataUrl);
+  if (!name || !parsed || parsed.mime !== 'image/webp') return null;
+  const target = path.join(dir, name);
+  const temp = `${target}.tmp`;
+  fs.writeFileSync(temp, parsed.buffer);
+  fs.renameSync(temp, target);
+  return fileNameToRef(name);
+};
+
 /** Absoluter Pfad zu einem Verweis; null, wenn ungültig oder nicht vorhanden. */
 const resolveRef = (dir, ref) => {
   const name = refToFileName(ref);
@@ -173,6 +201,8 @@ module.exports = {
   parseDataUrl,
   saveDataUrl,
   resolveRef,
+  thumbFileName,
+  saveThumbnail,
   readAsDataUrl,
   externalizeItems,
   countInlineImages,

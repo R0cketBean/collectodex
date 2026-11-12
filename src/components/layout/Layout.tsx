@@ -1,21 +1,22 @@
-import React, {useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { 
-    HomeIcon,
-    CogIcon,
-    Cog6ToothIcon,
-    ChartBarIcon,
-    DocumentArrowDownIcon,
-    Bars3Icon,
-    XMarkIcon,
-    SquaresPlusIcon,
-    ArchiveBoxIcon,
-    StarIcon,
-    CubeIcon,
-    PhotoIcon,
-    DocumentIcon,
-    ChevronUpIcon,
-    RectangleStackIcon,
+import {
+  HomeIcon,
+  CogIcon,
+  Cog6ToothIcon,
+  ChartBarIcon,
+  DocumentArrowDownIcon,
+  Bars3Icon,
+  XMarkIcon,
+  SquaresPlusIcon,
+  ArchiveBoxIcon,
+  StarIcon,
+  CubeIcon,
+  PhotoIcon,
+  DocumentIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+  RectangleStackIcon,
   CurrencyEuroIcon,
 } from '@heroicons/react/24/outline';
 import { useCategoriesData } from '../../context/CollectionContext';
@@ -30,13 +31,56 @@ const iconMap: Record<string, React.ElementType> = {
   document: DocumentIcon
 };
 
+interface NavEntry {
+  name: string;
+  href: string;
+  icon: React.ElementType;
+}
+
+// Die Seitenleiste hat drei Gruppen (#129): Auswertung und Katalog oben, die
+// eigenen Kategorien in der Mitte, Verwaltung unten.
+const MAIN_NAVIGATION: NavEntry[] = [
+  { name: 'Dashboard', href: '/', icon: HomeIcon },
+  { name: 'Statistik', href: '/statistics', icon: ChartBarIcon },
+  { name: 'Kartenkatalog', href: '/katalog', icon: RectangleStackIcon },
+  { name: 'Preis-Check', href: '/preis-check', icon: CurrencyEuroIcon },
+];
+
+const ADMIN_NAVIGATION: NavEntry[] = [
+  { name: 'Kategorien verwalten', href: '/category-management', icon: CogIcon },
+  { name: 'Import/Export', href: '/import-export', icon: DocumentArrowDownIcon },
+  { name: 'Einstellungen', href: '/settings', icon: Cog6ToothIcon },
+];
+
+const COLLAPSED_KEY = 'collectodex-sidebar-collapsed';
+
+const readCollapsed = (): boolean => {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+// Farben der Seitenleiste: hell bleibt sie blau, die Markierung ist aber nur
+// noch eine aufgehellte Fläche. Dunkel ist sie neutral und setzt sich über
+// einen Rand vom Inhalt ab; Gelb bleibt dem Symbol der aktiven Seite.
+const SIDEBAR_SURFACE = 'bg-pokemon-blue dark:bg-gray-950 dark:border-r dark:border-gray-800';
+const LINK_BASE =
+  'group flex items-center rounded-md px-2 py-2 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70';
+const LINK_ACTIVE = 'bg-white/20 text-white dark:bg-gray-800';
+const LINK_IDLE =
+  'text-white/90 hover:bg-white/10 hover:text-white dark:text-gray-300 dark:hover:bg-gray-800/60 dark:hover:text-white';
+const ICON_ACTIVE = 'text-pokemon-yellow';
+const ICON_IDLE = 'text-white/80 group-hover:text-white dark:text-gray-400 dark:group-hover:text-gray-200';
+
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
   const location = useLocation();
   // Beim Seitenwechsel wieder oben anfangen. Der Inhalt scrollt in <main>,
   // nicht im Fenster – ohne das behielt eine neue Seite die Scroll-Position der
@@ -48,106 +92,123 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // Nur den Categories-Slice abonnieren (#18): Layout re-rendert dadurch nicht
   // mehr bei Item-/Snapshot-Änderungen, sondern nur bei Kategorie-Änderungen.
   const categories = useCategoriesData();
-  
+
   // Sortiere Kategorien nach Reihenfolge; ausgeblendete (#66) erscheinen
   // nicht in der Navigation (ihre Werte zählen im Dashboard weiterhin).
   const sortedCategories = [...categories]
     .filter(category => !category.hidden)
     .sort((a, b) => a.order - b.order);
 
-  // Statische Navigationselemente
-  const staticNavigation = [
-    { name: 'Dashboard', href: '/', icon: HomeIcon },
-    { name: 'Kategorien verwalten', href: '/category-management', icon: CogIcon },
-    { name: 'Import/Export', href: '/import-export', icon: DocumentArrowDownIcon },
-    { name: 'Statistik', href: '/statistics', icon: ChartBarIcon },
-    { name: 'Kartenkatalog', href: '/katalog', icon: RectangleStackIcon },
-    { name: 'Preis-Check', href: '/preis-check', icon: CurrencyEuroIcon },
-    { name: 'Einstellungen', href: '/settings', icon: Cog6ToothIcon },
-  ];
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-  
   const toggleSidebarCollapse = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+    setSidebarCollapsed((prev) => {
+      try {
+        localStorage.setItem(COLLAPSED_KEY, prev ? '0' : '1');
+      } catch {
+        // Ohne localStorage gilt die Wahl nur für diese Sitzung.
+      }
+      return !prev;
+    });
   };
-  
-  // Hilfsfunktion, um das richtige Icon zu rendern
-  const renderIcon = (iconName?: string) => {
-    const IconComponent = iconName && iconMap[iconName] ? iconMap[iconName] : SquaresPlusIcon;
-    return <IconComponent className={`${sidebarCollapsed ? '' : 'mr-3'} h-6 w-6 text-pokemon-yellow`} aria-hidden="true" />;
-  };
+
+  const isActive = (href: string) =>
+    href === '/' ? location.pathname === '/' : location.pathname.startsWith(href);
+
+  // Ein Navigationseintrag. Eingeklappt bleibt nur das Symbol, der Name steht im Tooltip.
+  const navLink = (
+    entry: NavEntry,
+    active: boolean,
+    options: { collapsed: boolean; large: boolean; onNavigate?: () => void }
+  ) => (
+    <Link
+      key={entry.href}
+      to={entry.href}
+      onClick={options.onNavigate}
+      aria-current={active ? 'page' : undefined}
+      title={options.collapsed ? entry.name : undefined}
+      className={`${LINK_BASE} ${active ? LINK_ACTIVE : LINK_IDLE} ${options.large ? 'text-base' : 'text-sm'} ${
+        options.collapsed ? 'justify-center' : ''
+      }`}
+    >
+      <entry.icon
+        className={`${options.collapsed ? '' : 'mr-3'} h-6 w-6 flex-shrink-0 ${active ? ICON_ACTIVE : ICON_IDLE}`}
+        aria-hidden="true"
+      />
+      {options.collapsed ? <span className="sr-only">{entry.name}</span> : <span className="truncate">{entry.name}</span>}
+    </Link>
+  );
+
+  // Überschrift einer Gruppe; eingeklappt bleibt davon eine Trennlinie.
+  const groupLabel = (label: string, collapsed: boolean) =>
+    collapsed ? (
+      <div className="mx-2 my-3 border-t border-white/20 dark:border-gray-800" role="separator" />
+    ) : (
+      <h2 className="px-2 pb-1 pt-5 text-xs font-semibold uppercase tracking-wider text-white/70 dark:text-gray-500">
+        {label}
+      </h2>
+    );
+
+  const renderNavigation = (options: { collapsed: boolean; large: boolean; onNavigate?: () => void }) => (
+    <nav className="mt-5 flex flex-1 flex-col px-2" aria-label="Hauptnavigation">
+      <div className="space-y-1">{MAIN_NAVIGATION.map((entry) => navLink(entry, isActive(entry.href), options))}</div>
+
+      {groupLabel('Kategorien', options.collapsed)}
+      <div className="space-y-1">
+        {sortedCategories.map((category) =>
+          navLink(
+            {
+              name: category.name,
+              href: `/category/${category.id}`,
+              icon: (category.icon && iconMap[category.icon]) || SquaresPlusIcon,
+            },
+            location.pathname === `/category/${category.id}`,
+            options
+          )
+        )}
+        {sortedCategories.length === 0 && !options.collapsed && (
+          <p className="px-2 py-1 text-xs text-white/60 dark:text-gray-500">Noch keine Kategorien angelegt.</p>
+        )}
+      </div>
+
+      {/* Verwaltung steht unten; bei vielen Kategorien rückt sie einfach nach. */}
+      <div className="mt-auto pt-2">
+        {groupLabel('Verwaltung', options.collapsed)}
+        <div className="space-y-1">
+          {ADMIN_NAVIGATION.map((entry) => navLink(entry, isActive(entry.href), options))}
+        </div>
+      </div>
+    </nav>
+  );
 
   return (
     <div className="h-screen flex overflow-hidden bg-gray-100 dark:bg-gray-900">
       {/* Mobile Sidebar */}
-      <div 
+      <div
         className={`${
           sidebarOpen ? 'fixed inset-0 z-40 flex' : 'hidden'
         } md:hidden`}
       >
-        <div 
+        <div
           className="fixed inset-0 bg-gray-600 bg-opacity-75"
           onClick={() => setSidebarOpen(false)}
         ></div>
-        
-        <div className="relative flex-1 flex flex-col max-w-[85%] w-full sm:max-w-xs bg-pokemon-blue">
+
+        <div className={`relative flex-1 flex flex-col max-w-[85%] w-full sm:max-w-xs ${SIDEBAR_SURFACE}`}>
           <div className="absolute top-2 right-0 -mr-12 pt-1">
             <button
+              type="button"
+              aria-label="Navigation schließen"
               className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white bg-gray-600 bg-opacity-50"
               onClick={() => setSidebarOpen(false)}
             >
               <XMarkIcon className="h-6 w-6 text-white" />
             </button>
           </div>
-          
-          <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+
+          <div className="flex-1 h-0 flex flex-col pt-5 pb-4 overflow-y-auto">
             <div className="flex-shrink-0 flex items-center px-4">
-              <h1 className="text-white text-xl font-bold">CollectODex</h1>
+              <span className="text-white text-xl font-bold">CollectODex</span>
             </div>
-            <nav className="mt-5 px-2 space-y-1">
-              {/* Statische Navigationselemente */}
-              {staticNavigation.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`${
-                    (item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href))
-                      ? 'bg-pokemon-light-blue text-white'
-                      : 'text-white hover:bg-pokemon-light-blue'
-                  } group flex items-center px-2 py-2 text-base font-medium rounded-md`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <item.icon
-                    className="mr-4 h-6 w-6 text-pokemon-yellow"
-                    aria-hidden="true"
-                  />
-                  {item.name}
-                </Link>
-              ))}
-              
-              {/* Trennlinie */}
-              <div className="border-t border-pokemon-light-blue my-2"></div>
-              
-              {/* Dynamische Kategorien */}
-              {sortedCategories.map((category) => (
-                <Link
-                  key={category.id}
-                  to={`/category/${category.id}`}
-                  className={`${
-                    location.pathname === `/category/${category.id}`
-                      ? 'bg-pokemon-light-blue text-white'
-                      : 'text-white hover:bg-pokemon-light-blue'
-                  } group flex items-center px-2 py-2 text-base font-medium rounded-md`}
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  {renderIcon(category.icon)}
-                  {category.name}
-                </Link>
-              ))}
-            </nav>
+            {renderNavigation({ collapsed: false, large: true, onNavigate: () => setSidebarOpen(false) })}
           </div>
         </div>
       </div>
@@ -155,86 +216,43 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Desktop Sidebar */}
       <div className={`hidden md:flex md:flex-shrink-0 transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'md:w-16' : 'md:w-64'}`}>
         <div className="flex flex-col w-full">
-          <div className="flex-1 flex flex-col min-h-0 bg-pokemon-blue">
+          <div className={`flex-1 flex flex-col min-h-0 ${SIDEBAR_SURFACE}`}>
             <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
               <div className={`flex items-center flex-shrink-0 px-4 ${sidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
-                {!sidebarCollapsed && (
-                  <>
-                    <h1 className="text-white text-xl font-bold">CollectODex</h1>
-                    <button
-                      onClick={toggleSidebarCollapse}
-                      className="text-white hover:bg-pokemon-light-blue rounded-md p-1"
-                    >
-                      <ChevronUpIcon className="h-6 w-6 text-pokemon-yellow -rotate-90" aria-hidden="true" />
-                    </button>
-                  </>
-                )}
-                {sidebarCollapsed && (
-                  <button
-                    onClick={toggleSidebarCollapse}
-                    className="text-white hover:bg-pokemon-light-blue rounded-md p-1"
-                  >
-                    <ChevronUpIcon className="h-6 w-6 text-pokemon-yellow rotate-90" aria-hidden="true" />
-                  </button>
-                )}
+                {!sidebarCollapsed && <span className="text-white text-xl font-bold">CollectODex</span>}
+                <button
+                  type="button"
+                  onClick={toggleSidebarCollapse}
+                  aria-label={sidebarCollapsed ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen'}
+                  title={sidebarCollapsed ? 'Seitenleiste ausklappen' : 'Seitenleiste einklappen'}
+                  className="rounded-md p-1 text-white/70 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                >
+                  {sidebarCollapsed ? (
+                    <ChevronDoubleRightIcon className="h-5 w-5" aria-hidden="true" />
+                  ) : (
+                    <ChevronDoubleLeftIcon className="h-5 w-5" aria-hidden="true" />
+                  )}
+                </button>
               </div>
-              <nav className="mt-5 flex-1 px-2 space-y-1">
-                {/* Statische Navigationselemente */}
-                {staticNavigation.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`${
-                      (item.href === '/' ? location.pathname === '/' : location.pathname.startsWith(item.href))
-                        ? 'bg-pokemon-light-blue text-white'
-                        : 'text-white hover:bg-pokemon-light-blue'
-                    } group flex items-center px-2 py-2 text-sm font-medium rounded-md ${sidebarCollapsed ? 'justify-center' : ''}`}
-                    title={sidebarCollapsed ? item.name : ''}
-                  >
-                    <item.icon
-                      className={`${sidebarCollapsed ? '' : 'mr-3'} h-6 w-6 text-pokemon-yellow`}
-                      aria-hidden="true"
-                    />
-                    {!sidebarCollapsed && item.name}
-                  </Link>
-                ))}
-                
-                {/* Trennlinie */}
-                <div className="border-t border-pokemon-light-blue my-2"></div>
-                
-                {/* Dynamische Kategorien */}
-                {sortedCategories.map((category) => (
-                  <Link
-                    key={category.id}
-                    to={`/category/${category.id}`}
-                    className={`${
-                      location.pathname === `/category/${category.id}`
-                        ? 'bg-pokemon-light-blue text-white'
-                        : 'text-white hover:bg-pokemon-light-blue'
-                    } group flex items-center px-2 py-2 text-sm font-medium rounded-md ${sidebarCollapsed ? 'justify-center' : ''}`}
-                    title={sidebarCollapsed ? category.name : ''}
-                  >
-                    {renderIcon(category.icon)}
-                    {!sidebarCollapsed && category.name}
-                  </Link>
-                ))}
-              </nav>
+              {renderNavigation({ collapsed: sidebarCollapsed, large: false })}
             </div>
           </div>
         </div>
       </div>
-      
+
       {/* Main content */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
         <div className="md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
           <button
+            type="button"
+            aria-label="Navigation öffnen"
             className="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pokemon-blue"
-            onClick={toggleSidebar}
+            onClick={() => setSidebarOpen(true)}
           >
             <Bars3Icon className="h-6 w-6" aria-hidden="true" />
           </button>
         </div>
-        
+
         <main ref={mainRef} className="flex-1 relative z-0 overflow-y-auto focus:outline-none">
           <div className="py-6">
             <div className="w-full px-4 sm:px-6 md:px-8">

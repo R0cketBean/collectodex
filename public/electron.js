@@ -297,7 +297,8 @@ function createWindow() {
 function registerImageProtocol() {
   protocol.handle(imageStore.IMAGE_SCHEME, (request) => {
     const file = imageStore.resolveRef(imagesDir(), request.url.split(/[?#]/)[0]);
-    if (!file) return new Response('Bild nicht gefunden', { status: 404 });
+    // Nicht zwischenspeichern: Ein fehlendes Vorschaubild wird gleich danach erzeugt.
+    if (!file) return new Response('Bild nicht gefunden', { status: 404, headers: { 'Cache-Control': 'no-store' } });
     return net.fetch(pathToFileURL(file).toString());
   });
 }
@@ -347,6 +348,16 @@ ipcMain.handle('images:save', async (event, dataUrl) => {
     return imageStore.saveDataUrl(imagesDir(), dataUrl);
   } catch (error) {
     console.error('Bild speichern fehlgeschlagen:', error);
+    return null;
+  }
+});
+
+// Vorschaubild zu einem abgelegten Bild speichern (#128).
+ipcMain.handle('images:save-thumb', async (event, ref, dataUrl) => {
+  try {
+    return imageStore.saveThumbnail(imagesDir(), ref, dataUrl);
+  } catch (error) {
+    console.error('Vorschaubild speichern fehlgeschlagen:', error);
     return null;
   }
 });
