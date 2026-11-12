@@ -14,7 +14,7 @@ import { getCatalogOwned } from '../hooks/useCatalogOwned';
 import { inlineItemImages } from '../utils/imageStorage';
 import { updateCatalogSettings, useCatalogSettings } from '../hooks/useCatalogSettings';
 import type { CatalogSettings } from '../utils/catalogSettings';
-import { selectClass } from '../utils/formStyles';
+import { primaryButtonClass, secondaryButtonSmallClass, selectClass } from '../utils/formStyles';
 import {
   BackupSettings,
   DEFAULT_BACKUP_SETTINGS,
@@ -259,7 +259,7 @@ const Settings: React.FC = () => {
               type="button"
               onClick={handleCheck}
               disabled={checkState === 'checking'}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-pokemon-blue px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              className={primaryButtonClass}
             >
               <ArrowPathIcon
                 className={`h-5 w-5 ${checkState === 'checking' ? 'animate-spin' : ''}`}
@@ -334,7 +334,7 @@ const Settings: React.FC = () => {
                     <button
                       type="button"
                       onClick={handleChooseFolder}
-                      className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                      className={secondaryButtonSmallClass}
                     >
                       Ordner wählen
                     </button>
@@ -377,7 +377,7 @@ const Settings: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleBackupNow}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-pokemon-blue px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  className={primaryButtonClass}
                 >
                   <ArchiveBoxArrowDownIcon className="h-5 w-5" aria-hidden="true" />
                   Jetzt sichern

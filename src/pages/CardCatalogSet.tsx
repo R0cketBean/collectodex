@@ -33,7 +33,7 @@ import {
   type SetDetail,
 } from '../services/tcgdex';
 import { firstLoadableImage } from '../utils/imageProbe';
-import { inputClass, selectClass } from '../utils/formStyles';
+import { inputClass, primaryButtonSmallClass, selectClass } from '../utils/formStyles';
 
 type SortKey = 'number' | 'price-desc' | 'price-asc' | 'name';
 type OwnedFilter = 'all' | 'owned' | 'missing';
@@ -668,7 +668,7 @@ const CardModal: React.FC<{
                     type="button"
                     onClick={() => void onAdd(target, hasReverse ? addVariant : 'normal')}
                     disabled={!detail}
-                    className="rounded-md bg-pokemon-blue px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                    className={primaryButtonSmallClass}
                   >
                     In Sammlung übernehmen
                   </button>

@@ -19,7 +19,7 @@ import { catalogLangOfItem } from '../utils/catalogItem';
 import { catalogSetKey, parseCatalogSetKey } from '../utils/catalogOwnership';
 import { CATALOG_IMAGE_KEY, getPrimaryImage, type ItemImage } from '../utils/itemImages';
 import { firstLoadableImage } from '../utils/imageProbe';
-import { selectClass } from '../utils/formStyles';
+import { primaryButtonSmallClass, secondaryButtonSmallClass, selectClass, successButtonSmallClass } from '../utils/formStyles';
 import {
   candidateSetIds,
   linkCategoryIds,
@@ -392,14 +392,14 @@ const CatalogLinkAssistant: React.FC = () => {
             <button
               type="button"
               onClick={() => link([row])}
-              className="rounded-md bg-pokemon-blue px-3 py-1.5 text-sm font-medium text-white hover:opacity-90"
+              className={primaryButtonSmallClass}
             >
               Verknüpfen
             </button>
             <button
               type="button"
               onClick={() => setSkipped((prev) => ({ ...prev, [item.id]: true }))}
-              className="rounded-md border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+              className={secondaryButtonSmallClass}
             >
               Überspringen
             </button>
@@ -530,7 +530,7 @@ const CatalogLinkAssistant: React.FC = () => {
               <button
                 type="button"
                 onClick={() => link(sureOpen)}
-                className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                className={successButtonSmallClass}
               >
                 Alle {sureOpen.length} verknüpfen
               </button>
@@ -542,7 +542,7 @@ const CatalogLinkAssistant: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => link(manualByNumber)}
-                  className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+                  className={successButtonSmallClass}
                 >
                   {manualByNumber.length} mit passender Kartennummer verknüpfen
                 </button>

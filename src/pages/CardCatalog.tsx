@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { inputClass } from '../utils/formStyles';
+import { inputClass, primaryButtonSmallClass } from '../utils/formStyles';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../components/catalog/FallbackImage';
 import { useCategoriesData, useItemsData } from '../context/CollectionContext';
@@ -136,7 +136,7 @@ const CardCatalog: React.FC = () => {
             <span>{error}</span>
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="rounded-md bg-pokemon-blue px-3 py-1.5 text-white text-sm hover:opacity-90"
+              className={primaryButtonSmallClass}
             >
               Erneut versuchen
             </button>

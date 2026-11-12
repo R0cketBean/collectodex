@@ -7,7 +7,7 @@ import { fetchCard, formatEur, mapLimit, summarizePricing, type PriceSummary } f
 import type { CollectionItem } from '../types/models';
 import { itemProductLink } from '../utils/catalogMatch';
 import { pickCatalogPrice, PRICE_BASIS_LABEL } from '../utils/catalogSettings';
-import { inputClass, primaryButtonClass, selectClass } from '../utils/formStyles';
+import { inputClass, primaryButtonClass, primaryButtonSmallClass, secondaryButtonClass, secondaryButtonSmallClass, selectClass } from '../utils/formStyles';
 import EmptyState from '../components/common/EmptyState';
 import { firstEntryHref } from '../utils/onboarding';
 import { parseDecimal } from '../utils/number';
@@ -228,7 +228,7 @@ const PriceCheck: React.FC = () => {
                     onClick={() => link && openExternal(link)}
                     disabled={!link}
                     title={link ? 'Cardmarket-Link öffnen' : 'Kein Link hinterlegt'}
-                    className="inline-flex items-center gap-1 rounded-md border border-gray-300 dark:border-gray-600 px-2.5 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40"
+                    className={secondaryButtonSmallClass}
                   >
                     <ArrowTopRightOnSquareIcon className="h-4 w-4" /> Link
                   </button>
@@ -251,7 +251,7 @@ const PriceCheck: React.FC = () => {
                     <button
                       type="submit"
                       disabled={!Number.isFinite(parseDecimal(drafts[item.id] ?? ''))}
-                      className="rounded-md bg-pokemon-blue px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40"
+                      className={primaryButtonSmallClass}
                     >
                       Speichern
                     </button>
@@ -275,7 +275,7 @@ const PriceCheck: React.FC = () => {
           <button
             type="button"
             onClick={() => setLimit((n) => n + PAGE_SIZE)}
-            className="mt-4 rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+            className={`${secondaryButtonClass} mt-4`}
           >
             Weitere {Math.min(PAGE_SIZE, rows.length - limit)} anzeigen ({rows.length - limit} übrig)
           </button>
