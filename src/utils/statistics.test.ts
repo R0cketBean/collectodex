@@ -3,6 +3,8 @@ import {
   holdingDays,
   roi,
   annualizedReturn,
+  topPerformers,
+  worstPerformers,
   averageHoldingDays,
   formatHoldingDuration,
   formatPercent,
@@ -40,13 +42,12 @@ describe('annualizedReturn', () => {
     const r = annualizedReturn(100, 150, 365);
     expect(r).toBeCloseTo(0.5, 5);
   });
-  it('hochgerechnet über ein halbes Jahr ist höher', () => {
-    const r = annualizedReturn(100, 150, 182);
-    expect(r).not.toBeNull();
-    expect(r as number).toBeGreaterThan(0.5);
+  it('rechnet über zwei Jahre auf ein Jahr herunter', () => {
+    expect(annualizedReturn(100, 144, 730)).toBeCloseTo(0.2, 5);
   });
-  it('null bei zu kurzer Haltedauer (< minDays)', () => {
-    expect(annualizedReturn(100, 150, 10)).toBeNull();
+  it('rechnet unter einem Jahr Haltedauer nicht hoch', () => {
+    expect(annualizedReturn(100, 150, 45)).toBeNull();
+    expect(annualizedReturn(100, 150, 364)).toBeNull();
   });
   it('null bei ungültigen Kosten/Wert', () => {
     expect(annualizedReturn(0, 150, 365)).toBeNull();
@@ -77,5 +78,17 @@ describe('formatPercent', () => {
     expect(formatPercent(0.123)).toBe('+12,3 %');
     expect(formatPercent(-0.2)).toBe('-20,0 %');
     expect(formatPercent(null)).toBe('—');
+  });
+});
+
+describe('Ranglisten', () => {
+  const stats = [0.5, -0.2, 2, null, 0, 0.1, -0.6].map((roiFrac, i) => ({ id: i, roiFrac }));
+  it('führen nur Gewinner bzw. nur Verlierer, begrenzt auf die Anzahl', () => {
+    expect(topPerformers(stats, 2).map((s) => s.roiFrac)).toEqual([2, 0.5]);
+    expect(worstPerformers(stats).map((s) => s.roiFrac)).toEqual([-0.6, -0.2]);
+  });
+  it('bleiben leer, wenn nichts im Plus bzw. im Minus liegt', () => {
+    expect(worstPerformers([{ roiFrac: 0.3 }, { roiFrac: 1 }])).toEqual([]);
+    expect(topPerformers([{ roiFrac: -0.3 }])).toEqual([]);
   });
 });

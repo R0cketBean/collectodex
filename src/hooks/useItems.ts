@@ -12,6 +12,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { CatalogRef, CollectionItem } from '../types/models';
 import { normalizeLinkUrl } from '../utils/itemLinks';
+import { recordValue } from '../utils/valueTrail';
 import * as StorageService from '../services/StorageService';
 
 /** Wartezeit, in der mehrere Änderungen zu einem Schreibvorgang zusammenfallen. */
@@ -116,18 +117,24 @@ export function useItems(): ItemsApi {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+    // Der Wertverlauf (#132) beginnt mit dem Wert beim Anlegen.
+    const firstPoint = recordValue({ values: {}, createdAt: newItem.createdAt }, values.currentValue);
+    if (firstPoint) newItem.valueTrail = firstPoint;
     setItems((prev) => [...prev, newItem]);
     return id;
   };
 
-  // Ändert sich der aktuelle Wert, gilt der Preis als frisch geprüft (#125).
-  const withValues = (item: CollectionItem, values: { [key: string]: any }): CollectionItem => ({
-    ...item,
-    values: { ...item.values, ...values },
-    ...('currentValue' in values && values.currentValue !== item.values?.currentValue
-      ? { valueCheckedAt: new Date().toISOString() }
-      : {}),
-  });
+  // Ändert sich der aktuelle Wert, gilt der Preis als frisch geprüft (#125)
+  // und der neue Stand kommt in den Wertverlauf (#132).
+  const withValues = (item: CollectionItem, values: { [key: string]: any }): CollectionItem => {
+    const next: CollectionItem = { ...item, values: { ...item.values, ...values } };
+    if ('currentValue' in values && values.currentValue !== item.values?.currentValue) {
+      next.valueCheckedAt = new Date().toISOString();
+      const trail = recordValue(item, values.currentValue);
+      if (trail) next.valueTrail = trail;
+    }
+    return next;
+  };
 
   const updateItem = (id: string, values: { [key: string]: any }) =>
     patchItem(id, (item) => withValues(item, values));

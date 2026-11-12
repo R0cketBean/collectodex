@@ -29,15 +29,21 @@ export const roi = (cost: number, value: number): number | null => {
 };
 
 /**
- * Annualisierte Rendite (Rendite p.a.) als Bruch. Erst ab >= minDays sinnvoll,
- * weil kurze Haltedauern beim Hochrechnen absurde Werte erzeugen. null, wenn
- * Kosten/Wert/Tage ungültig oder Haltedauer zu kurz.
+ * Ab dieser Haltedauer wird eine Rendite pro Jahr ausgewiesen (#132). Darunter
+ * wäre sie eine Hochrechnung: Aus +50 % in sechs Wochen würden über 3.000 % p.a.
+ */
+export const MIN_ANNUALIZE_DAYS = 365;
+
+/**
+ * Annualisierte Rendite (Rendite p.a.) als Bruch. null, wenn Kosten/Wert/Tage
+ * ungültig sind oder die Haltedauer unter minDays liegt – dann zählt nur die
+ * einfache Rendite.
  */
 export const annualizedReturn = (
   cost: number,
   value: number,
   days: number | null,
-  minDays = 30
+  minDays = MIN_ANNUALIZE_DAYS
 ): number | null => {
   if (!Number.isFinite(cost) || cost <= 0) return null;
   if (!Number.isFinite(value) || value <= 0) return null;
@@ -54,6 +60,24 @@ export const averageHoldingDays = (
   if (valid.length === 0) return null;
   return Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
 };
+
+export interface Ranked {
+  roiFrac: number | null;
+}
+
+/** Die besten Einträge mit Gewinn, höchste Rendite zuerst. */
+export const topPerformers = <T extends Ranked>(stats: T[], limit = 5): T[] =>
+  stats
+    .filter((s): s is T & { roiFrac: number } => s.roiFrac != null && s.roiFrac > 0)
+    .sort((a, b) => b.roiFrac - a.roiFrac)
+    .slice(0, limit);
+
+/** Die Einträge mit Verlust, größter Verlust zuerst. Gewinner tauchen hier nie auf. */
+export const worstPerformers = <T extends Ranked>(stats: T[], limit = 5): T[] =>
+  stats
+    .filter((s): s is T & { roiFrac: number } => s.roiFrac != null && s.roiFrac < 0)
+    .sort((a, b) => a.roiFrac - b.roiFrac)
+    .slice(0, limit);
 
 /** Tage menschenlesbar (z.B. "1 J 45 T", "87 T"). */
 export const formatHoldingDuration = (days: number | null): string => {
