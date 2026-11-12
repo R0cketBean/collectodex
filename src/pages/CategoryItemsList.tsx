@@ -279,6 +279,19 @@ const CategoryItemsList: React.FC = () => {
     
     return result;
   }, [items, searchTerm, selectedFilter, filterValue, sortBy, sortDirection, category, calculateItemValue]);
+
+  // Sprung zu einem Eintrag (#130), den Suche oder Filter gerade ausblenden:
+  // beides zurücksetzen, sonst liefe der Sprung ins Leere.
+  useEffect(() => {
+    if (!highlightParam || (!searchTerm && !selectedFilter)) return;
+    if (!items.some((item) => item.id === highlightParam)) return;
+    if (filteredAndSortedItems.some((item) => item.id === highlightParam)) return;
+    setSearchTerm('');
+    setSelectedFilter('');
+    setFilterValue('');
+    // Nur beim Sprung selbst prüfen, nicht bei jedem Tippen im Suchfeld.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlightParam, items]);
   
   // Funktion zum Löschen eines Items
   const handleDeleteItem = (itemId: string) => {
