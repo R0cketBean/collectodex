@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useCategoriesData, useCollectionActions } from '../context/CollectionContext';
 import { moveAndRenumber } from '../utils/reorder';
+import { useFeedback } from '../context/FeedbackContext';
 import { inputClass, primaryButtonClass, secondaryButtonClass, selectClass } from '../utils/formStyles';
 import {
   ICON_OPTIONS,
@@ -421,6 +422,7 @@ const CategoryManagement: React.FC = () => {
     deleteAttribute,
     resetToDefaults,
   } = useCollectionActions();
+  const { notify, confirm } = useFeedback();
   
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
     categories.length > 0 ? categories[0].id : null
@@ -456,7 +458,7 @@ const CategoryManagement: React.FC = () => {
   };
   
   // Handling für das Löschen eines Attributs
-  const handleDeleteAttribute = (attributeId: string) => {
+  const handleDeleteAttribute = async (attributeId: string) => {
     if (!selectedCategoryId) return;
     
     const attribute = selectedCategory?.attributes.find(a => a.id === attributeId);
@@ -464,13 +466,17 @@ const CategoryManagement: React.FC = () => {
     
     // Kernattribute können nicht gelöscht werden
     if (attribute.isCore) {
-      alert('Kernattribute können nicht gelöscht werden.');
+      notify('Kernattribute können nicht gelöscht werden.', { kind: 'info' });
       return;
     }
-    
-    if (window.confirm('Bist du sicher, dass du dieses Attribut löschen möchtest? Die Daten gehen verloren.')) {
-      deleteAttribute(selectedCategoryId, attributeId);
-    }
+
+    const confirmed = await confirm({
+      title: `Attribut „${attribute.name}“ löschen?`,
+      message: 'Die Werte dieses Attributs gehen in allen Einträgen der Kategorie verloren.',
+      confirmLabel: 'Attribut löschen',
+      danger: true,
+    });
+    if (confirmed) deleteAttribute(selectedCategoryId, attributeId);
   };
   
   // Handling für die Änderung der Reihenfolge von Attributen.
@@ -542,10 +548,19 @@ const CategoryManagement: React.FC = () => {
           <div className="flex space-x-2">
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('ACHTUNG: Alle deine Daten werden gelöscht!\n\nMöchtest du wirklich alle Daten auf die Standardwerte zurücksetzen? Alle eigenen Einträge und Kategorien gehen dabei unwiderruflich verloren.\n\nErstelle vorher unbedingt ein Backup deiner Daten über die Export-Funktion im Dashboard!')) {
-                  resetToDefaults();
-                }
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: 'Alles auf Standard zurücksetzen?',
+                  message: (
+                    <>
+                      <p>Alle eigenen Einträge und Kategorien werden gelöscht. Das lässt sich nicht rückgängig machen.</p>
+                      <p>Lege vorher unter „Import/Export“ eine Sicherung an.</p>
+                    </>
+                  ),
+                  confirmLabel: 'Alles löschen',
+                  danger: true,
+                });
+                if (confirmed) resetToDefaults();
               }}
               className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-700 text-sm leading-4 font-medium rounded-md shadow-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
             >
@@ -626,9 +641,15 @@ const CategoryManagement: React.FC = () => {
                           <PencilIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                         </button>
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
-                            if (window.confirm('Bist du sicher, dass du diese Kategorie löschen möchtest? Alle zugehörigen Daten gehen verloren.')) {
+                            const confirmed = await confirm({
+                              title: `Kategorie „${category.name}“ löschen?`,
+                              message: 'Alle Einträge dieser Kategorie gehen dabei verloren.',
+                              confirmLabel: 'Kategorie löschen',
+                              danger: true,
+                            });
+                            if (confirmed) {
                               deleteCategory(category.id);
                               if (selectedCategoryId === category.id) {
                                 // Wähle die erste verbleibende Kategorie aus (außer der gerade gelöschten)

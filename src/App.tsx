@@ -2,6 +2,7 @@ import React from 'react';
 import { HashRouter as Router, Route, Routes } from 'react-router-dom';
 import { CollectionProvider } from './context/CollectionContext';
 import { LoadingProvider } from './context/LoadingContext';
+import { FeedbackProvider } from './context/FeedbackContext';
 import Layout from './components/layout/Layout';
 import LoadingOverlayContainer from './components/common/LoadingOverlayContainer';
 import UpdateNotification from './components/common/UpdateNotification';
@@ -22,6 +23,7 @@ function App() {
   return (
     <CollectionProvider>
       <LoadingProvider>
+        <FeedbackProvider>
         <Router>
           <Layout>
             <Routes>
@@ -41,6 +43,7 @@ function App() {
             <UpdateNotification />
           </Layout>
         </Router>
+        </FeedbackProvider>
       </LoadingProvider>
     </CollectionProvider>
   );
