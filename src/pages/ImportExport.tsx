@@ -6,6 +6,7 @@ import {
   ExclamationCircleIcon,
   ArrowUpTrayIcon
 } from '@heroicons/react/24/outline';
+import { primaryButtonClass, primaryButtonSmallClass } from '../utils/formStyles';
 import { useCategoriesData, useCollectionActions } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
 import { wrapBackup, validateBackup } from '../utils/backup';
@@ -325,7 +326,7 @@ const ImportExport: React.FC = () => {
                 <button
                   onClick={handleJsonExport}
                   disabled={isLoading}
-                  className="w-full flex justify-center items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pokemon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
+                  className={`${primaryButtonClass} w-full`}
                 >
                   <ArrowUpTrayIcon className="h-5 w-5 mr-2" />
                   JSON exportieren
@@ -340,7 +341,7 @@ const ImportExport: React.FC = () => {
                 <button
                   onClick={handleExcelExport}
                   disabled={isLoading}
-                  className="w-full flex justify-center items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pokemon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
+                  className={`${primaryButtonClass} w-full`}
                 >
                   <ArrowUpTrayIcon className="h-5 w-5 mr-2" />
                   Excel exportieren
@@ -366,7 +367,7 @@ const ImportExport: React.FC = () => {
                       <button
                         onClick={() => handleCategoryExcelExport(category.id)}
                         disabled={isLoading}
-                        className="w-full flex justify-center items-center px-2 py-1.5 border border-transparent rounded-md shadow-sm text-xs font-medium text-white bg-pokemon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
+                        className={`${primaryButtonSmallClass} w-full`}
                       >
                         <ArrowUpTrayIcon className="h-4 w-4 mr-1.5" />
                         Als Excel exportieren
@@ -422,7 +423,7 @@ const ImportExport: React.FC = () => {
                 <div className="mt-2">
                   <label
                     htmlFor="json-file-upload"
-                    className="w-full inline-flex justify-center items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pokemon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue cursor-pointer"
+                    className={`${primaryButtonClass} w-full`}
                   >
                     <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
                     JSON Datei auswählen

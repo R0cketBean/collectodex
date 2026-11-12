@@ -3,7 +3,7 @@ import { PlusIcon, CameraIcon, LinkIcon, XMarkIcon } from '@heroicons/react/24/o
 import { useItemsData, useCollectionActions } from '../../context/CollectionContext';
 import { CollectionItem, AttributeDefinition, AttributeDataType } from '../../types/models';
 import { logger } from '../../utils/logger';
-import { inputClass, selectClass } from '../../utils/formStyles';
+import { inputClass, primaryButtonClass, secondaryButtonClass, selectClass } from '../../utils/formStyles';
 import { getOrderedImages, createExtraImageKey, FRONT_IMAGE_KEY, BACK_IMAGE_KEY, ItemImage } from '../../utils/itemImages';
 import ImageLightbox from '../common/ImageLightbox';
 import { parseDateInput } from '../../utils/dateInput';
@@ -667,14 +667,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
             <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
               <button
                 type="submit"
-                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
+                className={`${primaryButtonClass} w-full sm:ml-3 sm:w-auto`}
               >
                 Speichern
               </button>
               <button
                 type="button"
                 onClick={onCancel}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                className={`${secondaryButtonClass} mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto`}
               >
                 Abbrechen
               </button>
@@ -736,14 +736,14 @@ const ItemModal: React.FC<ItemModalProps> = ({ category, item, onSave, onCancel 
               <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue sm:ml-3 sm:w-auto sm:text-sm"
+                  className={`${primaryButtonClass} w-full sm:ml-3 sm:w-auto`}
                   onClick={handleLinkDialogSubmit}
                 >
                   Speichern
                 </button>
                 <button
                   type="button"
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className={`${secondaryButtonClass} mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto`}
                   onClick={cancelLinkDialog}
                 >
                   Abbrechen

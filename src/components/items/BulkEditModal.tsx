@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AttributeDefinition } from '../../types/models';
-import { inputClass, selectClass } from '../../utils/formStyles';
+import { inputClass, primaryButtonClass, secondaryButtonClass, selectClass } from '../../utils/formStyles';
 import { parseDateInput } from '../../utils/dateInput';
 
 // Modal zur Massenbearbeitung: setzt ausgewählte Attribute auf einen
@@ -199,14 +199,14 @@ const BulkEditModal: React.FC<BulkEditModalProps> = ({
               <button
                 type="submit"
                 disabled={enabledCount === 0}
-                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-pokemon-blue text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue disabled:opacity-40 disabled:cursor-not-allowed sm:ml-3 sm:w-auto sm:text-sm"
+                className={`${primaryButtonClass} w-full sm:ml-3 sm:w-auto`}
               >
                 Auf {selectedCount} Einträge anwenden
               </button>
               <button
                 type="button"
                 onClick={onCancel}
-                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-700 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                className={`${secondaryButtonClass} mt-3 w-full sm:mt-0 sm:ml-3 sm:w-auto`}
               >
                 Abbrechen
               </button>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { primaryButtonSmallClass } from '../../utils/formStyles';
 
 // Auto-Update-Hinweis (#20). Notify-only: Die App (Main-Prozess) prüft beim
 // Start auf neue GitHub-Releases und meldet das Ergebnis über die in
@@ -85,7 +86,7 @@ const UpdateNotification: React.FC = () => {
               <button
                 type="button"
                 onClick={handleDownload}
-                className="rounded-md bg-pokemon-blue px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                className={primaryButtonSmallClass}
               >
                 Herunterladen
               </button>
@@ -124,7 +125,7 @@ const UpdateNotification: React.FC = () => {
               <button
                 type="button"
                 onClick={handleInstall}
-                className="rounded-md bg-pokemon-blue px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                className={primaryButtonSmallClass}
               >
                 Neu starten
               </button>

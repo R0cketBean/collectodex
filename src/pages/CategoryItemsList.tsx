@@ -29,13 +29,7 @@ import ItemTileGrid from '../components/items/ItemTileGrid';
 import EmptyState from '../components/common/EmptyState';
 import Thumbnail from '../components/common/Thumbnail';
 import { formatAttributeNumber, formatEur, formatSignedEur } from '../utils/format';
-import {
-  dangerButtonClass,
-  inputClass,
-  primaryButtonClass,
-  secondaryButtonClass,
-  selectClass,
-} from '../utils/formStyles';
+import { dangerButtonClass, inputClass, primaryButtonClass, secondaryButtonClass, selectClass } from '../utils/formStyles';
 import { getItemViewMode, setItemViewMode, type ItemViewMode } from '../utils/viewMode';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
@@ -446,7 +440,7 @@ const CategoryItemsList: React.FC = () => {
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-pokemon-blue hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pokemon-blue"
+                className={primaryButtonClass}
               >
                 Zurück zum Dashboard
               </button>
