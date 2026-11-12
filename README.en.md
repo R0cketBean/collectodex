@@ -74,7 +74,7 @@ Prebuilt binaries are on the **[Releases page](https://github.com/R0cketBean/col
 
 ## Development
 
-Requirements: **Node.js 18+** and **npm 9+**.
+Requirements: **Node.js 22.12+** and **npm 10+**.
 
 ```bash
 npm install

@@ -11,6 +11,9 @@
   },
   "copyright": "Copyright © 2024 Andreas Bröder",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
     "@heroicons/react": "^2.0.18",
@@ -20,7 +23,7 @@
     "autoprefixer": "^10.4.21",
     "electron-is-dev": "^2.0.0",
     "electron-store": "^8.1.0",
-    "electron-updater": "^6.8.3",
+    "electron-updater": "^6.8.11",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "postcss": "^8.5.3",
@@ -72,8 +75,8 @@
     "@vitejs/plugin-react": "^6.0.2",
     "@vitest/coverage-v8": "^4.1.7",
     "concurrently": "^8.2.2",
-    "electron": "^28.2.0",
-    "electron-builder": "^24.9.1",
+    "electron": "^45.3.1",
+    "electron-builder": "^26.18.0",
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^17.14.0",
@@ -105,6 +108,7 @@
       "public/electron.js",
       "public/preload.js",
       "public/imageStore.js",
+      "public/security.js",
       "node_modules/**/*",
       "!node_modules/**/*.{md,MD,txt,TXT}",
       "!node_modules/**/LICENSE*",
@@ -144,9 +148,7 @@
       "gatekeeperAssess": false,
       "entitlements": "assets/entitlements.mac.plist",
       "entitlementsInherit": "assets/entitlements.mac.plist",
-      "notarize": {
-        "teamId": "8QQHV834VF"
-      },
+      "notarize": true,
       "target": [
         "dmg",
         "zip"
@@ -157,13 +159,15 @@
       "target": [
         "nsis"
       ],
-      "publisherName": "Andreas Bröder",
       "verifyUpdateCodeSignature": false,
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
-      "rfc3161TimeStampServer": "http://timestamp.digicert.com",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "signtoolOptions": {
+        "publisherName": "Andreas Bröder",
+        "signingHashAlgorithms": [
+          "sha256"
+        ],
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+      }
     },
     "linux": {
       "icon": "assets/icon.png",

@@ -2,13 +2,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 // Stellen Sie sicher, dass die Electron-API korrekt in den Main-Kontext injiziert wird
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Methoden zum Zugriff auf den lokalen Speicher
+  // Lokaler Speicher. Der Hauptprozess lässt nur die bekannten Schlüssel zu
+  // (public/security.js); Löschen und Leeren gibt es bewusst nicht.
   storeGet: (key) => ipcRenderer.invoke('store-get', key),
   storeSet: (key, data) => ipcRenderer.invoke('store-set', key, data),
-  storeDelete: (key) => ipcRenderer.invoke('store-delete', key),
-  storeClear: () => ipcRenderer.invoke('store-clear'),
-  
-  // Methode zum Öffnen von externen URLs im Standardbrowser
+
+  // Externe Adresse im Standardbrowser öffnen (nur https)
   openExternalURL: (url) => ipcRenderer.invoke('open-external-url', url),
 
   // Auto-Update (#20): Listener auf die Main-Prozess-Events. Jede Methode gibt

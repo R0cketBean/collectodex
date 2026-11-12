@@ -16,13 +16,13 @@ export interface UpdateError {
 }
 
 export interface ElectronAPI {
-  // Persistenter Speicher (electron-store)
+  // Persistenter Speicher (electron-store); nur die Schlüssel aus STORAGE_KEYS,
+  // alles andere lehnt der Hauptprozess mit einem Fehler ab.
   storeGet: (key: string) => Promise<unknown>;
   storeSet: (key: string, data: unknown) => Promise<boolean>;
-  storeDelete: (key: string) => Promise<boolean>;
-  storeClear: () => Promise<boolean>;
 
-  // Externe URLs im Standardbrowser öffnen
+  // Externe Adresse im Standardbrowser öffnen; false, wenn sie nicht mit
+  // https:// beginnt.
   openExternalURL: (url: string) => Promise<boolean>;
 
   // Auto-Update (#20). Die on*-Methoden liefern eine Cleanup-Funktion zurück.
