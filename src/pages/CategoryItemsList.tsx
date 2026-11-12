@@ -13,6 +13,9 @@ import {
   CameraIcon,
   PhotoIcon,
   LinkIcon,
+  Squares2X2Icon,
+  TableCellsIcon,
+  RectangleStackIcon,
 } from '@heroicons/react/24/outline';
 import { ChevronRightIcon } from '@heroicons/react/20/solid';
 import { useCategoriesData, useItemsData, useCollectionActions } from '../context/CollectionContext';
@@ -22,7 +25,18 @@ import { getOrderedImages, getPrimaryImage, countImages, ItemImage } from '../ut
 import ImageLightbox from '../components/common/ImageLightbox';
 import ItemModal from '../components/items/ItemModal';
 import BulkEditModal from '../components/items/BulkEditModal';
-import { formatAttributeNumber, formatEur } from '../utils/format';
+import ItemTileGrid from '../components/items/ItemTileGrid';
+import EmptyState from '../components/common/EmptyState';
+import Thumbnail from '../components/common/Thumbnail';
+import { formatAttributeNumber, formatEur, formatSignedEur } from '../utils/format';
+import {
+  dangerButtonClass,
+  inputClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+  selectClass,
+} from '../utils/formStyles';
+import { getItemViewMode, setItemViewMode, type ItemViewMode } from '../utils/viewMode';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
 // nur die zum Viewport passende Variante (Tabelle ODER mobile Liste) statt
@@ -73,6 +87,16 @@ const CategoryItemsList: React.FC = () => {
     return categoryId ? allItems.filter(item => item.categoryId === categoryId) : [];
   }, [categoryId, allItems]);
   
+  // Tabelle oder Kacheln (#128); die Wahl wird je Kategorie gemerkt.
+  const [viewMode, setViewMode] = useState<ItemViewMode>(() => getItemViewMode(categoryId));
+  useEffect(() => {
+    setViewMode(getItemViewMode(categoryId));
+  }, [categoryId]);
+  const chooseViewMode = (mode: ItemViewMode) => {
+    setViewMode(mode);
+    if (categoryId) setItemViewMode(categoryId, mode);
+  };
+
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<string>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -441,26 +465,26 @@ const CategoryItemsList: React.FC = () => {
                 {selectedItems.length > 0 && (
                   <button
                     onClick={() => setShowBulkEditModal(true)}
-                    className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    className={secondaryButtonClass}
                   >
-                    <PencilIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                    <PencilIcon className="-ml-1 h-5 w-5" aria-hidden="true" />
                     {selectedItems.length} Bearbeiten
                   </button>
                 )}
                 {selectedItems.length > 0 && (
                   <button
                     onClick={handleDeleteSelectedItems}
-                    className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700"
+                    className={dangerButtonClass}
                   >
-                    <TrashIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                    <TrashIcon className="-ml-1 h-5 w-5" aria-hidden="true" />
                     {selectedItems.length} Löschen
                   </button>
                 )}
                 <button
                   onClick={handleAddItem}
-                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-pokemon-blue hover:bg-blue-700"
+                  className={primaryButtonClass}
                 >
-                  <PlusIcon className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+                  <PlusIcon className="-ml-1 h-5 w-5" aria-hidden="true" />
                   Hinzufügen
                 </button>
               </div>
@@ -468,7 +492,11 @@ const CategoryItemsList: React.FC = () => {
           </div>
           
           {/* Such- und Filterleiste */}
-          <div className="mt-6 flex flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-4">
+          <div
+            className={`mt-6 flex-col space-y-3 sm:flex-row sm:space-y-0 sm:space-x-4 ${
+              items.length === 0 ? 'hidden' : 'flex'
+            }`}
+          >
             <div className="relative flex-grow">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 dark:text-gray-500" aria-hidden="true" />
@@ -477,8 +505,9 @@ const CategoryItemsList: React.FC = () => {
                 type="text"
                 name="search"
                 id="search"
-                className="focus:outline-none focus:ring-2 focus:ring-pokemon-blue focus:border-pokemon-blue block w-full pl-10 py-2 sm:text-sm rounded-md h-10 border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500"
-                placeholder="Suche..."
+                className={`${inputClass} h-10 pl-10`}
+                aria-label="Einträge durchsuchen"
+                placeholder="Suche…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -489,7 +518,8 @@ const CategoryItemsList: React.FC = () => {
                 <FunnelIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" aria-hidden="true" />
                 <select
                   id="filter-attribute"
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
+                  aria-label="Filtern nach"
+                  className={`${selectClass} h-10`}
                   value={selectedFilter}
                   onChange={(e) => {
                     setSelectedFilter(e.target.value);
@@ -507,7 +537,8 @@ const CategoryItemsList: React.FC = () => {
                 {selectedFilter && (
                   <select
                     id="filter-value"
-                    className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md"
+                    aria-label="Filterwert"
+                    className={`${selectClass} h-10`}
                     value={filterValue}
                     onChange={(e) => setFilterValue(e.target.value)}
                   >
@@ -531,7 +562,7 @@ const CategoryItemsList: React.FC = () => {
                 <select
                   id="sort-attribute"
                   aria-label="Sortieren nach"
-                  className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 dark:border-gray-700 border-2 bg-gray-50 dark:bg-gray-700 focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue sm:text-sm rounded-md h-10"
+                  className={`${selectClass} h-10`}
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value)}
                 >
@@ -546,7 +577,7 @@ const CategoryItemsList: React.FC = () => {
                   onClick={() => setSortDirection((d) => (d === 'asc' ? 'desc' : 'asc'))}
                   title={sortDirection === 'asc' ? 'Aufsteigend' : 'Absteigend'}
                   aria-label={`Sortierrichtung: ${sortDirection === 'asc' ? 'aufsteigend' : 'absteigend'}`}
-                  className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md border-2 border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:text-pokemon-blue focus:outline-none focus:ring-pokemon-blue focus:border-pokemon-blue"
+                  className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded-md border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:text-pokemon-blue dark:hover:text-blue-300 focus:outline-none focus:ring-2 focus:ring-pokemon-blue"
                 >
                   {sortDirection === 'asc' ? (
                     <BarsArrowUpIcon className="h-5 w-5" aria-hidden="true" />
@@ -556,16 +587,116 @@ const CategoryItemsList: React.FC = () => {
                 </button>
               </div>
             )}
+
+            {/* Umschalter Tabelle/Kacheln (#128) */}
+            <div className="inline-flex flex-shrink-0 self-start rounded-md shadow-sm sm:self-auto" role="group" aria-label="Ansicht">
+              {(
+                [
+                  { mode: 'table', label: 'Tabelle', icon: TableCellsIcon },
+                  { mode: 'tiles', label: 'Kacheln', icon: Squares2X2Icon },
+                ] as const
+              ).map(({ mode, label, icon: Icon }, index) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => chooseViewMode(mode)}
+                  aria-pressed={viewMode === mode}
+                  aria-label={label}
+                  title={label}
+                  className={`flex h-10 w-10 items-center justify-center border focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
+                    index === 0 ? 'rounded-l-md' : '-ml-px rounded-r-md'
+                  } ${
+                    viewMode === mode
+                      ? 'z-10 border-pokemon-blue bg-pokemon-blue text-white'
+                      : 'border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 hover:text-pokemon-blue dark:hover:text-blue-300'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
           </div>
-          
+
+          {items.length === 0 ? (
+            // Leere Kategorie (#129): sagen, was hier hingehört, und den ersten Schritt anbieten.
+            <EmptyState
+              className="mt-6"
+              icon={PlusIcon}
+              title={`Noch keine Einträge in „${category.name}“`}
+              actions={
+                <>
+                  <button type="button" onClick={handleAddItem} className={primaryButtonClass}>
+                    <PlusIcon className="-ml-1 h-5 w-5" aria-hidden="true" />
+                    Ersten Eintrag anlegen
+                  </button>
+                  {category.attributes?.some((a) => a.id === 'expansion') && (
+                    <button type="button" onClick={() => navigate('/katalog')} className={secondaryButtonClass}>
+                      <RectangleStackIcon className="-ml-1 h-5 w-5" aria-hidden="true" />
+                      Aus dem Katalog übernehmen
+                    </button>
+                  )}
+                </>
+              }
+            >
+              Name, Kaufpreis und aktueller Wert reichen für den Anfang. Fotos, Links und weitere Angaben kannst du
+              jederzeit ergänzen.
+            </EmptyState>
+          ) : filteredAndSortedItems.length === 0 ? (
+            <EmptyState
+              className="mt-6"
+              icon={MagnifyingGlassIcon}
+              title="Keine Treffer"
+              actions={
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSelectedFilter('');
+                    setFilterValue('');
+                  }}
+                  className={secondaryButtonClass}
+                >
+                  Suche und Filter zurücksetzen
+                </button>
+              }
+            >
+              Zu deiner Suche oder deinem Filter passt keiner der {items.length} Einträge dieser Kategorie.
+            </EmptyState>
+          ) : viewMode === 'tiles' ? (
+            <div className="mt-6">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 text-sm text-gray-600 dark:text-gray-300 tabular-nums">
+                <p>
+                  {filteredAndSortedItems.length} {filteredAndSortedItems.length === 1 ? 'Eintrag' : 'Einträge'}
+                  {typeof sums.totalValue === 'number' && ` · Gesamtwert ${formatEur(sums.totalValue)}`}
+                  {typeof sums.profitLoss === 'number' && (
+                    <>
+                      {' · Gewinn/Verlust '}
+                      <span className={sums.profitLoss >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                        {formatSignedEur(sums.profitLoss)}
+                      </span>
+                    </>
+                  )}
+                </p>
+                <button type="button" onClick={toggleSelectAll} className="text-pokemon-blue dark:text-blue-300 hover:underline">
+                  {selectedItems.length === filteredAndSortedItems.length ? 'Auswahl aufheben' : 'Alle auswählen'}
+                </button>
+              </div>
+              <ItemTileGrid
+                items={filteredAndSortedItems}
+                calculateItemValue={calculateItemValue}
+                selectedIds={selectedItems}
+                onToggleSelect={toggleItemSelection}
+                onOpen={handleEditItem}
+                onOpenImages={openLightbox}
+                highlightedItemId={highlightedItemId}
+                highlightRef={highlightRef}
+                portrait={category.attributes?.some((a) => a.id === 'expansion')}
+              />
+            </div>
+          ) : (
+          <>
           {/* Mobile Listenansicht (für kleine Bildschirme) */}
           <div className="md:hidden mt-6">
-            {filteredAndSortedItems.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400 text-lg">Keine Einträge gefunden.</p>
-                <p className="text-gray-400 dark:text-gray-500 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
-              </div>
-            ) : (
               <div className="bg-white dark:bg-gray-800 shadow overflow-hidden rounded-md">
                 <ul className="divide-y divide-gray-200 dark:divide-gray-700">
                   {!isDesktop && filteredAndSortedItems.map((item) => {
@@ -606,11 +737,7 @@ const CategoryItemsList: React.FC = () => {
                                 className="mr-3 flex-shrink-0 rounded-md border border-gray-200 dark:border-gray-700 overflow-hidden"
                                 title="Bilder ansehen"
                               >
-                                <img
-                                  src={mainImage}
-                                  alt={name}
-                                  className="h-12 w-12 object-contain"
-                                />
+                                <Thumbnail image={mainImage} alt={name} className="h-12 w-12 object-contain" />
                               </button>
                             ) : (
                               <div className="h-12 w-12 flex items-center justify-center bg-gray-100 dark:bg-gray-900 rounded-md mr-3 border border-gray-200 dark:border-gray-700">
@@ -676,9 +803,8 @@ const CategoryItemsList: React.FC = () => {
                   })}
                 </ul>
               </div>
-            )}
           </div>
-          
+
           {/* Tabelle (für mittlere und große Bildschirme) */}
           <div className="hidden md:flex md:flex-col mt-6">
             <div className="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
@@ -957,12 +1083,7 @@ const CategoryItemsList: React.FC = () => {
             </div>
           </div>
           
-          {/* Keine Daten Hinweis für Desktop-Ansicht */}
-          {filteredAndSortedItems.length === 0 && (
-            <div className="hidden md:block text-center py-12">
-              <p className="text-gray-500 dark:text-gray-400 text-lg">Keine Einträge gefunden.</p>
-              <p className="text-gray-400 dark:text-gray-500 mt-2">Füge neue Einträge hinzu oder ändere deine Suchkriterien.</p>
-            </div>
+          </>
           )}
           
           {/* Zoombarer Bild-Lightbox (#1) */}

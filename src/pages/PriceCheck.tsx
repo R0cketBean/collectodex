@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowTopRightOnSquareIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { ArrowTopRightOnSquareIcon, CheckIcon, CurrencyEuroIcon } from '@heroicons/react/24/outline';
 import { useCategoriesData, useCollectionActions, useItemsData } from '../context/CollectionContext';
 import { useCatalogSettings } from '../hooks/useCatalogSettings';
 import { fetchCard, formatEur, mapLimit, summarizePricing, type PriceSummary } from '../services/tcgdex';
 import type { CollectionItem } from '../types/models';
 import { itemProductLink } from '../utils/catalogMatch';
 import { pickCatalogPrice, PRICE_BASIS_LABEL } from '../utils/catalogSettings';
-import { inputClass, selectClass } from '../utils/formStyles';
+import { inputClass, primaryButtonClass, selectClass } from '../utils/formStyles';
+import EmptyState from '../components/common/EmptyState';
+import { firstEntryHref } from '../utils/onboarding';
 import { parseDecimal } from '../utils/number';
 import { daysSinceCheck, deviationPercent, formatCheckAge, isDue, sortByCheckAge } from '../utils/priceCheck';
 
@@ -143,7 +145,19 @@ const PriceCheck: React.FC = () => {
           </p>
         )}
         {items.length === 0 && (
-          <p className="mt-8 text-sm text-gray-500 dark:text-gray-400">Noch keine Einträge in der Sammlung.</p>
+          <EmptyState
+            className="mt-8"
+            icon={CurrencyEuroIcon}
+            title="Noch keine Preise zu prüfen"
+            actions={
+              <Link to={firstEntryHref(categories)} className={primaryButtonClass}>
+                Ersten Eintrag anlegen
+              </Link>
+            }
+          >
+            Der Preis-Check zeigt dir der Reihe nach die Einträge, deren Wert du am längsten nicht bestätigt hast, und
+            stellt den Katalogpreis daneben.
+          </EmptyState>
         )}
 
         <ul className="mt-6 space-y-2">
