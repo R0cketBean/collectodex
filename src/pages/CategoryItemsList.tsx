@@ -30,6 +30,8 @@ import EmptyState from '../components/common/EmptyState';
 import Thumbnail from '../components/common/Thumbnail';
 import { formatAttributeNumber, formatEur, formatSignedEur } from '../utils/format';
 import { dangerButtonClass, inputClass, primaryButtonClass, secondaryButtonClass, selectClass } from '../utils/formStyles';
+import { useFeedback } from '../context/FeedbackContext';
+import { captureChanged, captureRemoved, restoreChanged, restoreRemoved } from '../utils/undo';
 import { getItemViewMode, setItemViewMode, type ItemViewMode } from '../utils/viewMode';
 
 // Reagiert auf die Tailwind md-Breakpoint-Grenze (768px). Damit rendern wir
@@ -61,7 +63,9 @@ const CategoryItemsList: React.FC = () => {
     deleteItem,
     deleteMultipleItems,
     calculateItemValue,
+    setItems,
   } = useCollectionActions();
+  const { notify } = useFeedback();
   // Alle Items als eigener Slice (#18): Die Kategorie-Liste wird unten direkt
   // daraus gefiltert, statt über das (nun referenz-stabile) getItemsByCategoryId
   // — sonst ginge die items-Memo stale (würde bei Item-Mutationen nicht neu
@@ -118,16 +122,6 @@ const CategoryItemsList: React.FC = () => {
   const [hoverImage, setHoverImage] = useState<string | null>(null);
   const [hoverPosition, setHoverPosition] = useState<{x: number, y: number} | null>(null);
 
-  const [snackbar, setSnackbar] = useState<{
-    open: boolean;
-    message: string;
-    severity: 'success' | 'error' | 'info' | 'warning'
-  }>({
-    open: false,
-    message: '',
-    severity: 'success'
-  });
-  
   // Sichtbare Attribute (für die Tabelle)
   const visibleAttributes = useMemo(() => {
     if (!category || !category.attributes) return [];
@@ -293,23 +287,25 @@ const CategoryItemsList: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightParam, items]);
   
-  // Funktion zum Löschen eines Items
+  // Löschen fragt nicht mehr nach (#131): Der Eintrag verschwindet sofort, die
+  // Meldung bietet einige Sekunden lang „Rückgängig“ an.
   const handleDeleteItem = (itemId: string) => {
-    if (window.confirm('Bist du sicher, dass du diesen Eintrag löschen möchtest?')) {
-      deleteItem(itemId);
-      // Entferne das Item auch aus der Auswahl, wenn es ausgewählt war
-      setSelectedItems(prev => prev.filter(id => id !== itemId));
-    }
+    const removed = captureRemoved(allItems, [itemId]);
+    if (removed.length === 0) return;
+    deleteItem(itemId);
+    setSelectedItems(prev => prev.filter(id => id !== itemId));
+    const name = String(removed[0].item.values?.name || 'Eintrag');
+    notify(`„${name}“ gelöscht`, { undo: () => setItems(prev => restoreRemoved(prev, removed)) });
   };
-  
-  // Funktion zum Löschen mehrerer Items
+
   const handleDeleteSelectedItems = () => {
-    if (selectedItems.length === 0) return;
-    
-    if (window.confirm(`Bist du sicher, dass du ${selectedItems.length} ausgewählte Einträge löschen möchtest?`)) {
-      deleteMultipleItems(selectedItems);
-      setSelectedItems([]); // Auswahl zurücksetzen
-    }
+    const removed = captureRemoved(allItems, selectedItems);
+    if (removed.length === 0) return;
+    deleteMultipleItems(selectedItems);
+    setSelectedItems([]);
+    notify(removed.length === 1 ? '1 Eintrag gelöscht' : `${removed.length} Einträge gelöscht`, {
+      undo: () => setItems(prev => restoreRemoved(prev, removed)),
+    });
   };
 
   // Wendet die in der Massenbearbeitung gesetzten Attribute auf alle
@@ -320,10 +316,13 @@ const CategoryItemsList: React.FC = () => {
       setShowBulkEditModal(false);
       return;
     }
+    const before = captureChanged(allItems, selectedItems);
     updateMultipleItems(selectedItems, values);
     setShowBulkEditModal(false);
     setSelectedItems([]);
-    showSnackbarMessage(`${count} Einträge aktualisiert`);
+    notify(count === 1 ? '1 Eintrag geändert' : `${count} Einträge geändert`, {
+      undo: () => setItems(prev => restoreChanged(prev, before)),
+    });
   };
   
   // Funktion zum Bearbeiten eines Items
@@ -351,12 +350,12 @@ const CategoryItemsList: React.FC = () => {
         setEditingItem(null);
 
         // Anzeigen einer Erfolgsmeldung
-        showSnackbarMessage('Item erfolgreich aktualisiert');
+        notify('Eintrag gespeichert');
 
         return editingItem.id;
       } catch (error) {
         console.error('Fehler beim Speichern des Items:', error);
-        showSnackbarMessage('Fehler beim Speichern des Items', 'error');
+        notify('Der Eintrag ließ sich nicht speichern', { kind: 'error' });
         return '';
       }
     } else {
@@ -419,23 +418,6 @@ const CategoryItemsList: React.FC = () => {
       // Fallback für Browser
       (window as Window).open(linkUrl, '_blank', 'noopener,noreferrer');
     }
-  };
-  
-  // Hilfsfunktion für Benachrichtigungen
-  const showSnackbarMessage = (
-    message: string, 
-    severity: 'success' | 'error' | 'info' | 'warning' = 'success'
-  ) => {
-    setSnackbar({
-      open: true,
-      message,
-      severity
-    });
-    
-    // Automatisches Schließen nach 3 Sekunden
-    setTimeout(() => {
-      setSnackbar(prev => ({ ...prev, open: false }));
-    }, 3000);
   };
   
   return (
@@ -1031,8 +1013,11 @@ const CategoryItemsList: React.FC = () => {
                             })}
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <button
+                                type="button"
                                 onClick={() => handleDeleteItem(item.id)}
-                                className="text-red-600 hover:text-red-900"
+                                title="Löschen"
+                                aria-label={`${String(item.values?.name || 'Eintrag')} löschen`}
+                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                               >
                                 <TrashIcon className="h-5 w-5" />
                               </button>
@@ -1166,49 +1151,6 @@ const CategoryItemsList: React.FC = () => {
               onApply={handleBulkEditApply}
               onCancel={() => setShowBulkEditModal(false)}
             />
-          )}
-
-          {/* Eigene Benachrichtigungskomponente */}
-          {snackbar.open && (
-            <div 
-              className={`fixed bottom-4 right-4 p-4 rounded-md shadow-lg transition-opacity duration-300 z-50 
-                ${snackbar.severity === 'success' ? 'bg-green-600 text-white' : 
-                  snackbar.severity === 'error' ? 'bg-red-600 text-white' : 
-                  snackbar.severity === 'warning' ? 'bg-yellow-600 text-white' : 
-                  'bg-blue-600 text-white'}`}
-            >
-              <div className="flex items-center space-x-2">
-                {snackbar.severity === 'success' && (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                {snackbar.severity === 'error' && (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                )}
-                {snackbar.severity === 'warning' && (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                )}
-                {snackbar.severity === 'info' && (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )}
-                <span>{snackbar.message}</span>
-                <button 
-                  onClick={() => setSnackbar(prev => ({ ...prev, open: false }))}
-                  className="ml-auto focus:outline-none"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
           )}
         </>
       )}

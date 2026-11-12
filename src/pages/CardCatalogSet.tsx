@@ -5,6 +5,8 @@ import { useCategoriesData, useCollectionActions, useItemsData } from '../contex
 import { toggleCatalogOwned, useCatalogOwned } from '../hooks/useCatalogOwned';
 import type { CatalogLang, CatalogVariant, Category, CollectionItem } from '../types/models';
 import { buildCatalogItem } from '../utils/catalogItem';
+import { useFeedback } from '../context/FeedbackContext';
+import { captureRemoved, restoreRemoved } from '../utils/undo';
 import { useCatalogSettings } from '../hooks/useCatalogSettings';
 import { buildCardmarketFilter, pickCatalogPrice } from '../utils/catalogSettings';
 import {
@@ -74,7 +76,8 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
   const navigate = useNavigate();
   const items = useItemsData();
   const categories = useCategoriesData();
-  const { addItem, calculateItemValue, deleteItem, setItemCatalogRefs } = useCollectionActions();
+  const { addItem, calculateItemValue, deleteItem, setItemCatalogRefs, setItems } = useCollectionActions();
+  const { notify } = useFeedback();
   const checked = useCatalogOwned()[setKey];
   const settings = useCatalogSettings();
   const linked = useMemo(() => linkedItemsByCard(items, setId, lang), [items, setId, lang]);
@@ -460,10 +463,11 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
           }}
           onUnlink={(itemId) => setItemCatalogRefs({ [itemId]: null })}
           onDelete={(item) => {
-            const name = String(item.values?.name ?? 'Ohne Namen');
-            if (window.confirm(`Eintrag „${name}“ aus deiner Sammlung löschen? Das lässt sich nicht rückgängig machen.`)) {
-              deleteItem(item.id);
-            }
+            const removed = captureRemoved(items, [item.id]);
+            deleteItem(item.id);
+            notify(`„${String(item.values?.name || 'Eintrag')}“ aus der Sammlung gelöscht`, {
+              undo: () => setItems((prev) => restoreRemoved(prev, removed)),
+            });
           }}
           onClose={() => setSelected(null)}
         />

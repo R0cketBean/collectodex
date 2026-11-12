@@ -9,6 +9,7 @@ import {
 import { primaryButtonClass, primaryButtonSmallClass } from '../utils/formStyles';
 import { useCategoriesData, useCollectionActions } from '../context/CollectionContext';
 import { useLoading } from '../context/LoadingContext';
+import { useFeedback } from '../context/FeedbackContext';
 import { wrapBackup, validateBackup } from '../utils/backup';
 import { getCatalogOwned, replaceCatalogOwned } from '../hooks/useCatalogOwned';
 import { externalizeItemImages, inlineItemImages } from '../utils/imageStorage';
@@ -24,6 +25,7 @@ const ImportExport: React.FC = () => {
     exportCollectionAsExcel,
     getItemsByCategoryId,
   } = useCollectionActions();
+  const { confirm } = useFeedback();
   
   const { showLoading, hideLoading } = useLoading();
 
@@ -223,13 +225,20 @@ const ImportExport: React.FC = () => {
             // Der Import ersetzt die aktuelle Sammlung vollständig —
             // vorher bestätigen lassen.
             hideLoading();
-            const confirmed = window.confirm(
-              `Achtung: Der Import ersetzt deine aktuelle Sammlung ` +
-                `(${categories.length} Kategorien) durch die Sicherung ` +
-                `(${validation.data.categories.length} Kategorien, ` +
-                `${validation.data.items.length} Einträge).\n\n` +
-                `Dieser Schritt kann nicht rückgängig gemacht werden. Fortfahren?`
-            );
+            const confirmed = await confirm({
+              title: 'Sammlung durch die Sicherung ersetzen?',
+              message: (
+                <>
+                  <p>
+                    Der Import ersetzt deine aktuelle Sammlung ({categories.length} Kategorien) durch die Sicherung (
+                    {validation.data.categories.length} Kategorien, {validation.data.items.length} Einträge).
+                  </p>
+                  <p>Das lässt sich nicht rückgängig machen.</p>
+                </>
+              ),
+              confirmLabel: 'Sammlung ersetzen',
+              danger: true,
+            });
             if (!confirmed) {
               setIsLoading(false);
               return;
