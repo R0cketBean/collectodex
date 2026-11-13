@@ -45,3 +45,48 @@ jobs:
         run: npm run build
         env:
           CI: true
+
+  smoke:
+    name: Starttest (${{ matrix.os }})
+    # Paketiert die App unsigniert und fährt den Starttest (#135): starten,
+    # Eintrag anlegen, neu starten, Eintrag ist noch da. Fängt Fehler ab, die
+    # nur in der gepackten App auftreten.
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-15, windows-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React app
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Package app (unsigned, unpacked)
+        # shell: bash – PowerShell zerlegt die -c.…-Argumente (siehe release.yml).
+        shell: bash
+        run: npx electron-builder --dir --publish never -c.extraMetadata.main=public/electron.js -c.mac.notarize=false
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Starttest (Linux, mit virtuellem Bildschirm)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run smoke
+
+      - name: Starttest
+        if: runner.os != 'Linux'
+        run: npm run smoke
