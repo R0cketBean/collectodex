@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import ErrorLogSection, { describeLog, formatLogSize } from './ErrorLogSection';
+import ErrorLogSection, { describeLog } from './ErrorLogSection';
 import type { ElectronAPI, LogInfo } from '../../types/electron';
 
 const install = (info: LogInfo, extra: Partial<ElectronAPI> = {}) => {
@@ -18,13 +18,7 @@ afterEach(() => {
   delete window.electronAPI;
 });
 
-describe('formatLogSize / describeLog', () => {
-  it('schreibt Größen deutsch', () => {
-    expect(formatLogSize(512)).toBe('512 Byte');
-    expect(formatLogSize(1536)).toBe('1,5 KB');
-    expect(formatLogSize(3 * 1024 * 1024)).toBe('3 MB');
-  });
-
+describe('describeLog', () => {
   it('beschreibt leeres und gefülltes Protokoll', () => {
     expect(describeLog(null)).toBe('');
     expect(describeLog({ bytes: 0, updatedAt: null, exists: false })).toBe('Noch keine Einträge.');

@@ -1,26 +1,19 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowDownTrayIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 import { secondaryButtonClass } from '../../utils/formStyles';
+import { formatBytes } from '../../utils/format';
 import type { LogInfo } from '../../types/electron';
 
 // Einstellungen: Fehlerprotokoll ansehen und exportieren (#136). Die Datei
 // führt der Hauptprozess (public/errorLog.js); sie bleibt auf dem Rechner.
 
-const sizeFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
 const dateFormat = new Intl.DateTimeFormat('de-DE', { dateStyle: 'medium', timeStyle: 'short' });
-
-/** Dateigröße in Worten, z. B. „1,2 MB“. */
-export const formatLogSize = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} Byte`;
-  if (bytes < 1024 * 1024) return `${sizeFormat.format(bytes / 1024)} KB`;
-  return `${sizeFormat.format(bytes / (1024 * 1024))} MB`;
-};
 
 /** Statuszeile unter den Knöpfen. */
 export const describeLog = (info: LogInfo | null): string => {
   if (!info) return '';
   if (info.bytes === 0) return 'Noch keine Einträge.';
-  const size = formatLogSize(info.bytes);
+  const size = formatBytes(info.bytes);
   return info.updatedAt
     ? `${size}, letzter Eintrag am ${dateFormat.format(new Date(info.updatedAt))}.`
     : `${size}.`;

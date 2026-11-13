@@ -15,6 +15,28 @@ export interface UpdateError {
   message?: string;
 }
 
+export interface ImageUsage {
+  /** Dateien in der Bildablage (Bilder und Vorschaubilder) und ihr Platz in Bytes. */
+  files: number;
+  bytes: number;
+  /** Dateien, die zu keinem Eintrag mehr gehören. */
+  orphanFiles: number;
+  orphanBytes: number;
+  /** Keine Einträge geladen – dann wird nicht aufgeräumt. */
+  blocked: boolean;
+  /** Größe der Sicherungskopie von vor der Bildauslagerung; null, wenn es keine gibt. */
+  legacyBackupBytes: number | null;
+}
+
+export interface ImageCleanupResult {
+  blocked: boolean;
+  /** In den Papierkorb gelegte Dateien und ihr Platz in Bytes. */
+  removed: number;
+  bytes: number;
+  /** Dateien, die sich nicht in den Papierkorb legen ließen (bleiben liegen). */
+  failed: number;
+}
+
 export interface LogInfo {
   /** Größe des Protokolls in Bytes; 0, solange nichts eingetragen wurde. */
   bytes: number;
@@ -50,6 +72,11 @@ export interface ElectronAPI {
   readImage: (ref: string) => Promise<string | null>;
   // Vorschaubild (#128) zu einem abgelegten Bild; fehlt in älteren App-Versionen.
   saveThumbnail?: (ref: string, dataUrl: string) => Promise<string | null>;
+
+  // Bildablage aufräumen (#143); fehlt in älteren App-Versionen.
+  getImageUsage?: () => Promise<ImageUsage>;
+  cleanupImages?: () => Promise<ImageCleanupResult>;
+  trashLegacyBackup?: () => Promise<boolean>;
 
   // Fehlerprotokoll (#136); fehlt in älteren App-Versionen.
   logError?: (entry: { level: 'error' | 'warn'; message: string }) => void;

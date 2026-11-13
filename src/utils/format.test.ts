@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatAttributeNumber,
+  formatBytes,
   formatDecimal,
   formatEur,
   formatEurWhole,
@@ -33,6 +34,15 @@ describe('Betragsformate', () => {
   it('formatiert Zahlen ohne Währung', () => {
     expect(formatDecimal(1234.5)).toBe('1.234,50');
     expect(formatInteger(1234.4)).toBe('1.234');
+  });
+
+  it('schreibt Dateigrößen in Worten', () => {
+    expect(formatBytes(0)).toBe('0 Byte');
+    expect(formatBytes(512)).toBe('512 Byte');
+    expect(formatBytes(1536)).toBe('1,5 KB');
+    expect(formatBytes(3 * 1024 * 1024)).toBe('3 MB');
+    expect(formatBytes(70.25 * 1024 * 1024)).toBe('70,3 MB');
+    expect(formatBytes(2.5 * 1024 ** 3)).toBe('2,5 GB');
   });
 });
 
