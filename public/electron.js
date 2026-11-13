@@ -94,6 +94,8 @@ const store = new Store({
 
 const ITEMS_KEY = 'pokemon_collection_items';
 const imagesDir = () => path.join(app.getPath('userData'), 'images');
+// Kopie der Datendatei von vor der Bildauslagerung (#120); so groß wie die alte Datei.
+const legacyBackupFile = () => path.join(path.dirname(store.path), 'collectodex-data.vor-bildauslagerung.json');
 
 // Einmalige Auslagerung der Bilder aus der Datendatei (#120). Läuft vor dem
 // ersten Fenster, damit die App nie die große Datei über IPC schieben muss.
@@ -104,7 +106,7 @@ function migrateImagesOutOfStore() {
       readItems: () => store.get(ITEMS_KEY) || [],
       writeItems: (items) => store.set(ITEMS_KEY, items),
       storeFile: store.path,
-      backupFile: path.join(path.dirname(store.path), 'collectodex-data.vor-bildauslagerung.json'),
+      backupFile: legacyBackupFile(),
       dir: imagesDir(),
     });
     if (result.migrated > 0) {
@@ -459,6 +461,50 @@ handle('images:read', async (event, ref) => {
   } catch (error) {
     console.error('Bild lesen fehlgeschlagen:', error);
     return null;
+  }
+});
+
+// Bildablage aufräumen (#143). Gezählt wird gegen die gespeicherten Einträge
+// in der Datendatei, nicht gegen das, was das Fenster gerade anzeigt.
+handle('images:usage', async () => {
+  const scan = imageStore.scanImages({ dir: imagesDir(), items: store.get(ITEMS_KEY) });
+  let legacyBackupBytes = null;
+  try {
+    legacyBackupBytes = fs.statSync(legacyBackupFile()).size;
+  } catch {
+    // Keine Sicherungskopie vorhanden.
+  }
+  return {
+    files: scan.files,
+    bytes: scan.bytes,
+    orphanFiles: scan.orphans.length,
+    orphanBytes: scan.orphanBytes,
+    blocked: scan.blocked,
+    legacyBackupBytes,
+  };
+});
+
+// Verwaiste Bilddateien in den Papierkorb legen – nie endgültig löschen.
+handle('images:cleanup', async () => {
+  const result = await imageStore.cleanupOrphans({
+    dir: imagesDir(),
+    items: store.get(ITEMS_KEY),
+    trash: (file) => shell.trashItem(file),
+  });
+  if (result.failed > 0) {
+    console.error(`Bildablage aufräumen: ${result.failed} Dateien ließen sich nicht in den Papierkorb legen.`);
+  }
+  return result;
+});
+
+// Die Sicherungskopie von vor der Bildauslagerung in den Papierkorb legen.
+handle('images:trash-legacy-backup', async () => {
+  try {
+    await shell.trashItem(legacyBackupFile());
+    return true;
+  } catch (error) {
+    console.error('Sicherungskopie ließ sich nicht in den Papierkorb legen:', error);
+    return false;
   }
 });
 

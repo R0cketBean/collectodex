@@ -16,6 +16,7 @@ import { updateCatalogSettings, useCatalogSettings } from '../hooks/useCatalogSe
 import type { CatalogSettings } from '../utils/catalogSettings';
 import { primaryButtonClass, secondaryButtonSmallClass, selectClass } from '../utils/formStyles';
 import ErrorLogSection from '../components/settings/ErrorLogSection';
+import ImageStorageSection from '../components/settings/ImageStorageSection';
 import {
   BackupSettings,
   DEFAULT_BACKUP_SETTINGS,
@@ -481,6 +482,8 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ImageStorageSection />
 
       <ErrorLogSection />
 

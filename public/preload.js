@@ -54,6 +54,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Vorschaubild zu einem abgelegten Bild speichern (#128); liefert dessen Verweis.
   saveThumbnail: (ref, dataUrl) => ipcRenderer.invoke('images:save-thumb', ref, dataUrl),
 
+  // Bildablage aufräumen (#143): Belegung zählen, verwaiste Dateien und die
+  // alte Sicherungskopie in den Papierkorb legen.
+  getImageUsage: () => ipcRenderer.invoke('images:usage'),
+  cleanupImages: () => ipcRenderer.invoke('images:cleanup'),
+  trashLegacyBackup: () => ipcRenderer.invoke('images:trash-legacy-backup'),
+
   // Fehlerprotokoll (#136): Fehler des Fensters melden, Protokoll ansehen
   // und exportieren. Die Datei bleibt auf dem Rechner.
   logError: (entry) => ipcRenderer.send('log:write', entry),

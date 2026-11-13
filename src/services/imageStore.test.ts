@@ -140,3 +140,109 @@ describe('Vorschaubilder', () => {
     expect(imageStore.thumbFileName('abc_thumb.webp')).toBeNull();
   });
 });
+
+describe('Aufräumen', () => {
+  const WEBP = 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4TAYAAAAvAAAAAAfQ//73v/+BiOh/AAA=';
+  const HOUR = 60 * 60 * 1000;
+  // Standard in den Tests: Alle Dateien gelten als alt genug.
+  const later = () => Date.now() + 2 * HOUR;
+  const fileOf = (ref: string) => ref.slice('cdx-image://local/'.length);
+
+  it('zählt Belegung und erkennt Dateien ohne Eintrag samt ihrer Vorschaubilder', () => {
+    const used = imageStore.saveDataUrl(dir, PNG);
+    const usedThumb = imageStore.saveThumbnail(dir, used, WEBP);
+    const orphan = imageStore.saveDataUrl(dir, PNG);
+    const orphanThumb = imageStore.saveThumbnail(dir, orphan, WEBP);
+    const items = [{ id: 'a', images: { front: used } }, { id: 'b' }];
+
+    const scan = imageStore.scanImages({ dir, items, now: later() });
+    expect(scan.blocked).toBe(false);
+    expect(scan.files).toBe(4);
+    expect(scan.bytes).toBe(fs.readdirSync(dir).reduce((n: number, f: string) => n + fs.statSync(path.join(dir, f)).size, 0));
+    expect(scan.orphans.sort()).toEqual([fileOf(orphan), fileOf(orphanThumb)].sort());
+    expect(scan.orphanBytes).toBeGreaterThan(0);
+    expect(scan.orphans).not.toContain(fileOf(usedThumb));
+  });
+
+  it('lässt fremde Dateien und Unterordner außen vor, zählt aber Schreibreste', () => {
+    const used = imageStore.saveDataUrl(dir, PNG);
+    fs.writeFileSync(path.join(dir, '.DS_Store'), 'x');
+    fs.writeFileSync(path.join(dir, 'Notizen zu den Bildern.txt'), 'x');
+    fs.writeFileSync(path.join(dir, 'urlaub.jpg'), 'x');
+    fs.writeFileSync(path.join(dir, 'fremd.txt.tmp'), 'x');
+    fs.mkdirSync(path.join(dir, '11111111-2222-3333-4444-555555555555.png'));
+    const rest = `${fileOf(used).replace(/^.{8}/, '00000000')}.tmp`;
+    fs.writeFileSync(path.join(dir, rest), 'halb');
+
+    const scan = imageStore.scanImages({ dir, items: [{ images: { a: used } }], now: later() });
+    expect(scan.files).toBe(2);
+    expect(scan.orphans).toEqual([rest]);
+  });
+
+  it('lässt frisch abgelegte Dateien in Ruhe', () => {
+    imageStore.saveDataUrl(dir, PNG);
+    const items = [{ id: 'a', images: {} }];
+    expect(imageStore.scanImages({ dir, items }).orphans).toEqual([]);
+    expect(imageStore.scanImages({ dir, items, now: Date.now() + imageStore.MIN_ORPHAN_AGE_MS + 1000 }).orphans).toHaveLength(1);
+  });
+
+  it('kommt ohne Bilderordner zurecht', () => {
+    expect(imageStore.scanImages({ dir, items: [{ id: 'a' }] })).toEqual({
+      files: 0,
+      bytes: 0,
+      orphans: [],
+      orphanBytes: 0,
+      blocked: false,
+    });
+  });
+
+  it('räumt nur Verwaistes in den Papierkorb und fasst den Rest nicht an', async () => {
+    const used = imageStore.saveDataUrl(dir, PNG);
+    const usedThumb = imageStore.saveThumbnail(dir, used, WEBP);
+    const orphan = imageStore.saveDataUrl(dir, PNG);
+    imageStore.saveThumbnail(dir, orphan, WEBP);
+    fs.writeFileSync(path.join(dir, 'fremd.txt'), 'x');
+    const trashed: string[] = [];
+    const trash = async (file: string) => {
+      trashed.push(path.basename(file));
+      fs.rmSync(file);
+    };
+
+    const result = await imageStore.cleanupOrphans({ dir, items: [{ images: { a: used } }], trash, now: later() });
+    expect(result).toMatchObject({ blocked: false, removed: 2, failed: 0 });
+    expect(result.bytes).toBeGreaterThan(0);
+    expect(trashed.sort()).toEqual([fileOf(orphan), fileOf(orphan).replace(/\.png$/, '_thumb.webp')].sort());
+    expect(fs.readdirSync(dir).sort()).toEqual([fileOf(used), fileOf(usedThumb), 'fremd.txt'].sort());
+  });
+
+  it('räumt nie auf, wenn keine Einträge geladen sind', async () => {
+    imageStore.saveDataUrl(dir, PNG);
+    const trash = async () => {
+      throw new Error('darf nicht aufgerufen werden');
+    };
+    for (const items of [[], undefined, null, 'kaputt']) {
+      expect(imageStore.scanImages({ dir, items, now: later() }).blocked).toBe(true);
+      expect(await imageStore.cleanupOrphans({ dir, items, trash, now: later() })).toEqual({
+        blocked: true,
+        removed: 0,
+        bytes: 0,
+        failed: 0,
+      });
+    }
+    expect(fs.readdirSync(dir)).toHaveLength(1);
+  });
+
+  it('lässt liegen, was sich nicht in den Papierkorb legen lässt', async () => {
+    imageStore.saveDataUrl(dir, PNG);
+    imageStore.saveDataUrl(dir, PNG);
+    let calls = 0;
+    const trash = async (file: string) => {
+      calls += 1;
+      if (calls === 1) throw new Error('Papierkorb nicht erreichbar');
+      fs.rmSync(file);
+    };
+    const result = await imageStore.cleanupOrphans({ dir, items: [{ id: 'a' }], trash, now: later() });
+    expect(result).toMatchObject({ removed: 1, failed: 1 });
+    expect(fs.readdirSync(dir)).toHaveLength(1);
+  });
+});

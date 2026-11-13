@@ -24,6 +24,16 @@ export const formatDecimal = (v: number) => decimal.format(v);
 /** Ganze Zahl mit Tausenderpunkt, z. B. „1.234“. */
 export const formatInteger = (v: number) => integer.format(Math.round(v));
 
+const fraction = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
+
+/** Dateigröße in Worten, z. B. „512 Byte“, „1,5 KB“, „67,2 MB“. */
+export const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} Byte`;
+  if (bytes < 1024 * 1024) return `${fraction.format(bytes / 1024)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${fraction.format(bytes / (1024 * 1024))} MB`;
+  return `${fraction.format(bytes / (1024 * 1024 * 1024))} GB`;
+};
+
 /** Ob ein Attribut einen Geldbetrag enthält (Preis, Wert, Kosten, Gewinn/Verlust). */
 export const isMoneyAttribute = (attributeId: string) =>
   /price|value|cost/i.test(attributeId) || attributeId === 'profitLoss';

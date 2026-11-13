@@ -191,6 +191,109 @@ const migrateInlineImages = ({ readItems, writeItems, storeFile, backupFile, dir
   return { migrated: moved, backupFile };
 };
 
+// --- Aufräumen (#143) --------------------------------------------------------
+// Wird ein Bild ersetzt oder ein Eintrag gelöscht, bleibt die Datei liegen –
+// die App löscht nie von selbst. Hier wird nur gezählt und auf ausdrücklichen
+// Wunsch in den Papierkorb gelegt.
+
+// Nur Dateien, die die App selbst angelegt hat: `<uuid>.<endung>`, das
+// Vorschaubild `<uuid>_thumb.webp` und Reste eines abgebrochenen
+// Schreibvorgangs (`….tmp`, siehe saveDataUrl). Alles andere im Ordner gehört
+// dem Nutzer und wird weder gezählt noch angefasst.
+const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+const OWN_FILE = new RegExp(`^${UUID}(${THUMB_SUFFIX})?\\.[a-z0-9]{2,5}$`);
+const TEMP_FILE = new RegExp(`^${UUID}(${THUMB_SUFFIX})?\\.[a-z0-9]{2,5}\\.tmp$`);
+
+/**
+ * Jüngere Dateien gelten nie als verwaist: Ein gerade abgelegtes Bild steht
+ * womöglich noch in keinem gespeicherten Eintrag.
+ */
+const MIN_ORPHAN_AGE_MS = 60 * 60 * 1000;
+
+const baseOf = (name) => name.slice(0, name.lastIndexOf('.'));
+
+/** Dateinamen aller Bilder, auf die ein Eintrag verweist. */
+const referencedFileNames = (items) => {
+  const names = new Set();
+  for (const item of Array.isArray(items) ? items : []) {
+    for (const value of Object.values((item && item.images) || {})) {
+      const name = refToFileName(value);
+      if (name) names.add(name);
+    }
+  }
+  return names;
+};
+
+/**
+ * Zählt, wie viel Platz die Bildablage belegt und welche Dateien zu keinem
+ * Eintrag mehr gehören. Ein Vorschaubild gehört zu seinem Original.
+ *
+ * `blocked` ist gesetzt, wenn keine Einträge geladen sind: Dann sähe jede
+ * Datei verwaist aus, und aufgeräumt wird nicht.
+ */
+const scanImages = ({ dir, items, now = Date.now(), minAgeMs = MIN_ORPHAN_AGE_MS }) => {
+  const list = Array.isArray(items) ? items : [];
+  const referenced = referencedFileNames(list);
+  const referencedBases = new Set([...referenced].map(baseOf));
+  const result = { files: 0, bytes: 0, orphans: [], orphanBytes: 0, blocked: list.length === 0 };
+
+  let names = [];
+  try {
+    names = fs.readdirSync(dir);
+  } catch {
+    return result; // Ordner gibt es noch nicht.
+  }
+
+  for (const name of names) {
+    const isTemp = TEMP_FILE.test(name);
+    if (!isTemp && !OWN_FILE.test(name)) continue;
+    let stat;
+    try {
+      stat = fs.statSync(path.join(dir, name));
+    } catch {
+      continue;
+    }
+    if (!stat.isFile()) continue;
+    result.files += 1;
+    result.bytes += stat.size;
+
+    const base = baseOf(name);
+    const isThumbOfUsed =
+      name.endsWith(`${THUMB_SUFFIX}.webp`) && referencedBases.has(base.slice(0, -THUMB_SUFFIX.length));
+    const used = !isTemp && (referenced.has(name) || isThumbOfUsed);
+    if (!used && now - stat.mtimeMs >= minAgeMs) {
+      result.orphans.push(name);
+      result.orphanBytes += stat.size;
+    }
+  }
+  return result;
+};
+
+/**
+ * Legt verwaiste Dateien in den Papierkorb. Zählt selbst neu, statt einer
+ * Liste von außen zu trauen, und löscht nie endgültig: Lässt sich eine Datei
+ * nicht in den Papierkorb legen, bleibt sie liegen.
+ *
+ * @param {(file: string) => Promise<void>} options.trash  legt eine Datei in den Papierkorb
+ */
+const cleanupOrphans = async ({ dir, items, trash, now, minAgeMs }) => {
+  const scan = scanImages({ dir, items, now, minAgeMs });
+  const result = { blocked: scan.blocked, removed: 0, bytes: 0, failed: 0 };
+  if (scan.blocked) return result;
+  for (const name of scan.orphans) {
+    const file = path.join(dir, name);
+    try {
+      const { size } = fs.statSync(file);
+      await trash(file);
+      result.removed += 1;
+      result.bytes += size;
+    } catch {
+      result.failed += 1;
+    }
+  }
+  return result;
+};
+
 module.exports = {
   IMAGE_SCHEME,
   IMAGE_REF_PREFIX,
@@ -207,4 +310,7 @@ module.exports = {
   externalizeItems,
   countInlineImages,
   migrateInlineImages,
+  MIN_ORPHAN_AGE_MS,
+  scanImages,
+  cleanupOrphans,
 };
