@@ -67,6 +67,19 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Mindest-macOS ins Update-Manifest schreiben
+        # Electron 45 läuft erst ab macOS 13. electron-builder trägt das nicht
+        # ins Manifest ein; ohne den Eintrag bekämen Nutzer mit macOS 11/12 das
+        # Update angeboten und könnten die App danach nicht mehr starten.
+        # electron-updater vergleicht mit os.release(), also der Darwin-Version:
+        # macOS 13 = Darwin 22. Bei einem neuen Electron mit höherer
+        # Mindestversion hier nachziehen (macOS 14 = 23.0.0 usw.).
+        run: |
+          test -f dist/latest-mac.yml
+          grep -q '^minimumSystemVersion:' dist/latest-mac.yml || printf "minimumSystemVersion: '22.0.0'\n" >> dist/latest-mac.yml
+          grep -q "^minimumSystemVersion: '22.0.0'$" dist/latest-mac.yml
+          cat dist/latest-mac.yml
+
       - name: Starttest der gepackten App
         # Vor dem Release (#135): die signierte App starten, einen Eintrag
         # anlegen, neu starten, Eintrag ist noch da. Schlägt das fehl, entsteht
