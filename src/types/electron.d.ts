@@ -15,6 +15,14 @@ export interface UpdateError {
   message?: string;
 }
 
+export interface LogInfo {
+  /** Größe des Protokolls in Bytes; 0, solange nichts eingetragen wurde. */
+  bytes: number;
+  /** Zeitpunkt des letzten Eintrags (ISO) oder null. */
+  updatedAt: string | null;
+  exists: boolean;
+}
+
 export interface ElectronAPI {
   // Persistenter Speicher (electron-store); nur die Schlüssel aus STORAGE_KEYS,
   // alles andere lehnt der Hauptprozess mit einem Fehler ab.
@@ -42,6 +50,12 @@ export interface ElectronAPI {
   readImage: (ref: string) => Promise<string | null>;
   // Vorschaubild (#128) zu einem abgelegten Bild; fehlt in älteren App-Versionen.
   saveThumbnail?: (ref: string, dataUrl: string) => Promise<string | null>;
+
+  // Fehlerprotokoll (#136); fehlt in älteren App-Versionen.
+  logError?: (entry: { level: 'error' | 'warn'; message: string }) => void;
+  getLogInfo?: () => Promise<LogInfo>;
+  openLog?: () => Promise<boolean>;
+  exportLog?: () => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>;
 
   // Auto-Backup (#91)
   chooseBackupFolder: () => Promise<string | null>;

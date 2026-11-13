@@ -5,14 +5,28 @@ const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
+const os = require('os');
 const imageStore = require('./imageStore');
 const security = require('./security');
+const { createErrorLog } = require('./errorLog');
 
 // Nur für Entwicklung und Tests: Datenordner umlenken, damit sich Änderungen
 // am Speicherformat an einer Kopie ausprobieren lassen, ohne die echte
 // Sammlung anzufassen. Muss vor allem anderen laufen, was userData liest.
 if (process.env.COLLECTODEX_USER_DATA) {
   app.setPath('userData', path.resolve(process.env.COLLECTODEX_USER_DATA));
+}
+
+// Fehlerprotokoll (#136): Alles, was der Hauptprozess als Fehler oder Warnung
+// ausgibt, landet zusätzlich in einer Datei neben der Datendatei. Steht so
+// früh, damit auch Fehler der Migrationen weiter unten erfasst werden.
+const errorLog = createErrorLog({ dir: path.join(app.getPath('userData'), 'logs') });
+for (const level of ['error', 'warn']) {
+  const original = console[level].bind(console);
+  console[level] = (...args) => {
+    original(...args);
+    errorLog.write('main', level, ...args);
+  };
 }
 
 // Eigenes Schema für ausgelagerte Bilder (#120). Muss vor „ready“ als
@@ -126,6 +140,22 @@ process.on('uncaughtException', (error) => {
     'Anwendungsfehler',
     `Ein unerwarteter Fehler ist aufgetreten: ${error.message}\n\nDetails wurden in die Konsole geschrieben.`
   );
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unbehandelte Ablehnung:', reason);
+});
+
+// Abstürze von Fenster- und Hilfsprozessen (GPU, Netzwerk) festhalten.
+app.on('render-process-gone', (_event, _webContents, details) => {
+  if (details.reason !== 'clean-exit') {
+    console.error('Fenster-Prozess beendet:', details.reason, `(Code ${details.exitCode})`);
+  }
+});
+app.on('child-process-gone', (_event, details) => {
+  if (details.reason !== 'clean-exit') {
+    console.error('Hilfsprozess beendet:', details.type, details.reason, `(Code ${details.exitCode})`);
+  }
 });
 
 // Auto-Update (#20): Notify-only — die App prüft beim Start auf neue
@@ -359,6 +389,47 @@ handle('store-set', async (event, key, data) => {
   }
   store.set(key, data);
   return true;
+});
+
+// --- Fehlerprotokoll (#136) ------------------------------------------------
+// Das Fenster meldet seine Fehler hierher. Bewusst ohne Antwort (send statt
+// invoke): Ein Fehler beim Protokollieren soll im Fenster nichts auslösen.
+ipcMain.on('log:write', (event, entry) => {
+  if (!isTrustedSender(event)) return;
+  const { level, message } = entry || {};
+  if (typeof message !== 'string' || message === '') return;
+  errorLog.write('fenster', level === 'warn' ? 'warn' : 'error', message);
+});
+
+handle('log:info', async () => errorLog.info());
+
+// Öffnet die Protokolldatei im Standardprogramm; false, wenn es noch keine gibt.
+handle('log:open', async () => {
+  if (!errorLog.info().exists) return false;
+  return (await shell.openPath(errorLog.file)) === '';
+});
+
+// Speichert eine Kopie mit Angaben zu Version und System an einem Ort nach Wahl.
+handle('log:export', async () => {
+  const day = new Date().toISOString().slice(0, 10);
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Fehlerprotokoll exportieren',
+    defaultPath: path.join(app.getPath('downloads'), `collectodex-protokoll-${day}.txt`),
+    filters: [{ name: 'Textdatei', extensions: ['txt'] }],
+  });
+  if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+  try {
+    const text = errorLog.buildExport({
+      Version: app.getVersion(),
+      Electron: process.versions.electron,
+      System: `${process.platform} ${process.getSystemVersion()} (${os.arch()})`,
+    });
+    fs.writeFileSync(result.filePath, text, 'utf8');
+    return { ok: true, path: result.filePath };
+  } catch (error) {
+    console.error('Protokoll exportieren fehlgeschlagen:', error);
+    return { ok: false, error: String((error && error.message) || error) };
+  }
 });
 
 // Bilder (#120): neue Bilder als Datei ablegen bzw. für Export und Backup
