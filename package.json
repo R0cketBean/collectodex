@@ -42,6 +42,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "node scripts/smoke-test.mjs",
     "coverage": "vitest run --coverage",
     "electron-dev": "concurrently \"npm start\" \"wait-on http://localhost:3000 && electron .\"",
     "electron-pack": "electron-builder build --mac -c.extraMetadata.main=public/electron.js",

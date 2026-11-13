@@ -88,6 +88,12 @@ jobs:
           # @electron/notarize im Log. Nach der Diagnose wieder entfernen.
           DEBUG: electron-notarize*
 
+      - name: Starttest der gepackten App
+        # Vor dem Release (#135): die signierte App starten, einen Eintrag
+        # anlegen, neu starten, Eintrag ist noch da. Schlägt das fehl, entsteht
+        # kein Release.
+        run: npm run smoke
+
       - name: Upload artifacts to workflow run
         uses: actions/upload-artifact@v4
         with:
@@ -185,6 +191,10 @@ jobs:
         run: npx electron-builder --win --publish never -c.extraMetadata.main=public/electron.js
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Starttest der gepackten App
+        # Wie im mac-Job (#135), gegen dist/win-unpacked.
+        run: npm run smoke
 
       - name: Upload artifacts to workflow run
         uses: actions/upload-artifact@v4
