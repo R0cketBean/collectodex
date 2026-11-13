@@ -8,17 +8,17 @@
 //   npm start                       # Terminal 1 (Dev-Server)
 //   node scripts/generate-screenshots.mjs   # Terminal 2
 //
-// Puppeteer wird aus server/node_modules verwendet (dort bereits installiert).
+// Gesteuert wird ein installiertes Google Chrome über puppeteer-core (lädt
+// selbst keinen Browser herunter). Liegt Chrome nicht am üblichen Ort unter
+// macOS: CHROME_PATH setzen.
 
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
+import puppeteer from 'puppeteer-core';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
-const require = createRequire(join(repoRoot, 'server', 'index.js'));
-const puppeteer = require('puppeteer');
 
 const DEV_URL = process.env.DEV_URL || 'http://localhost:5180';
 const OUT_DIR = join(repoRoot, 'docs', 'screenshots');
@@ -75,7 +75,7 @@ const shots = [
 
 const run = async () => {
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: true,
     executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
     args: ['--no-sandbox', '--disable-gpu'],
   });

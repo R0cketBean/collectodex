@@ -84,13 +84,7 @@ function migrateLegacyUserData() {
 migrateLegacyUserData();
 
 // Initialisiere persistenten Speicher
-const store = new Store({
-  name: 'collectodex-data',
-  defaults: {
-    categories: [],
-    items: []
-  }
-});
+const store = new Store({ name: 'collectodex-data' });
 
 const ITEMS_KEY = 'pokemon_collection_items';
 const imagesDir = () => path.join(app.getPath('userData'), 'images');
