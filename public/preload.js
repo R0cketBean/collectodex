@@ -54,6 +54,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Vorschaubild zu einem abgelegten Bild speichern (#128); liefert dessen Verweis.
   saveThumbnail: (ref, dataUrl) => ipcRenderer.invoke('images:save-thumb', ref, dataUrl),
 
+  // Fehlerprotokoll (#136): Fehler des Fensters melden, Protokoll ansehen
+  // und exportieren. Die Datei bleibt auf dem Rechner.
+  logError: (entry) => ipcRenderer.send('log:write', entry),
+  getLogInfo: () => ipcRenderer.invoke('log:info'),
+  openLog: () => ipcRenderer.invoke('log:open'),
+  exportLog: () => ipcRenderer.invoke('log:export'),
+
   // Auto-Backup (#91)
   chooseBackupFolder: () => ipcRenderer.invoke('backup:choose-folder'),
   writeBackup: (payload) => ipcRenderer.invoke('backup:write', payload),

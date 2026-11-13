@@ -15,6 +15,7 @@ import { inlineItemImages } from '../utils/imageStorage';
 import { updateCatalogSettings, useCatalogSettings } from '../hooks/useCatalogSettings';
 import type { CatalogSettings } from '../utils/catalogSettings';
 import { primaryButtonClass, secondaryButtonSmallClass, selectClass } from '../utils/formStyles';
+import ErrorLogSection from '../components/settings/ErrorLogSection';
 import {
   BackupSettings,
   DEFAULT_BACKUP_SETTINGS,
@@ -480,6 +481,8 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ErrorLogSection />
 
       {/* Ausblick auf weitere Einstellungen */}
       <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow">
