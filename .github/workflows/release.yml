@@ -45,24 +45,6 @@ jobs:
         env:
           CI: true
 
-      # TEMPORÄR (Diagnose): Prüft die Apple-Notary-Credentials direkt über
-      # notarytool und gibt den ROHEN Apple-Fehler (inkl. HTTP-Status) ins Log
-      # aus — @electron/notarize verschluckt diesen sonst ("... is not valid
-      # JSON"). Read-only (history), `|| true` damit der Build weiterläuft.
-      # Nach der Diagnose wieder entfernen.
-      - name: Diagnose notarytool credentials (temporär)
-        run: |
-          echo "=== notarytool history (Diagnose, roher Apple-Fehler) ==="
-          xcrun notarytool history \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" 2>&1 || true
-          echo "=== Ende Diagnose ==="
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
       - name: Package macOS app (signed + notarized)
         # Signs with the Developer ID cert from CSC_LINK and notarizes via
         # notarytool using the APPLE_* credentials. Produces a signed,
@@ -84,9 +66,6 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # TEMPORÄR (Diagnose): zeigt die notarytool-Kommandos/Ausgaben von
-          # @electron/notarize im Log. Nach der Diagnose wieder entfernen.
-          DEBUG: electron-notarize*
 
       - name: Starttest der gepackten App
         # Vor dem Release (#135): die signierte App starten, einen Eintrag

@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 // Stilfragen bleiben außen vor. `any` ist im Bestand weit verbreitet und wird
 // schrittweise abgebaut, deshalb hier (noch) keine Regel dafür.
 export default tseslint.config(
-  { ignores: ['build/**', 'dist/**', 'docs/**', 'server/**', 'node_modules/**', 'coverage/**'] },
+  { ignores: ['build/**', 'dist/**', 'docs/**', 'node_modules/**', 'coverage/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
