@@ -67,6 +67,8 @@ const history = histDates.map((date, i) => {
 // In-App-Navigation per Klick auf die Sidebar-Links (Client-seitiges Routing
 // von react-router; ein hartes goto auf /statistics rendert sonst wieder die
 // Startseite). linkText muss exakt dem Navigationslabel entsprechen.
+const VIEWPORT = { width: 1360, height: 1000, deviceScaleFactor: 2 };
+
 const shots = [
   { name: 'dashboard', linkText: 'Dashboard' },
   { name: 'statistics', linkText: 'Statistik' },
@@ -80,7 +82,7 @@ const run = async () => {
     args: ['--no-sandbox', '--disable-gpu'],
   });
   const page = await browser.newPage();
-  await page.setViewport({ width: 1360, height: 1000, deviceScaleFactor: 2 });
+  await page.setViewport(VIEWPORT);
 
   // Vor dem ersten Render seeden: zuerst neutrale Seite laden, damit
   // localStorage für den Origin existiert.
@@ -92,6 +94,8 @@ const run = async () => {
       localStorage.setItem('pokemon_collection_items', JSON.stringify(data.items));
       localStorage.setItem('pokemon_collection_value_history', JSON.stringify(data.history));
       localStorage.setItem('collectodex-theme', data.theme);
+      // Die Einstiegskarte für neue Nutzer gehört nicht aufs Bild.
+      localStorage.setItem('collectodex-onboarding', JSON.stringify({ dismissed: true, categoriesSeen: true }));
     }, { items, history, theme });
 
     // Theme nach dem Setzen einmal frisch laden, damit es greift.
@@ -110,8 +114,14 @@ const run = async () => {
       if (!clicked) throw new Error(`Nav-Link "${shot.linkText}" nicht gefunden`);
       // Charts (recharts, lazy) Zeit zum Rendern geben.
       await new Promise((r) => setTimeout(r, 1500));
+      // Fenster auf die volle Seitenhöhe bringen statt `fullPage`: Bei der
+      // Ganzseiten-Aufnahme zeichnen die Diagramme neu und die Linien fehlen.
+      await page.setViewport({ ...VIEWPORT, height: VIEWPORT.height });
+      const height = await page.evaluate(() => Math.max(...[document.documentElement, document.body, ...document.querySelectorAll('main, [class*="overflow-y"]')].map((el) => el.scrollHeight)));
+      await page.setViewport({ ...VIEWPORT, height: Math.max(VIEWPORT.height, height) });
+      await new Promise((r) => setTimeout(r, 800));
       const file = join(OUT_DIR, `${shot.name}-${theme}.png`);
-      await page.screenshot({ path: file, fullPage: true });
+      await page.screenshot({ path: file });
       console.log('✓', file);
     }
   }

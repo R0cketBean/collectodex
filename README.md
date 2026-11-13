@@ -35,13 +35,18 @@ Rechner; nichts wird in eine Cloud hochgeladen.
 ## Funktionen
 
 - 📦 **Flexible Kategorien** – Sealed, Gegradet, Einzelkarten oder eigene Kategorien mit frei definierbaren Attributen.
+- 🃏 **Kartenkatalog** – Sets auf Deutsch, Englisch und Japanisch durchblättern, vorhandene Karten abhaken und mit Bild in die Sammlung übernehmen.
+- 💶 **Preis-Check** – eigene Werte mit dem Katalogpreis vergleichen und sehen, welche Preise fällig sind.
 - 📊 **Dashboard** – Gesamtwert, Gewinn/Verlust, Wertverteilung und Wertentwicklung auf einen Blick.
-- 📈 **Statistik** – Rendite je Position, durchschnittliche Haltedauer und Wertverlauf pro Kategorie.
+- 📈 **Statistik** – Rendite je Eintrag, Haltedauer, größte Verluste und Wertverlauf pro Kategorie.
 - 🧮 **Berechnete Felder** – Gesamtkosten, Gesamtwert und Gewinn/Verlust per Formel automatisch ermittelt.
+- 🖼️ **Fotos & Kachelansicht** – Bilder liegen als Dateien neben der Datendatei, Listen gibt es als Tabelle oder Kacheln.
+- 🔎 **Globale Suche** – mit ⌘K bzw. Strg+K über alle Kategorien, dazu Filtern und Sortieren in jeder Liste.
+- ↩️ **Rückgängig** – Löschen und Massenbearbeitung lassen sich zurücknehmen.
+- 💾 **Import/Export & automatische Backups** – Excel-Export und tägliche Sicherungen in einen Ordner deiner Wahl.
 - 🌗 **Dark Mode** – Hell, dunkel oder dem System folgend.
-- 🔎 **Suchen, Filtern & Sortieren** – auch auf dem schmalen Fenster.
-- 💾 **Import/Export & automatische Backups** – Excel-Export und sicherbare Sicherungen.
-- 🔄 **Auto-Update** – benachrichtigt über neue Versionen (electron-updater).
+- 🔄 **Auto-Update** – meldet neue Versionen und installiert sie auf Klick.
+- 🩺 **Fehlerprotokoll** – bleibt auf deinem Rechner und lässt sich bei Problemen exportieren.
 
 ## Screenshots
 
@@ -62,11 +67,11 @@ Rechner; nichts wird in eine Cloud hochgeladen.
 
 Die fertigen Builds gibt es auf der **[Releases-Seite](https://github.com/R0cketBean/collectodex/releases/latest)**.
 
-**macOS** (signiert & notarisiert)
+**macOS** (ab macOS 13, Apple Silicon; signiert & notarisiert)
 1. Die `.dmg` öffnen.
 2. CollectODex in den Ordner „Programme" ziehen.
 
-**Windows** (NSIS-Installer, derzeit unsigniert)
+**Windows** (ab Windows 10; NSIS-Installer, derzeit unsigniert)
 1. Die `…Setup.exe` ausführen.
 2. Falls SmartScreen warnt: „Weitere Informationen" → „Trotzdem ausführen".
 
@@ -90,7 +95,8 @@ npm start
 Tests:
 
 ```bash
-npm test
+npm test          # Unit- und Komponententests
+npm run smoke     # Starttest gegen die gepackte App unter dist/
 ```
 
 ## Build
@@ -104,8 +110,9 @@ Die Artefakte landen unter `dist/`. Signierte Release-Builds erzeugt der
 [Release-Workflow](.github/workflows/release.yml) automatisch beim Pushen eines
 `v*`-Tags.
 
-> Die Screenshots in diesem README werden mit `node scripts/generate-screenshots.mjs`
-> aus der laufenden Web-Version (`npm start`) reproduzierbar erzeugt.
+> Die Screenshots in diesem README erzeugt `node scripts/generate-screenshots.mjs`
+> aus der laufenden Web-Version (`npm start -- --port 5180`); das Skript braucht ein
+> installiertes Google Chrome.
 
 ## Architektur
 
@@ -113,24 +120,37 @@ Die Artefakte landen unter `dist/`. Signierte Release-Builds erzeugt der
 | --- | --- |
 | `src/types/models.ts` | Datenmodell: Kategorien definieren Attribute, Items speichern Werte je Attribut-ID – dadurch beliebige eigene Kategorien. |
 | `src/context/CollectionContext.tsx` | Globaler Sammlungs-State (granulare Slices, stabile Actions). |
-| `src/pages/` | Dashboard, Sammlungslisten, Kategorieverwaltung, Statistik, Import/Export, Einstellungen. |
+| `src/pages/` | Dashboard, Sammlungslisten, Kartenkatalog, Preis-Check, Statistik, Kategorieverwaltung, Import/Export, Einstellungen. |
 | `src/services/StorageService.ts` | Persistenz-Abstraktion (Electron-Store ↔ `localStorage`-Fallback). |
+| `src/services/tcgdex.ts` | Kartenkatalog und Katalogpreise über die TCGdex-API. |
 | `public/electron.js`, `public/preload.js` | Electron-Hauptprozess und Preload. |
+| `public/security.js` | Regeln für das Fenster: erlaubte Speicherschlüssel, nur `https:`-Links, keine fremde Navigation. |
+| `public/imageStore.js` | Bildablage als Dateien, Vorschaubilder, Aufräumen verwaister Dateien. |
+| `public/errorLog.js` | Fehlerprotokoll von Hauptprozess und Fenster. |
+| `scripts/smoke-test.mjs` | Starttest der gepackten App (läuft in der CI und vor jedem Release). |
 
 Stack: **React 19 · TypeScript · Tailwind CSS · Vite · Electron · Recharts**.
 
 ## Datenspeicherung
 
-Sammlungs- und Kategoriedaten liegen im Electron-User-Data-Verzeichnis
-(Schlüssel `pokemon_collection_categories`, `pokemon_collection_items`,
-`pokemon_collection_value_history`). Im Browser dient `localStorage` als
-Fallback.
+Alles liegt lokal im Electron-User-Data-Verzeichnis (macOS:
+`~/Library/Application Support/collectodex`):
+
+| Ort | Inhalt |
+| --- | --- |
+| `collectodex-data.json` | Kategorien, Einträge, Wertverlauf, Katalog-Häkchen und Einstellungen. |
+| `images/` | Fotos als einzelne Dateien samt Vorschaubildern. Verwaiste Dateien räumst du in den Einstellungen auf. |
+| `logs/collectodex.log` | Fehlerprotokoll; wird nie übertragen. |
+
+Ins Netz geht die App nur für den Kartenkatalog (TCGdex), Katalogbilder
+(TCGdex, pokemontcg.io) und die Update-Prüfung (GitHub). Im Browser dient
+`localStorage` als Fallback.
 
 ## Roadmap
 
 Die Planung läuft über [GitHub-Milestones](https://github.com/R0cketBean/collectodex/milestones).
-Aktuelle Schwerpunkte: Konsolidierung & Performance, offizielle
-Cardmarket-OAuth-API für Preise, Design-Feinschliff – Windows-Politur zuletzt.
+Der Milestone „v1.0 – Stabilität & Release“ ist bis auf die Signatur des
+Windows-Installers abgeschlossen; was danach kommt, steht unter „Nach 1.0“.
 
 ## Lizenz
 
