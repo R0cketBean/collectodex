@@ -18,6 +18,7 @@ import CardCatalog from './pages/CardCatalog';
 import CardCatalogSet from './pages/CardCatalogSet';
 import CatalogLinkAssistant from './pages/CatalogLinkAssistant';
 import PriceCheck from './pages/PriceCheck';
+import Scanner from './pages/Scanner';
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
               <Route path="/katalog/:setId" element={<CardCatalogSet />} />
               <Route path="/katalog/:lang/:setId" element={<CardCatalogSet />} />
               <Route path="/preis-check" element={<PriceCheck />} />
+              <Route path="/scanner" element={<Scanner />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
             <LoadingOverlayContainer />

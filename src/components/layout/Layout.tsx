@@ -19,6 +19,7 @@ import {
   RectangleStackIcon,
   CurrencyEuroIcon,
   MagnifyingGlassIcon,
+  CameraIcon,
 } from '@heroicons/react/24/outline';
 import { useCategoriesData } from '../../context/CollectionContext';
 import GlobalSearch, { searchShortcutLabel } from '../common/GlobalSearch';
@@ -45,6 +46,10 @@ const MAIN_NAVIGATION: NavEntry[] = [
   { name: 'Dashboard', href: '/', icon: HomeIcon },
   { name: 'Statistik', href: '/statistics', icon: ChartBarIcon },
   { name: 'Kartenkatalog', href: '/katalog', icon: RectangleStackIcon },
+  // Der Scanner (#168) nutzt die Texterkennung von macOS – nur auf dem Mac zeigen.
+  ...(typeof navigator !== 'undefined' && /Mac/.test(navigator.platform || navigator.userAgent)
+    ? [{ name: 'Kartenscanner', href: '/scanner', icon: CameraIcon }]
+    : []),
   { name: 'Preis-Check', href: '/preis-check', icon: CurrencyEuroIcon },
 ];
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeftIcon, CheckIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useCategoriesData, useCollectionActions, useItemsData } from '../context/CollectionContext';
 import { toggleCatalogOwned, useCatalogOwned } from '../hooks/useCatalogOwned';
@@ -108,6 +108,22 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
       .catch(() => !controller.signal.aborted && setError('Das Set konnte nicht geladen werden.'));
     return () => controller.abort();
   }, [setId, lang]);
+
+  // Vom Kartenscanner (#168): „?karte=<id>“ öffnet die Karte direkt, sobald das
+  // Set geladen ist. Der Parameter wird danach entfernt, damit „Zurück“ und
+  // ein erneutes Laden die Ansicht nicht wieder öffnen.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedCard = searchParams.get('karte');
+  useEffect(() => {
+    if (!set || !requestedCard) return;
+    const card = set.cards.find((c) => c.id === requestedCard);
+    if (card) setSelected(card);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('karte');
+      return next;
+    }, { replace: true });
+  }, [set, requestedCard, setSearchParams]);
 
   // Esc schließt die Detailansicht.
   useEffect(() => {

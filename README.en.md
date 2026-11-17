@@ -36,6 +36,7 @@ cloud.
 
 - 📦 **Flexible categories** – sealed, graded, singles, or your own categories with freely defined attributes.
 - 🃏 **Card catalogue** – browse sets in German, English and Japanese, tick off the cards you own and add them to your collection with their image.
+- 📷 **Card scanner** (Mac) – drop in a photo of a card; macOS text recognition reads the set code, number and name and finds the card in the catalogue. The photo never leaves your computer.
 - 💶 **Price check** – compare your own values with the catalogue price and see which prices are due for an update.
 - 📊 **Dashboard** – total value, profit/loss, value distribution and value trend at a glance.
 - 📈 **Statistics** – return per item, holding period, biggest losses and value history per category.
@@ -121,6 +122,7 @@ the [release workflow](.github/workflows/release.yml) when a `v*` tag is pushed.
 | `src/context/CollectionContext.tsx` | Global collection state (granular slices, stable actions). |
 | `src/pages/` | Dashboard, collection lists, card catalogue, price check, statistics, category management, import/export, settings. |
 | `src/services/StorageService.ts` | Persistence abstraction (Electron store ↔ `localStorage` fallback). |
+| `native/card-ocr/` | Swift helper for the card scanner (Apple Vision); built with `npm run build:native`. |
 | `src/services/tcgdex.ts` | Card catalogue and catalogue prices via the TCGdex API. |
 | `public/electron.js`, `public/preload.js` | Electron main process and preload. |
 | `public/security.js` | Rules for the window: allowed storage keys, `https:` links only, no foreign navigation. |

@@ -442,6 +442,17 @@ export async function fetchSet(setId: string, lang: Lang = 'de'): Promise<SetDet
   return english?.cards?.length ? { ...set, cards: english.cards } : { ...set, cards: set.cards ?? [] };
 }
 
+/** Alle Sets einer Sprache mit Kartenzahlen (eine Abfrage, pro Sitzung zwischengespeichert). */
+export const fetchSetSummaries = (lang: Lang = 'de') => cachedJson<SetBrief[]>('/sets', lang);
+
+/** Sets mit diesem offiziellen Set-Code („SVI“, „MEW“), wie er auf neueren Karten gedruckt ist. */
+export const fetchSetsByCode = (code: string, lang: Lang = 'de') =>
+  cachedJson<SetBrief[]>(`/sets?abbreviation.official=${encodeURIComponent(code)}`, lang);
+
+/** Karten, deren Name den Text enthält (TCGdex sucht unscharf nach Teilstücken). */
+export const searchCardsByName = (name: string, lang: Lang = 'de') =>
+  cachedJson<CardBrief[]>(`/cards?name=${encodeURIComponent(name)}`, lang);
+
 /**
  * Englische Kartenbilder eines Sets, nach Kartennummer. Dient als Ersatz für
  * Karten ohne deutsches Bild. Gibt es das Set auf Englisch nicht (oder ist die
