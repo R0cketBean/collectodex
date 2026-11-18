@@ -30,7 +30,7 @@ export interface ScanInfo {
 
 // Wörter oben auf der Karte, die kein Name sind (Entwicklungsstufe, Kartentyp).
 const HEADER_WORDS =
-  /^(basis|phase\s*[12il]?|stufe\s*[12]|vstar|vmax|v-union|trainer|item|unterstützer|unterstutzer|stadion|ausrüstung|ausrustung|energie|basis-energie|spezial-energie|pokémon-ausrüstung|kp\b.*|hp\b.*|terakristall|entwickelt sich.*)$/i;
+  /^(basis|phase\s*[12ilzj]?|stufe\s*[12]|vstar|vmax|v-union|trainer|item|unterstützer|unterstutzer|stadion|ausrüstung|ausrustung|energie|basis-energie|spezial-energie|pokémon-ausrüstung|kp\b.*|hp\b.*|terakristall|entwickelt sich.*)$/i;
 
 // Häufige Lesefehler in Ziffernfolgen.
 const DIGIT_FIXES: Record<string, string> = { O: '0', o: '0', D: '0', Q: '0', I: '1', l: '1', '|': '1', S: '5', B: '8' };
@@ -57,6 +57,9 @@ const SET_CODE = /(?:^|[^A-Za-z0-9])([A-Z][A-Z0-9]{1,3}[a-z]?)\s+(DE|EN|FR|IT|ES
 // Promo ohne Gesamtzahl: „SVP DE 045“.
 const PROMO = /(?:^|[^A-Za-z0-9])([A-Z]{2,4})\s+(DE|EN|FR|IT|ES|PT|NL)\s+([0-9OoIl]{1,3})(?![0-9/])/;
 
+// Stufe vor dem Namen in derselben Zeile: „PHASEz Glurak“.
+const LEADING_STAGE = /^(basis|phase\s*[12ilzj]?|stufe\s*[12])\s+/i;
+
 const bottomLines = (lines: OcrLine[]) =>
   lines
     .filter((l) => l.y >= 0.85)
@@ -65,16 +68,43 @@ const bottomLines = (lines: OcrLine[]) =>
 
 const pickName = (lines: OcrLine[]): string | undefined => {
   const candidates = lines
-    .filter((l) => l.pass === 'full' && l.y < 0.12 && l.x > 0.08 && l.x < 0.65)
-    .map((l) => ({ ...l, text: l.text.replace(/\s+/g, ' ').trim() }))
+    // Mit Hülle oder leicht schräg liegt der Name etwas tiefer als 0,12.
+    .filter((l) => l.pass === 'full' && l.y < 0.17 && l.x > 0.04 && l.x < 0.65)
+    .map((l) => ({ ...l, text: l.text.replace(/\s+/g, ' ').trim().replace(LEADING_STAGE, '') }))
     .filter((l) => l.text.length >= 2 && !HEADER_WORDS.test(l.text) && /[A-Za-zÄÖÜäöüß]{2}/.test(l.text));
   // Der Name ist die oberste, größte Zeile in diesem Bereich.
   candidates.sort((a, b) => b.h - a.h || a.y - b.y);
   return candidates[0]?.text;
 };
 
+/**
+ * Koordinaten auf den Bereich beziehen, den der Text einnimmt. Wurde die Karte
+ * im Foto nicht gefunden (z. B. in der Hand), gelten die Angaben sonst für das
+ * ganze Foto, und Name und Nummer liegen nicht dort, wo sie gesucht werden.
+ */
+const relativeToText = (lines: OcrLine[]): OcrLine[] => {
+  const full = lines.filter((l) => l.pass === 'full');
+  if (full.length === 0) return lines;
+  const x0 = Math.min(...full.map((l) => l.x));
+  const y0 = Math.min(...full.map((l) => l.y));
+  const x1 = Math.max(...full.map((l) => l.x + l.w));
+  const y1 = Math.max(...full.map((l) => l.y + l.h));
+  const w = Math.max(x1 - x0, 0.01);
+  const h = Math.max(y1 - y0, 0.01);
+  // Der Text endet knapp über dem Kartenrand; die Fußzeile soll im unteren Bereich landen.
+  return full.map((l) => ({ ...l, x: (l.x - x0) / w, y: Math.min(1, (l.y - y0) / h + 0.04), w: l.w / w, h: l.h / h }));
+};
+
 /** Liest Set-Code, Nummer, Gesamtzahl und Name aus den erkannten Zeilen. */
 export const parseScan = (lines: OcrLine[]): ScanInfo => {
+  const info = parseLines(lines);
+  if (info.number || info.setCode) return info;
+  // Unten nichts gefunden: Karte wurde wohl nicht erkannt – am Text ausrichten.
+  const fallback = parseLines(relativeToText(lines));
+  return fallback.number || fallback.setCode ? fallback : info;
+};
+
+const parseLines = (lines: OcrLine[]): ScanInfo => {
   const info: ScanInfo = {};
   const bottom = bottomLines(lines);
 
@@ -110,6 +140,21 @@ export const parseScan = (lines: OcrLine[]): ScanInfo => {
         break;
       }
     }
+  }
+
+  // Promo, bei der die Nummer als eigene Zeile neben dem Code steht: „MEP DE“ | „116“.
+  if (!info.number && info.setCode) {
+    const codeLine = bottom.find((l) => SET_CODE.test(l.text));
+    const lone = codeLine
+      ? bottom.find(
+          (l) =>
+            l.pass === codeLine.pass &&
+            l.x > codeLine.x &&
+            Math.abs(l.y - codeLine.y) < 0.02 &&
+            /^[0-9OoIl]{1,3}$/.test(l.text.trim())
+        )
+      : undefined;
+    if (lone) info.number = normalizeCardNumber(fixDigits(lone.text.trim()));
   }
 
   const name = pickName(lines);
@@ -202,7 +247,10 @@ export const rankCandidates = (candidates: ScanCandidate[], info: ScanInfo): Ran
 export const isConfident = (ranked: RankedCandidate[]) => {
   const [first, second] = ranked;
   if (!first) return false;
-  const strong = first.matches.includes('number') && (first.matches.includes('code') || first.matches.includes('total'));
-  const agrees = strong && first.matches.includes('name');
+  const has = (m: RankedCandidate['matches'][number]) => first.matches.includes(m);
+  const strong = has('number') && (has('code') || has('total'));
+  // Code, Nummer und Gesamtzahl zusammen sind eindeutig – auch wenn der Name
+  // (z. B. auf Holo-Karten) nicht lesbar war.
+  const agrees = strong && (has('name') || (has('code') && has('total')));
   return agrees && (!second || first.score - second.score >= 2);
 };

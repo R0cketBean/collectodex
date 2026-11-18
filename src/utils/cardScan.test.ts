@@ -78,6 +78,30 @@ describe('parseScan', () => {
     expect(parseScan([line('PHASE1', 0.04, { x: 0.1 }), line('KP 120', 0.04, { x: 0.6 })]).name).toBeUndefined();
   });
 
+  it('entfernt die Stufe vor dem Namen und findet den Namen auch etwas tiefer', () => {
+    expect(parseScan([line('PHASEz Glurak', 0.1, { x: 0.06 }), line('KP 170', 0.1, { x: 0.7 })]).name).toBe('Glurak');
+    expect(parseScan([line('PHASEJ', 0.12, { x: 0.12, h: 0.02 }), line('Stahlos', 0.13, { x: 0.24 })]).name).toBe('Stahlos');
+  });
+
+  it('liest eine Promo-Nummer, die als eigene Zeile neben dem Code steht', () => {
+    const at = (text: string, x: number) => line(text, 0.94, { pass: 'bottom', x, h: 0.01 });
+    expect(parseScan([at('J', 0.02), at('MEP DE', 0.05), at('116', 0.15)])).toMatchObject({ setCode: 'MEP', number: '116' });
+  });
+
+  it('richtet sich am Text aus, wenn die Karte im Foto nicht erkannt wurde', () => {
+    // Karte in der Hand: Text nimmt nur die Mitte des Fotos ein.
+    const info = parseScan([
+      line('PHASEZ', 0.12, { x: 0.19, h: 0.01 }),
+      line('TurtokCx', 0.12, { x: 0.28, h: 0.02, w: 0.15 }),
+      line('Zwillingsdüsen', 0.54, { x: 0.38, w: 0.2 }),
+      line('Illustr. PLANETA Yamashita', 0.69, { x: 0.21, w: 0.2 }),
+      line('G MEW DE', 0.71, { x: 0.22, w: 0.05 }),
+      line('184/165', 0.71, { x: 0.28, w: 0.05 }),
+      line('kampfunfähig ist, nimmt dein Gegner 2 Preiskarten.', 0.69, { x: 0.43, w: 0.37 }),
+    ]);
+    expect(info).toMatchObject({ setCode: 'MEW', number: '184', total: 165, name: 'TurtokCx' });
+  });
+
   it('liefert ein leeres Ergebnis ohne Text', () => {
     expect(parseScan([])).toEqual({});
   });
@@ -140,6 +164,8 @@ describe('rankCandidates', () => {
       total: 198,
     });
     expect(ranked[0].matches).toEqual(['code', 'number', 'total']);
+    // Code, Nummer und Gesamtzahl sind eindeutig – sicher auch ohne Namen (Holo).
+    expect(isConfident(ranked)).toBe(true);
   });
 
   it('ist unsicher, wenn der Name nicht passt oder zwei Treffer gleichauf liegen', () => {

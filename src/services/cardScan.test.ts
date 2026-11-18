@@ -65,6 +65,12 @@ describe('findScanCandidates', () => {
     expect(ranked[0]).toMatchObject({ cardId: 'sv03.5-006', setId: 'sv03.5', official: 165 });
   });
 
+  it('zeigt namensgleiche Karten, wenn die gelesene Nummer im Katalog fehlt', async () => {
+    const { candidates: ranked } = await findScanCandidates({ setCode: 'MEP', number: '116', name: 'Glurak' }, source());
+    expect(ranked.map((r) => r.cardId)).toEqual(['sv03.5-006']);
+    expect(ranked[0].matches).toEqual(['name']);
+  });
+
   it('liefert nichts, wenn der Katalog nicht erreichbar ist', async () => {
     const offline = source({
       setsByCode: async () => Promise.reject(new Error('offline')),

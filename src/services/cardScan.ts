@@ -98,8 +98,10 @@ export async function findScanCandidates(read: ScanInfo, source: CatalogSource =
   // Ohne Treffer über Code und Gesamtzahl: über den Namen suchen.
   if (candidates.length === 0 && info.name) {
     const cards = await source.cardsByName(info.name).catch(() => [] as CardBrief[]);
-    const relevant = cards
-      .filter((c) => (info.number ? localIdMatches(c.localId, info.number) : true))
+    // Passt keine Nummer (z. B. Promo, die im Katalog fehlt), wenigstens die
+    // Karten mit diesem Namen zeigen – als unsichere Vorschläge.
+    const byNumber = cards.filter((c) => localIdMatches(c.localId, info.number));
+    const relevant = (byNumber.length > 0 ? byNumber : cards)
       .sort((a, b) => nameSimilarity(info.name, b.name) - nameSimilarity(info.name, a.name))
       .slice(0, MAX_SETS);
     const sets = await mapLimit([...new Set(relevant.map(setIdOfCard))], 4, (id) => source.set(id));
