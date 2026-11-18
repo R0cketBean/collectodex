@@ -3,11 +3,14 @@ import { ArrowPathIcon, CameraIcon, PhotoIcon, VideoCameraIcon } from '@heroicon
 import CatalogCardDialog from '../components/catalog/CatalogCardDialog';
 import LiveCamera from '../components/scanner/LiveCamera';
 import ScanResults from '../components/scanner/ScanResults';
+import ScanStack from '../components/scanner/ScanStack';
+import { useScanStack } from '../hooks/useScanStack';
+import { stackKey, stackTotals, type StackEntry } from '../utils/scanStack';
 import { useFeedback } from '../context/FeedbackContext';
 import { findScanCandidates, tcgdexSource } from '../services/cardScan';
-import { CATALOG_LANGUAGES, isCatalogLang } from '../services/tcgdex';
+import { CATALOG_LANGUAGES, formatEur, isCatalogLang } from '../services/tcgdex';
 import type { OcrResult } from '../types/electron';
-import type { CatalogLang } from '../types/models';
+import type { CatalogLang, CatalogVariant } from '../types/models';
 import { isConfident, parseScan, type RankedCandidate, type ScanInfo } from '../utils/cardScan';
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonSmallClass } from '../utils/formStyles';
 
@@ -17,6 +20,7 @@ import { inputClass, labelClass, primaryButtonClass, secondaryButtonSmallClass }
 // wird dort wie im Katalog, mit Variante und Kategorie.
 // Live-Kamera (#169): statt eines Fotos das Kamerabild, z. B. vom iPhone.
 // Sprache der Karte wählbar; „DE“/„EN“ neben dem Set-Code stellt sie selbst um.
+// Stapel-Modus (#171): sichere Treffer landen in einer Liste mit Gesamtwert.
 
 type Mode = 'photo' | 'camera';
 const MODE_KEY = 'collectodex_scanner_mode';
@@ -29,6 +33,26 @@ const readMode = (): Mode => {
 };
 
 const LANG_KEY = 'collectodex_scanner_lang';
+const STACK_MODE_KEY = 'collectodex_scanner_stack_mode';
+const readFlag = (key: string) => {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+};
+
+/** Karte, die in der Detailansicht geöffnet ist (aus den Treffern oder dem Stapel). */
+interface OpenCard {
+  cardId: string;
+  setId: string;
+  setName: string;
+  localId: string;
+  name: string;
+  image?: string;
+  lang: CatalogLang;
+  variant: CatalogVariant;
+}
 const readLang = (): CatalogLang => {
   try {
     const value = localStorage.getItem(LANG_KEY);
@@ -86,7 +110,39 @@ const Scanner: React.FC = () => {
   const [reverse, setReverse] = useState(false);
   const [lang, setLangState] = useState<CatalogLang>(readLang);
   const langRef = useRef(lang);
-  const [selected, setSelected] = useState<RankedCandidate | null>(null);
+  const [selected, setSelected] = useState<OpenCard | null>(null);
+  const reverseRef = useRef(reverse);
+  reverseRef.current = reverse;
+  const [stackMode, setStackModeState] = useState(() => readFlag(STACK_MODE_KEY));
+  const stackModeRef = useRef(stackMode);
+  stackModeRef.current = stackMode;
+  const stackApi = useScanStack();
+  const { stack, add: addEntry } = stackApi;
+
+  const setStackMode = (on: boolean) => {
+    setStackModeState(on);
+    try {
+      localStorage.setItem(STACK_MODE_KEY, on ? '1' : '0');
+    } catch {
+      // Nur eine Bequemlichkeit.
+    }
+  };
+
+  const variantNow = (): CatalogVariant => (reverseRef.current ? 'reverse' : 'normal');
+  const addToStack = useCallback(
+    (c: RankedCandidate) =>
+      addEntry({
+        cardId: c.cardId,
+        setId: c.setId,
+        setName: c.setName,
+        localId: c.localId,
+        name: c.name,
+        image: c.image,
+        lang: langRef.current,
+        variant: reverseRef.current ? 'reverse' : 'normal',
+      }),
+    [addEntry]
+  );
 
   const setLang = (next: CatalogLang) => {
     langRef.current = next;
@@ -119,7 +175,8 @@ const Scanner: React.FC = () => {
       .catch(() => setAvailable(false));
   }, []);
 
-  const search = useCallback(async (next: ScanInfo) => {
+  /** `fromScan`: frisch gescannt – im Stapel-Modus kommt ein sicherer Treffer gleich in den Stapel. */
+  const search = useCallback(async (next: ScanInfo, fromScan = false) => {
     setInfo(next);
     setDraft(next);
     setPhase('searching');
@@ -128,12 +185,16 @@ const Scanner: React.FC = () => {
       setInfo(found.info);
       setDraft(found.info);
       setResults(found.candidates);
+      if (fromScan && stackModeRef.current && isConfident(found.candidates)) {
+        addToStack(found.candidates[0]);
+        setHint(`„${found.candidates[0].name}“ liegt im Stapel.`);
+      }
       setPhase('done');
     } catch {
       setError('Der Kartenkatalog ist gerade nicht erreichbar.');
       setPhase('error');
     }
-  }, []);
+  }, [addToStack]);
 
   const scanDataUrl = useCallback(
     async (dataUrl: string, fromCamera: boolean) => {
@@ -172,7 +233,7 @@ const Scanner: React.FC = () => {
           setPhase('error');
           return;
         }
-        await search(parsed);
+        await search(parsed, true);
       } catch (e) {
         setError(e instanceof Error ? e.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(e));
         setPhase('error');
@@ -267,6 +328,20 @@ const Scanner: React.FC = () => {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={stackMode}
+                onChange={(e) => setStackMode(e.target.checked)}
+                className="rounded"
+              />
+              <span className="whitespace-nowrap">Stapel-Modus</span>
+              {stack.length > 0 && (
+                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium tabular-nums text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                  {stackTotals(stack).cards} · {formatEur(stackTotals(stack).value)}
+                </span>
+              )}
             </label>
           </div>
         )}
@@ -412,7 +487,9 @@ const Scanner: React.FC = () => {
                       confident={confident}
                       lang={lang}
                       reverse={reverse}
-                      onOpen={setSelected}
+                      onOpen={(c) => setSelected({ ...c, lang, variant: variantNow() })}
+                      onAddToStack={stackMode ? addToStack : undefined}
+                      inStack={(c) => stack.some((e) => e.key === stackKey({ cardId: c.cardId, lang, variant: variantNow() }))}
                     />
                   )}
 
@@ -475,6 +552,20 @@ const Scanner: React.FC = () => {
             </div>
           </div>
         )}
+
+        {available && stackMode && (
+          <div className="mt-8">
+            <ScanStack
+              stack={stack}
+              onQuantity={stackApi.setQuantity}
+              onVariant={stackApi.setVariant}
+              onRemove={stackApi.remove}
+              onRemoveMany={stackApi.removeMany}
+              onClear={stackApi.clear}
+              onOpen={(e: StackEntry) => setSelected(e)}
+            />
+          </div>
+        )}
       </div>
 
       {selected && (
@@ -482,8 +573,8 @@ const Scanner: React.FC = () => {
           card={{ id: selected.cardId, localId: selected.localId, name: selected.name, image: selected.image }}
           setId={selected.setId}
           setName={selected.setName}
-          lang={lang}
-          initialVariant={reverse ? 'reverse' : 'normal'}
+          lang={selected.lang}
+          initialVariant={selected.variant}
           strictLanguage
           onAdded={(category, _id, name) => {
             notify(`„${name}“ in „${category.name}“ übernommen`);

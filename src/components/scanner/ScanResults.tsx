@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckBadgeIcon } from '@heroicons/react/24/outline';
+import { CheckBadgeIcon, CheckIcon, PlusIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../catalog/FallbackImage';
 import { catalogCardImageSources, fetchCard, formatEur, mapLimit, summarizePricing, type PriceSummary } from '../../services/tcgdex';
 import type { CatalogLang } from '../../types/models';
@@ -25,12 +25,16 @@ interface ScanResultsProps {
   lang: CatalogLang;
   reverse: boolean;
   onOpen: (candidate: RankedCandidate) => void;
+  /** Stapel-Modus (#171): Treffer in den Stapel legen. */
+  onAddToStack?: (candidate: RankedCandidate) => void;
+  /** Ob die Karte (in der gewählten Fassung) schon im Stapel liegt. */
+  inStack?: (candidate: RankedCandidate) => boolean;
 }
 
 const priceOf = (price: PriceSummary | undefined, reverse: boolean) =>
   price ? (reverse && price.reverseTrend !== null ? price.reverseTrend : price.trend) : undefined;
 
-const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, reverse, onOpen }) => {
+const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, reverse, onOpen, onAddToStack, inStack }) => {
   const [prices, setPrices] = useState<Record<string, PriceSummary | null>>({});
 
   useEffect(() => {
@@ -44,6 +48,27 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
     });
     return () => controller.abort();
   }, [results, lang]);
+
+  // Liegt neben der Kartenschaltfläche (Schaltflächen dürfen nicht verschachtelt sein).
+  const stackButton = (c: RankedCandidate, position = 'bottom-2 right-2') => {
+    if (!onAddToStack) return null;
+    const added = inStack?.(c) ?? false;
+    return (
+      <button
+        type="button"
+        onClick={() => onAddToStack(c)}
+        title={added ? 'Liegt schon im Stapel – noch eine hinzufügen' : 'In den Stapel legen'}
+        className={`absolute ${position} inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${
+          added
+            ? 'bg-green-600 text-white hover:bg-green-700'
+            : 'bg-pokemon-blue text-white hover:bg-blue-700'
+        }`}
+      >
+        {added ? <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" /> : <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+        {added ? 'Im Stapel' : 'Zum Stapel'}
+      </button>
+    );
+  };
 
   const [best, ...rest] = confident ? results : [];
   const others = confident ? rest : results;
@@ -74,6 +99,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
   return (
     <div className="space-y-4">
       {best && (
+        <div className="relative">
         <button
           type="button"
           onClick={() => onOpen(best)}
@@ -95,6 +121,8 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
             <div className="mt-2 text-xs text-pokemon-blue dark:text-blue-300">Details und „In Sammlung übernehmen“ →</div>
           </div>
         </button>
+        {stackButton(best, 'top-2 right-2')}
+        </div>
       )}
 
       {others.length > 0 && (
@@ -108,7 +136,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
             {others.map((c) => {
               const value = priceOf(prices[c.cardId] ?? undefined, reverse);
               return (
-                <li key={c.cardId}>
+                <li key={c.cardId} className="relative">
                   <button
                     type="button"
                     onClick={() => onOpen(c)}
@@ -127,8 +155,10 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
                         </div>
                       )}
                       {chips(c)}
+                      {onAddToStack && <div className="h-6" aria-hidden="true" />}
                     </div>
                   </button>
+                  {stackButton(c)}
                 </li>
               );
             })}
