@@ -46,12 +46,17 @@ export interface CardModalProps {
   onAdd: (category: Category, variant: CatalogVariant) => void | Promise<void>;
   onUnlink: (itemId: string) => void;
   onDelete: (item: CollectionItem) => void;
+  /**
+   * Link zum Cardmarket-Produkt mit den eigenen Filtern (Land, Sprache der
+   * Karte, Zustand). Ohne Produktnummer bleibt die Suche nach dem Namen.
+   */
+  cardmarketUrl?: string;
   /** Vorauswahl beim Übernehmen, z. B. Reverse Holo aus dem Kartenscanner. */
   initialVariant?: CatalogVariant;
   onClose: () => void;
 }
 
-const CardModal: React.FC<CardModalProps> = ({ card, detail, englishImage, setId, setName, lang, ownership, categories, onToggle, onAdd, onUnlink, onDelete, initialVariant = 'normal', onClose }) => {
+const CardModal: React.FC<CardModalProps> = ({ card, detail, englishImage, setId, setName, lang, ownership, categories, onToggle, onAdd, onUnlink, onDelete, initialVariant = 'normal', cardmarketUrl, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
   const hasReverse = lang !== 'ja' && Boolean(detail?.variants?.reverse);
   // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
@@ -123,10 +128,10 @@ const CardModal: React.FC<CardModalProps> = ({ card, detail, englishImage, setId
             )}
 
             <button
-              onClick={() => openExternal(cardmarketSearchUrl(card.name))}
+              onClick={() => openExternal(cardmarketUrl ?? cardmarketSearchUrl(card.name))}
               className="mt-4 text-sm text-pokemon-blue dark:text-blue-300 hover:underline"
             >
-              Auf Cardmarket suchen
+              {cardmarketUrl ? 'Auf Cardmarket öffnen' : 'Auf Cardmarket suchen'}
             </button>
 
             <h3 className="mt-6 text-sm font-semibold text-gray-900 dark:text-gray-100">Dein Bestand</h3>

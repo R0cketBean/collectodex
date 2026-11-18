@@ -78,8 +78,14 @@ const CatalogCardDialog: React.FC<CatalogCardDialogProps> = ({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  const price = detail ? summarizePricing(detail) : null;
+  // Direkt zum Produkt, gefiltert wie die Links neuer Einträge.
+  const cardmarketUrl =
+    price?.idProduct != null
+      ? cardmarketProductUrl(price.idProduct, card.name, buildCardmarketFilter(settings, lang))
+      : undefined;
+
   const add = async (category: Category, variant: CatalogVariant) => {
-    const price = detail ? summarizePricing(detail) : null;
     // Nur ein Bild übernehmen, das sich wirklich laden lässt.
     const image = await firstLoadableImage(catalogCardImageSources(lang, card, setId, 'high', englishImage));
     const draft = buildCatalogItem(category, {
@@ -114,6 +120,7 @@ const CatalogCardDialog: React.FC<CatalogCardDialogProps> = ({
       ownership={cardOwnership(checked?.[card.id], linked[card.id])}
       categories={categories}
       initialVariant={initialVariant}
+      cardmarketUrl={cardmarketUrl}
       onToggle={(variant) => toggleCatalogOwned(setKey, card.id, variant)}
       onAdd={add}
       onUnlink={(itemId) => setItemCatalogRefs({ [itemId]: null })}
