@@ -110,20 +110,26 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
   }, [setId, lang]);
 
   // Vom Kartenscanner (#168): „?karte=<id>“ öffnet die Karte direkt, sobald das
-  // Set geladen ist. Der Parameter wird danach entfernt, damit „Zurück“ und
-  // ein erneutes Laden die Ansicht nicht wieder öffnen.
+  // Set geladen ist; „&variante=reverse“ wählt Reverse Holo vor (#169). Die
+  // Parameter werden danach entfernt, damit „Zurück“ und ein erneutes Laden
+  // die Ansicht nicht wieder öffnen.
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedCard = searchParams.get('karte');
+  const [presetVariant, setPresetVariant] = useState<CatalogVariant>('normal');
   useEffect(() => {
     if (!set || !requestedCard) return;
     const card = set.cards.find((c) => c.id === requestedCard);
-    if (card) setSelected(card);
+    if (card) {
+      setPresetVariant(searchParams.get('variante') === 'reverse' ? 'reverse' : 'normal');
+      setSelected(card);
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete('karte');
+      next.delete('variante');
       return next;
     }, { replace: true });
-  }, [set, requestedCard, setSearchParams]);
+  }, [set, requestedCard, searchParams, setSearchParams]);
 
   // Esc schließt die Detailansicht.
   useEffect(() => {
@@ -485,7 +491,11 @@ const CardCatalogSet: React.FC<{ setId: string; lang: CatalogLang }> = ({ setId,
               undo: () => setItems((prev) => restoreRemoved(prev, removed)),
             });
           }}
-          onClose={() => setSelected(null)}
+          initialVariant={presetVariant}
+          onClose={() => {
+            setSelected(null);
+            setPresetVariant('normal');
+          }}
         />
       )}
     </div>
@@ -522,8 +532,10 @@ const CardModal: React.FC<{
   onAdd: (category: Category, variant: CatalogVariant) => void | Promise<void>;
   onUnlink: (itemId: string) => void;
   onDelete: (item: CollectionItem) => void;
+  /** Vorauswahl beim Übernehmen, z. B. Reverse Holo aus dem Kartenscanner. */
+  initialVariant?: CatalogVariant;
   onClose: () => void;
-}> = ({ card, detail, englishImage, setId, setName, lang, ownership, categories, onToggle, onAdd, onUnlink, onDelete, onClose }) => {
+}> = ({ card, detail, englishImage, setId, setName, lang, ownership, categories, onToggle, onAdd, onUnlink, onDelete, initialVariant = 'normal', onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
   const hasReverse = lang !== 'ja' && Boolean(detail?.variants?.reverse);
   // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
@@ -531,7 +543,7 @@ const CardModal: React.FC<{
   const [targetId, setTargetId] = useState(
     () => (targets.find((c) => c.id === 'singles') ?? targets[0])?.id ?? ''
   );
-  const [addVariant, setAddVariant] = useState<CatalogVariant>('normal');
+  const [addVariant, setAddVariant] = useState<CatalogVariant>(initialVariant);
   const target = targets.find((c) => c.id === targetId);
   const variantLabel = (v: CatalogVariant) => (v === 'reverse' ? 'Reverse Holo' : hasReverse ? 'Normal' : 'Vorhanden');
   const categoryName = (item: CollectionItem) =>

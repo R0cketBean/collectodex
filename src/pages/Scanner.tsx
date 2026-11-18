@@ -73,6 +73,9 @@ const Scanner: React.FC = () => {
   // Live-Kamera: Hinweis, wenn eine Aufnahme nichts Lesbares enthielt.
   const [hint, setHint] = useState<string | null>(null);
   const settledPhase = useRef<Phase>('idle');
+  // Reverse Holo ist auf dem Foto nicht vom normalen Druck zu unterscheiden
+  // (gleicher Text) – deshalb von Hand; bleibt für einen ganzen Stapel an.
+  const [reverse, setReverse] = useState(false);
 
   const setMode = (next: Mode) => {
     setModeState(next);
@@ -175,7 +178,10 @@ const Scanner: React.FC = () => {
 
   const busy = phase === 'reading' || phase === 'searching';
   const confident = isConfident(results);
-  const openCard = (c: RankedCandidate) => navigate(`/katalog/${encodeURIComponent(c.setId)}?karte=${encodeURIComponent(c.cardId)}`);
+  const openCard = (c: RankedCandidate) =>
+    navigate(
+      `/katalog/${encodeURIComponent(c.setId)}?karte=${encodeURIComponent(c.cardId)}${reverse ? '&variante=reverse' : ''}`
+    );
 
   return (
     <div className="py-6">
@@ -331,6 +337,21 @@ const Scanner: React.FC = () => {
                         </span>
                       ))}
                     </div>
+                  )}
+
+                  {results.length > 0 && (
+                    <label className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={reverse}
+                        onChange={(e) => setReverse(e.target.checked)}
+                        className="rounded"
+                      />
+                      <span className="whitespace-nowrap font-medium">Reverse Holo</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        (erkennt der Scanner nicht – wird beim Übernehmen vorausgewählt)
+                      </span>
+                    </label>
                   )}
 
                   {phase === 'done' && results.length === 0 && (

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { CameraIcon } from '@heroicons/react/24/outline';
+import { ArrowUturnRightIcon, CameraIcon } from '@heroicons/react/24/outline';
 import { createAutoCapture, toGray } from '../../utils/autoCapture';
 import { inputClass, labelClass, primaryButtonClass } from '../../utils/formStyles';
 
@@ -15,6 +15,7 @@ interface LiveCameraProps {
 }
 
 const DEVICE_KEY = 'collectodex_scanner_camera';
+const ROTATION_KEY = 'collectodex_scanner_rotation';
 const SAMPLE_W = 64;
 const SAMPLE_H = 48;
 const SAMPLE_MS = 200;
@@ -33,6 +34,19 @@ const storeDevice = (id: string) => {
     // Nur eine Bequemlichkeit.
   }
 };
+
+type Rotation = 0 | 90 | 180 | 270;
+const readRotation = (): Rotation => {
+  try {
+    const value = Number(localStorage.getItem(ROTATION_KEY));
+    return value === 90 || value === 180 || value === 270 ? value : 0;
+  } catch {
+    return 0;
+  }
+};
+
+/** Bildgröße nach dem Drehen: bei 90° und 270° sind Breite und Höhe vertauscht. */
+const rotatedSize = (w: number, h: number, rotation: Rotation) => (rotation % 180 === 0 ? [w, h] : [h, w]);
 
 const cameraError = (e: unknown) => {
   const name = e instanceof DOMException ? e.name : '';
@@ -53,6 +67,8 @@ const LiveCamera: React.FC<LiveCameraProps> = ({ paused, onCapture }) => {
   const [deviceId, setDeviceId] = useState<string | null>(readStoredDevice);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [auto, setAuto] = useState(true);
+  // Von Hand gedreht – das iPhone dreht sein Bild je nach Haltung selbst.
+  const [rotation, setRotation] = useState<Rotation>(readRotation);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,11 +146,26 @@ const LiveCamera: React.FC<LiveCameraProps> = ({ paused, onCapture }) => {
     const v = video.current;
     if (!v || !v.videoWidth) return;
     const canvas = document.createElement('canvas');
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
-    canvas.getContext('2d')?.drawImage(v, 0, 0);
+    [canvas.width, canvas.height] = rotatedSize(v.videoWidth, v.videoHeight, rotation);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    // Aufnahme so drehen wie die Anzeige.
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate((rotation * Math.PI) / 180);
+    ctx.drawImage(v, -v.videoWidth / 2, -v.videoHeight / 2);
     onCapture(canvas.toDataURL('image/jpeg', 0.92));
-  }, [onCapture]);
+  }, [onCapture, rotation]);
+
+  const rotate = () => {
+    const next = ((rotation + 90) % 360) as Rotation;
+    setRotation(next);
+    autoCapture.current.reset();
+    try {
+      localStorage.setItem(ROTATION_KEY, String(next));
+    } catch {
+      // Nur eine Bequemlichkeit.
+    }
+  };
 
   // Automatisch auslösen, sobald die Karte ruhig liegt.
   useEffect(() => {
@@ -159,7 +190,32 @@ const LiveCamera: React.FC<LiveCameraProps> = ({ paused, onCapture }) => {
   return (
     <div>
       <div className="relative aspect-[3/4] w-full overflow-hidden rounded-xl bg-gray-900">
-        <video ref={video} muted playsInline className="h-full w-full object-cover" aria-label="Kamerabild" />
+        {/* Bei 90°/270° tauschen Breite und Höhe (Rahmen 3:4), damit das gedrehte Bild ihn füllt. */}
+        <video
+          ref={video}
+          muted
+          playsInline
+          aria-label="Kamerabild"
+          className="absolute left-1/2 top-1/2 object-cover"
+          style={{
+            width: rotation % 180 === 0 ? '100%' : '133.334%',
+            height: rotation % 180 === 0 ? '100%' : '75%',
+            // Tailwind begrenzt Videos sonst auf 100 % Breite.
+            maxWidth: 'none',
+            transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+          }}
+        />
+        {ready && (
+          <button
+            type="button"
+            onClick={rotate}
+            title="Bild drehen"
+            aria-label={`Bild drehen (jetzt ${rotation}°)`}
+            className="absolute right-2 top-2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ArrowUturnRightIcon className="h-5 w-5" aria-hidden="true" />
+          </button>
+        )}
         {/* Rahmen als Hilfe zum Ausrichten. */}
         {ready && (
           <div
