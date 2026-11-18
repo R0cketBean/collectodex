@@ -263,14 +263,14 @@ const num = (v: unknown): number | null =>
 /**
  * Fasst die Cardmarket-Preise einer Karte zusammen.
  *
- * Die "-holo"-Felder von Cardmarket meinen bei Karten mit normaler UND
- * Reverse-Fassung den Reverse-Holo-Preis. Bei Karten ohne Reverse (z. B.
- * Holo-Rares oder Vintage) sind sie nicht eindeutig zuzuordnen und werden
- * deshalb nicht als Reverse-Preis ausgewiesen.
+ * Die "-holo"-Felder von Cardmarket meinen den Reverse-Holo-Preis, sobald es
+ * keine normale Holo-Fassung gibt, auf die sie sich beziehen könnten. Das gilt
+ * auch, wenn TCGdex (etwa bei neuen Sets) noch keine Reverse-Fassung einträgt.
+ * Bei Holo-Rares und Vintage-Holos werden sie nicht als Reverse-Preis ausgewiesen.
  */
 export const summarizePricing = (card: Pick<CardDetail, 'pricing' | 'variants'>): PriceSummary => {
   const cm = card.pricing?.cardmarket ?? null;
-  const hasReverse = Boolean(card.variants?.reverse);
+  const hasReverse = Boolean(card.variants?.reverse) || !card.variants?.holo;
   return {
     trend: num(cm?.trend) ?? num(cm?.avg),
     low: num(cm?.low),

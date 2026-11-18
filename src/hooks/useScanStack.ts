@@ -40,25 +40,20 @@ export const useScanStack = () => {
   const loadPrice = useCallback((entry: Pick<StackEntry, 'cardId' | 'lang'>, refresh = false) => {
     fetchCard(entry.cardId, undefined, entry.lang)
       .then((detail) => {
+        // Gleiche Preisregeln wie Kartenansicht und Treffer (summarizePricing).
         const p = summarizePricing(detail);
-        // Kennt TCGdex (noch) keine Reverse-Fassung, hat Cardmarket oft trotzdem
-        // einen Reverse-Preis in den „-holo“-Feldern. Für Karten, die man im
-        // Stapel selbst als Reverse markiert, gilt der – aber nur, wenn es
-        // keine normale Holo-Fassung gibt, auf die sich die Felder beziehen könnten.
-        const cm = detail.pricing?.cardmarket;
-        const holoMeansReverse = entry.lang !== 'ja' && !detail.variants?.holo;
-        const holo = (v: unknown) => (holoMeansReverse && typeof v === 'number' && v > 0 ? v : null);
+        // Japanische Sets haben keine Reverse-Holo-Fassungen.
+        const ja = entry.lang === 'ja';
         const price = {
           trend: p.trend,
           low: p.low,
           avg30: p.avg30,
-          reverseTrend: p.reverseTrend ?? holo(cm?.['trend-holo']) ?? holo(cm?.['avg-holo']),
-          reverseLow: p.reverseLow ?? holo(cm?.['low-holo']),
+          reverseTrend: ja ? null : p.reverseTrend,
+          reverseLow: ja ? null : p.reverseLow,
           idProduct: p.idProduct,
         };
         const known = price.trend !== null || price.low !== null;
-        // Japanische Sets haben keine Reverse-Holo-Fassungen.
-        const hasReverse = entry.lang !== 'ja' && Boolean(detail.variants?.reverse);
+        const hasReverse = !ja && (Boolean(detail.variants?.reverse) || price.reverseTrend !== null);
         setStack((s) => setPrice(s, entry.cardId, entry.lang, known ? price : null, hasReverse));
       })
       .catch(() => !refresh && setStack((s) => setPrice(s, entry.cardId, entry.lang, null, false)));
