@@ -35,19 +35,25 @@ export const useScanStack = () => {
     }
   }, [stack]);
 
-  const add = useCallback((entry: NewStackEntry) => {
-    setStack((s) => addToStack(s, entry));
-    if (entry.hasReverse !== undefined && entry.price !== undefined) return;
-    // Preise und Reverse-Fassung nachladen.
+  // Preise und Reverse-Fassung laden und bei allen Zeilen der Karte eintragen.
+  // `refresh`: alte Preise behalten, wenn der Katalog gerade nicht erreichbar ist.
+  const loadPrice = useCallback((entry: Pick<StackEntry, 'cardId' | 'lang'>, refresh = false) => {
     fetchCard(entry.cardId, undefined, entry.lang)
       .then((detail) => {
         const p = summarizePricing(detail);
+        // Kennt TCGdex (noch) keine Reverse-Fassung, hat Cardmarket oft trotzdem
+        // einen Reverse-Preis in den „-holo“-Feldern. Für Karten, die man im
+        // Stapel selbst als Reverse markiert, gilt der – aber nur, wenn es
+        // keine normale Holo-Fassung gibt, auf die sich die Felder beziehen könnten.
+        const cm = detail.pricing?.cardmarket;
+        const holoMeansReverse = entry.lang !== 'ja' && !detail.variants?.holo;
+        const holo = (v: unknown) => (holoMeansReverse && typeof v === 'number' && v > 0 ? v : null);
         const price = {
           trend: p.trend,
           low: p.low,
           avg30: p.avg30,
-          reverseTrend: p.reverseTrend,
-          reverseLow: p.reverseLow,
+          reverseTrend: p.reverseTrend ?? holo(cm?.['trend-holo']) ?? holo(cm?.['avg-holo']),
+          reverseLow: p.reverseLow ?? holo(cm?.['low-holo']),
           idProduct: p.idProduct,
         };
         const known = price.trend !== null || price.low !== null;
@@ -55,8 +61,28 @@ export const useScanStack = () => {
         const hasReverse = entry.lang !== 'ja' && Boolean(detail.variants?.reverse);
         setStack((s) => setPrice(s, entry.cardId, entry.lang, known ? price : null, hasReverse));
       })
-      .catch(() => setStack((s) => setPrice(s, entry.cardId, entry.lang, null, false)));
+      .catch(() => !refresh && setStack((s) => setPrice(s, entry.cardId, entry.lang, null, false)));
   }, []);
+
+  const add = useCallback(
+    (entry: NewStackEntry) => {
+      setStack((s) => addToStack(s, entry));
+      if (entry.hasReverse === undefined || entry.price === undefined) loadPrice(entry);
+    },
+    [loadPrice]
+  );
+
+  // Beim Öffnen die Preise des gespeicherten Stapels auffrischen.
+  useEffect(() => {
+    const seen = new Set<string>();
+    for (const e of load()) {
+      const id = `${e.lang}:${e.cardId}`;
+      if (!seen.has(id)) {
+        seen.add(id);
+        loadPrice(e, true);
+      }
+    }
+  }, [loadPrice]);
 
   return {
     stack,

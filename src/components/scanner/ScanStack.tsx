@@ -123,17 +123,25 @@ const ScanStack: React.FC<ScanStackProps> = ({ stack, onQuantity, onVariant, onR
                   {LANG_LABEL[e.lang]} · {e.setName} · {e.localId}
                 </div>
               </div>
-              {(e.hasReverse || e.variant === 'reverse') && (
-                <select
-                  value={e.variant}
-                  onChange={(ev) => onVariant(e.key, ev.target.value as CatalogVariant)}
-                  aria-label={`Fassung von ${e.name}`}
-                  className={`${selectClass} w-auto py-1 text-xs`}
-                >
-                  <option value="normal">Normal</option>
-                  <option value="reverse">Reverse Holo</option>
-                </select>
-              )}
+              {/* Reverse Holo erkennt der Scanner nicht – hier jederzeit umschaltbar. */}
+              <button
+                type="button"
+                onClick={() => onVariant(e.key, e.variant === 'reverse' ? 'normal' : 'reverse')}
+                aria-pressed={e.variant === 'reverse'}
+                aria-label={`${e.name} als Reverse Holo`}
+                title={
+                  e.variant === 'reverse' && e.price && e.price.reverseTrend === null
+                    ? 'Reverse Holo – kein eigener Reverse-Preis bekannt, gezählt wird der normale Preis'
+                    : 'Reverse Holo'
+                }
+                className={`flex-shrink-0 rounded-full border px-2 py-0.5 text-xs font-semibold ${
+                  e.variant === 'reverse'
+                    ? 'border-purple-500 bg-purple-600 text-white hover:bg-purple-700'
+                    : 'border-gray-300 text-gray-500 hover:border-purple-500 hover:text-purple-600 dark:border-gray-600 dark:text-gray-400'
+                }`}
+              >
+                RH
+              </button>
               <div className="flex items-center gap-1">
                 <button
                   type="button"
@@ -221,7 +229,7 @@ const ScanStack: React.FC<ScanStackProps> = ({ stack, onQuantity, onVariant, onR
         </div>
       </div>
       <p className="px-4 pb-3 text-xs text-gray-500 dark:text-gray-400">
-        Preise: Cardmarket-Trend über alle Sprachen und Zustände. Übernommen wird je Zeile ein Eintrag mit der Anzahl.
+        Preise: Cardmarket-Trend über alle Sprachen und Zustände. „RH“ markiert eine Karte als Reverse Holo. Übernommen wird je Zeile ein Eintrag mit der Anzahl.
       </p>
     </section>
   );
