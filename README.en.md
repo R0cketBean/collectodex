@@ -36,7 +36,7 @@ cloud.
 
 - 📦 **Flexible categories** – sealed, graded, singles, or your own categories with freely defined attributes.
 - 🃏 **Card catalogue** – browse sets in German, English and Japanese, tick off the cards you own and add them to your collection with their image.
-- 📷 **Card scanner** (Mac) – drop in a photo of a card; macOS text recognition reads the set code, number and name and finds the card in the catalogue. The photo never leaves your computer.
+- 📷 **Card scanner** (Mac) – hold a card up to the camera (your iPhone works as a camera too) or drop in a photo; macOS text recognition reads the set code, number and name and finds the card in the catalogue. The images never leave your computer.
 - 💶 **Price check** – compare your own values with the catalogue price and see which prices are due for an update.
 - 📊 **Dashboard** – total value, profit/loss, value distribution and value trend at a glance.
 - 📈 **Statistics** – return per item, holding period, biggest losses and value history per category.

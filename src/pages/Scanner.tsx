@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowPathIcon, CameraIcon, CheckBadgeIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, CameraIcon, CheckBadgeIcon, PhotoIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../components/catalog/FallbackImage';
+import LiveCamera from '../components/scanner/LiveCamera';
 import { findScanCandidates } from '../services/cardScan';
 import { catalogCardImageSources } from '../services/tcgdex';
 import type { OcrResult } from '../types/electron';
@@ -12,6 +13,17 @@ import { inputClass, labelClass, primaryButtonClass, secondaryButtonSmallClass }
 // Vision, auf dem Mac) liest Set-Code, Nummer und Namen, der Katalog liefert
 // passende Karten. Ein Klick öffnet die Karte im Katalog; hinzugefügt wird
 // dort wie gewohnt, mit Variante und Kategorie.
+// Live-Kamera (#169): statt eines Fotos das Kamerabild, z. B. vom iPhone.
+
+type Mode = 'photo' | 'camera';
+const MODE_KEY = 'collectodex_scanner_mode';
+const readMode = (): Mode => {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'camera' ? 'camera' : 'photo';
+  } catch {
+    return 'photo';
+  }
+};
 
 type Phase = 'idle' | 'reading' | 'searching' | 'done' | 'error';
 
@@ -57,6 +69,20 @@ const Scanner: React.FC = () => {
   const [draft, setDraft] = useState<ScanInfo>({});
   const [results, setResults] = useState<RankedCandidate[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [mode, setModeState] = useState<Mode>(readMode);
+  // Live-Kamera: Hinweis, wenn eine Aufnahme nichts Lesbares enthielt.
+  const [hint, setHint] = useState<string | null>(null);
+  const settledPhase = useRef<Phase>('idle');
+
+  const setMode = (next: Mode) => {
+    setModeState(next);
+    setHint(null);
+    try {
+      localStorage.setItem(MODE_KEY, next);
+    } catch {
+      // Nur eine Bequemlichkeit.
+    }
+  };
 
   useEffect(() => {
     const check = window.electronAPI?.isScannerAvailable;
@@ -85,21 +111,34 @@ const Scanner: React.FC = () => {
     }
   }, []);
 
-  const scanFile = useCallback(
-    async (file: File) => {
+  const scanDataUrl = useCallback(
+    async (dataUrl: string, fromCamera: boolean) => {
       const recognize = window.electronAPI?.recognizeCard;
       if (!recognize) return;
       setError(null);
-      setResults([]);
-      setOcr(null);
-      setPreview(null);
-      setPhase('reading');
+      setHint(null);
+      if (!fromCamera) {
+        setResults([]);
+        setOcr(null);
+        setPreview(null);
+      }
+      setPhase((p) => {
+        if (p !== 'reading' && p !== 'searching') settledPhase.current = p;
+        return 'reading';
+      });
       try {
-        const dataUrl = withImageType(await readAsDataUrl(file), file.name);
         const result = await recognize(dataUrl);
+        const parsed = parseScan(result.lines);
+        // Kamera: Aufnahme ohne lesbare Karte (Hand im Bild, leerer Tisch)
+        // still übergehen und das letzte Ergebnis stehen lassen.
+        if (fromCamera && !parsed.number && !parsed.name) {
+          setHint('Keine Karte erkannt – lege sie gerade in den Rahmen und halte still.');
+          setPhase(settledPhase.current);
+          return;
+        }
         setOcr(result);
         setPreview(result.preview ?? (dataUrl.startsWith('data:image/heic') ? null : dataUrl));
-        const parsed = parseScan(result.lines);
+        if (fromCamera) setResults([]);
         if (!parsed.number && !parsed.name) {
           setInfo(parsed);
           setDraft(parsed);
@@ -116,6 +155,19 @@ const Scanner: React.FC = () => {
     [search]
   );
 
+  const scanFile = useCallback(
+    async (file: File) => {
+      try {
+        await scanDataUrl(withImageType(await readAsDataUrl(file), file.name), false);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setPhase('error');
+      }
+    },
+    [scanDataUrl]
+  );
+  const scanCapture = useCallback((dataUrl: string) => void scanDataUrl(dataUrl, true), [scanDataUrl]);
+
   const onFiles = (files: FileList | null) => {
     const file = files?.[0];
     if (file) void scanFile(file);
@@ -130,10 +182,8 @@ const Scanner: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Kartenscanner</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Fotografiere eine Karte, am besten gerade von oben und ohne Spiegelung, und lege das Foto hier ab. Gelesen
-          werden Kartennummer, Set und Name; das Foto bleibt auf deinem Mac. Tipp: Mit dem iPhone geht es am schnellsten –
-          im Finder Rechtsklick auf den Schreibtisch, „Von iPhone importieren“ → „Foto aufnehmen“, dann das Foto
-          hierher ziehen.
+          Scanne eine Karte mit der Kamera – am besten mit dem iPhone – oder lege ein Foto ab. Gelesen werden
+          Kartennummer, Set und Name; die Bilder bleiben auf deinem Mac.
         </p>
 
         {available === false && (
@@ -143,68 +193,118 @@ const Scanner: React.FC = () => {
         )}
 
         {available && (
-          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
-            <div>
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label="Foto einer Karte auswählen oder hier ablegen"
-                onClick={() => !busy && fileInput.current?.click()}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !busy && fileInput.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragging(false);
-                  if (!busy) onFiles(e.dataTransfer.files);
-                }}
-                className={`relative flex aspect-[5/7] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
-                  dragging
-                    ? 'border-pokemon-blue bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-300 bg-white hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500'
+          <div role="tablist" aria-label="Art der Aufnahme" className="mt-4 inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+            {(
+              [
+                ['camera', 'Kamera', VideoCameraIcon],
+                ['photo', 'Foto', PhotoIcon],
+              ] as const
+            ).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={mode === value}
+                disabled={busy}
+                onClick={() => setMode(value)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === value
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
-                {preview ? (
-                  <img src={preview} alt="Gelesene Karte" className="h-full w-full object-contain" />
-                ) : (
-                  <div className="p-6 text-gray-500 dark:text-gray-400">
-                    <PhotoIcon className="mx-auto h-10 w-10" aria-hidden="true" />
-                    <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-200">Foto hier ablegen</p>
-                    <p className="mt-1 text-xs">oder klicken zum Auswählen (JPEG, PNG, HEIC)</p>
-                  </div>
-                )}
-                {busy && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm font-medium text-gray-700 dark:bg-gray-900/70 dark:text-gray-200">
-                    <ArrowPathIcon className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
-                    {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
-                  </div>
+                <Icon className="h-4 w-4" aria-hidden="true" /> {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {available && (
+          <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
+            {mode === 'camera' ? (
+              <div>
+                <LiveCamera paused={busy} onCapture={scanCapture} />
+                <div className="mt-3 min-h-[1.25rem] text-sm" aria-live="polite">
+                  {busy ? (
+                    <span className="inline-flex items-center text-gray-700 dark:text-gray-200">
+                      <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
+                    </span>
+                  ) : (
+                    hint && <span className="text-gray-500 dark:text-gray-400">{hint}</span>
+                  )}
+                </div>
+                {preview && (
+                  <img
+                    src={preview}
+                    alt="Zuletzt gelesene Karte"
+                    className="mt-2 h-32 rounded border border-gray-200 object-contain dark:border-gray-700"
+                  />
                 )}
               </div>
-              <input
-                ref={fileInput}
-                type="file"
-                accept={ACCEPT}
-                className="hidden"
-                onChange={(e) => {
-                  onFiles(e.target.files);
-                  e.target.value = '';
-                }}
-              />
-              {preview && !busy && (
-                <button type="button" onClick={() => fileInput.current?.click()} className={`mt-3 w-full ${secondaryButtonSmallClass}`}>
-                  <CameraIcon className="h-4 w-4" aria-hidden="true" /> Nächste Karte
-                </button>
-              )}
-              {ocr && !ocr.cardDetected && !busy && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Der Kartenrand war nicht zu erkennen; gelesen wurde das ganze Foto. Ein ruhiger, einfarbiger Hintergrund
-                  hilft.
-                </p>
-              )}
-            </div>
+            ) : (
+              <div>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Foto einer Karte auswählen oder hier ablegen"
+                  onClick={() => !busy && fileInput.current?.click()}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !busy && fileInput.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragging(false);
+                    if (!busy) onFiles(e.dataTransfer.files);
+                  }}
+                  className={`relative flex aspect-[5/7] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
+                    dragging
+                      ? 'border-pokemon-blue bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 bg-white hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500'
+                  }`}
+                >
+                  {preview ? (
+                    <img src={preview} alt="Gelesene Karte" className="h-full w-full object-contain" />
+                  ) : (
+                    <div className="p-6 text-gray-500 dark:text-gray-400">
+                      <PhotoIcon className="mx-auto h-10 w-10" aria-hidden="true" />
+                      <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-200">Foto hier ablegen</p>
+                      <p className="mt-1 text-xs">oder klicken zum Auswählen (JPEG, PNG, HEIC)</p>
+                    </div>
+                  )}
+                  {busy && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm font-medium text-gray-700 dark:bg-gray-900/70 dark:text-gray-200">
+                      <ArrowPathIcon className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
+                      {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept={ACCEPT}
+                  className="hidden"
+                  onChange={(e) => {
+                    onFiles(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                {preview && !busy && (
+                  <button type="button" onClick={() => fileInput.current?.click()} className={`mt-3 w-full ${secondaryButtonSmallClass}`}>
+                    <CameraIcon className="h-4 w-4" aria-hidden="true" /> Nächste Karte
+                  </button>
+                )}
+                {ocr && !ocr.cardDetected && !busy && (
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Der Kartenrand war nicht zu erkennen; gelesen wurde das ganze Foto. Ein ruhiger, einfarbiger Hintergrund
+                    hilft.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="min-w-0">
               {phase === 'idle' && (

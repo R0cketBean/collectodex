@@ -153,6 +153,9 @@
       "entitlements": "assets/entitlements.mac.plist",
       "entitlementsInherit": "assets/entitlements.mac.plist",
       "notarize": true,
+      "extendInfo": {
+        "NSCameraUsageDescription": "CollectODex nutzt die Kamera, um Pokémon-Karten zu scannen. Die Bilder bleiben auf deinem Mac."
+      },
       "target": [
         "dmg",
         "zip"

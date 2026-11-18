@@ -10,5 +10,8 @@
     <!-- Erlaubt das Laden der nicht von Apple signierten Electron-Frameworks. -->
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
+    <!-- Kartenscanner (#169): Kamera, z. B. das iPhone per Integrierter Kamera. -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
 </dict>
 </plist>

@@ -36,7 +36,7 @@ Rechner; nichts wird in eine Cloud hochgeladen.
 
 - 📦 **Flexible Kategorien** – Sealed, Gegradet, Einzelkarten oder eigene Kategorien mit frei definierbaren Attributen.
 - 🃏 **Kartenkatalog** – Sets auf Deutsch, Englisch und Japanisch durchblättern, vorhandene Karten abhaken und mit Bild in die Sammlung übernehmen.
-- 📷 **Kartenscanner** (Mac) – Foto einer Karte ablegen; die Texterkennung von macOS liest Set-Code, Nummer und Namen und findet die Karte im Katalog. Das Foto bleibt auf dem Rechner.
+- 📷 **Kartenscanner** (Mac) – Karte vor die Kamera halten (gern das iPhone als Kamera) oder ein Foto ablegen; die Texterkennung von macOS liest Set-Code, Nummer und Namen und findet die Karte im Katalog. Die Bilder bleiben auf dem Rechner.
 - 💶 **Preis-Check** – eigene Werte mit dem Katalogpreis vergleichen und sehen, welche Preise fällig sind.
 - 📊 **Dashboard** – Gesamtwert, Gewinn/Verlust, Wertverteilung und Wertentwicklung auf einen Blick.
 - 📈 **Statistik** – Rendite je Eintrag, Haltedauer, größte Verluste und Wertverlauf pro Kategorie.
