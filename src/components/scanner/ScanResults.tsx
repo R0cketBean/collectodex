@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckBadgeIcon, CheckIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { CheckBadgeIcon, CheckIcon, ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../catalog/FallbackImage';
 import { catalogCardImageSources, fetchCard, formatEur, mapLimit, summarizePricing, type PriceSummary } from '../../services/tcgdex';
 import type { CatalogLang } from '../../types/models';
@@ -70,8 +70,8 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
     );
   };
 
-  const [best, ...rest] = confident ? results : [];
-  const others = confident ? rest : results;
+  // Der beste Treffer steht immer groß da; ist er unsicher, zum Prüfen markiert.
+  const [best, ...others] = results;
 
   const image = (c: RankedCandidate) => (
     <FallbackImage
@@ -103,15 +103,25 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
         <button
           type="button"
           onClick={() => onOpen(best)}
-          className="flex w-full gap-4 rounded-lg border border-green-400 bg-green-50 p-3 text-left transition-colors hover:bg-green-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/30"
+          className={`flex w-full gap-4 rounded-lg border p-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
+            confident
+              ? 'border-green-400 bg-green-50 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/30'
+              : 'border-amber-300 bg-amber-50 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:hover:bg-amber-900/30'
+          }`}
         >
           <div className="relative aspect-[5/7] w-28 flex-shrink-0 overflow-hidden rounded bg-gray-100 dark:bg-gray-900 sm:w-36">
             {image(best)}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 dark:text-green-300">
-              <CheckBadgeIcon className="h-4 w-4" aria-hidden="true" /> Sicherer Treffer
-            </div>
+            {confident ? (
+              <div className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 dark:text-green-300">
+                <CheckBadgeIcon className="h-4 w-4" aria-hidden="true" /> Sicherer Treffer
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                <ExclamationTriangleIcon className="h-4 w-4" aria-hidden="true" /> Bester Treffer – bitte prüfen
+              </div>
+            )}
             <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{best.name}</div>
             <div className="text-sm text-gray-600 dark:text-gray-300">
               {best.setName} · <span className="tabular-nums">{number(best)}</span>
