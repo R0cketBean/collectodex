@@ -70,3 +70,28 @@ describe('isAppUrl', () => {
     expect(security.isAppUrl('https://localhost:3000/', dev)).toBe(false);
   });
 });
+
+describe('Kamera für den Kartenscanner', () => {
+  const appUrl = 'file:///Applications/CollectODex.app/Contents/Resources/app/build/index.html';
+  const request = (mediaTypes: string[], requestingUrl = appUrl, platform = 'darwin', permission = 'media') =>
+    security.isCameraRequest({ permission, details: { mediaTypes, requestingUrl }, appUrl, platform });
+
+  it('erlaubt nur Video für die App selbst auf dem Mac', () => {
+    expect(request(['video'])).toBe(true);
+    expect(request(['video', 'audio'])).toBe(false);
+    expect(request(['audio'])).toBe(false);
+    expect(request([])).toBe(false);
+    expect(request(['video'], 'https://example.com/')).toBe(false);
+    expect(request(['video'], appUrl, 'win32')).toBe(false);
+    expect(request(['video'], appUrl, 'darwin', 'geolocation')).toBe(false);
+  });
+
+  it('beantwortet Abfragen nach denselben Regeln', () => {
+    const check = (details: object, platform = 'darwin') =>
+      security.isCameraCheck({ permission: 'media', requestingOrigin: 'file:///', details, appUrl, platform });
+    expect(check({ mediaType: 'video', requestingUrl: appUrl })).toBe(true);
+    expect(check({ mediaType: 'audio', requestingUrl: appUrl })).toBe(false);
+    expect(check({ mediaType: 'video', requestingUrl: 'https://example.com/' })).toBe(false);
+    expect(check({ mediaType: 'video', requestingUrl: appUrl }, 'linux')).toBe(false);
+  });
+});

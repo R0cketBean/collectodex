@@ -1,17 +1,44 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowPathIcon, CameraIcon, CheckBadgeIcon, PhotoIcon } from '@heroicons/react/24/outline';
-import FallbackImage from '../components/catalog/FallbackImage';
-import { findScanCandidates } from '../services/cardScan';
-import { catalogCardImageSources } from '../services/tcgdex';
+import { ArrowPathIcon, CameraIcon, PhotoIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
+import CatalogCardDialog from '../components/catalog/CatalogCardDialog';
+import LiveCamera from '../components/scanner/LiveCamera';
+import ScanResults from '../components/scanner/ScanResults';
+import { useFeedback } from '../context/FeedbackContext';
+import { findScanCandidates, tcgdexSource } from '../services/cardScan';
+import { CATALOG_LANGUAGES, isCatalogLang } from '../services/tcgdex';
 import type { OcrResult } from '../types/electron';
+import type { CatalogLang } from '../types/models';
 import { isConfident, parseScan, type RankedCandidate, type ScanInfo } from '../utils/cardScan';
 import { inputClass, labelClass, primaryButtonClass, secondaryButtonSmallClass } from '../utils/formStyles';
 
 // Kartenscanner (#168): Foto einer Karte ablegen, die Texterkennung (Apple
 // Vision, auf dem Mac) liest Set-Code, Nummer und Namen, der Katalog liefert
-// passende Karten. Ein Klick öffnet die Karte im Katalog; hinzugefügt wird
-// dort wie gewohnt, mit Variante und Kategorie.
+// passende Karten. Ein Klick öffnet die Karte im Scanner selbst; hinzugefügt
+// wird dort wie im Katalog, mit Variante und Kategorie.
+// Live-Kamera (#169): statt eines Fotos das Kamerabild, z. B. vom iPhone.
+// Sprache der Karte wählbar; „DE“/„EN“ neben dem Set-Code stellt sie selbst um.
+
+type Mode = 'photo' | 'camera';
+const MODE_KEY = 'collectodex_scanner_mode';
+const readMode = (): Mode => {
+  try {
+    return localStorage.getItem(MODE_KEY) === 'camera' ? 'camera' : 'photo';
+  } catch {
+    return 'photo';
+  }
+};
+
+const LANG_KEY = 'collectodex_scanner_lang';
+const readLang = (): CatalogLang => {
+  try {
+    const value = localStorage.getItem(LANG_KEY);
+    return isCatalogLang(value) ? value : 'de';
+  } catch {
+    return 'de';
+  }
+};
+/** Sprachkürzel neben dem Set-Code („SVI DE“) → Katalogsprache. */
+const LANG_FROM_CODE: Record<string, CatalogLang> = { DE: 'de', EN: 'en' };
 
 type Phase = 'idle' | 'reading' | 'searching' | 'done' | 'error';
 
@@ -31,13 +58,6 @@ const withImageType = (dataUrl: string, fileName: string) =>
     ? dataUrl.replace(/^data:[^;]*;/, `data:image/${/\.heif$/i.test(fileName) ? 'heif' : 'heic'};`)
     : dataUrl;
 
-const MATCH_LABEL: Record<RankedCandidate['matches'][number], string> = {
-  code: 'Set-Code',
-  number: 'Nummer',
-  total: 'Set-Größe',
-  name: 'Name',
-};
-
 const describeInfo = (info: ScanInfo) =>
   [
     [info.setCode, info.lang].filter(Boolean).join(' '),
@@ -46,7 +66,7 @@ const describeInfo = (info: ScanInfo) =>
   ].filter(Boolean);
 
 const Scanner: React.FC = () => {
-  const navigate = useNavigate();
+  const { notify } = useFeedback();
   const fileInput = useRef<HTMLInputElement>(null);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [phase, setPhase] = useState<Phase>('idle');
@@ -57,6 +77,36 @@ const Scanner: React.FC = () => {
   const [draft, setDraft] = useState<ScanInfo>({});
   const [results, setResults] = useState<RankedCandidate[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [mode, setModeState] = useState<Mode>(readMode);
+  // Live-Kamera: Hinweis, wenn eine Aufnahme nichts Lesbares enthielt.
+  const [hint, setHint] = useState<string | null>(null);
+  const settledPhase = useRef<Phase>('idle');
+  // Reverse Holo ist auf dem Foto nicht vom normalen Druck zu unterscheiden
+  // (gleicher Text) – deshalb von Hand; bleibt für einen ganzen Stapel an.
+  const [reverse, setReverse] = useState(false);
+  const [lang, setLangState] = useState<CatalogLang>(readLang);
+  const langRef = useRef(lang);
+  const [selected, setSelected] = useState<RankedCandidate | null>(null);
+
+  const setLang = (next: CatalogLang) => {
+    langRef.current = next;
+    setLangState(next);
+    try {
+      localStorage.setItem(LANG_KEY, next);
+    } catch {
+      // Nur eine Bequemlichkeit.
+    }
+  };
+
+  const setMode = (next: Mode) => {
+    setModeState(next);
+    setHint(null);
+    try {
+      localStorage.setItem(MODE_KEY, next);
+    } catch {
+      // Nur eine Bequemlichkeit.
+    }
+  };
 
   useEffect(() => {
     const check = window.electronAPI?.isScannerAvailable;
@@ -74,7 +124,7 @@ const Scanner: React.FC = () => {
     setDraft(next);
     setPhase('searching');
     try {
-      const found = await findScanCandidates(next);
+      const found = await findScanCandidates(next, tcgdexSource(langRef.current));
       setInfo(found.info);
       setDraft(found.info);
       setResults(found.candidates);
@@ -85,21 +135,36 @@ const Scanner: React.FC = () => {
     }
   }, []);
 
-  const scanFile = useCallback(
-    async (file: File) => {
+  const scanDataUrl = useCallback(
+    async (dataUrl: string, fromCamera: boolean) => {
       const recognize = window.electronAPI?.recognizeCard;
       if (!recognize) return;
       setError(null);
-      setResults([]);
-      setOcr(null);
-      setPreview(null);
-      setPhase('reading');
+      setHint(null);
+      if (!fromCamera) {
+        setResults([]);
+        setOcr(null);
+        setPreview(null);
+      }
+      setPhase((p) => {
+        if (p !== 'reading' && p !== 'searching') settledPhase.current = p;
+        return 'reading';
+      });
       try {
-        const dataUrl = withImageType(await readAsDataUrl(file), file.name);
         const result = await recognize(dataUrl);
+        const parsed = parseScan(result.lines);
+        const codeLang = parsed.lang ? LANG_FROM_CODE[parsed.lang] : undefined;
+        if (codeLang && codeLang !== langRef.current) setLang(codeLang);
+        // Kamera: Aufnahme ohne lesbare Karte (Hand im Bild, leerer Tisch)
+        // still übergehen und das letzte Ergebnis stehen lassen.
+        if (fromCamera && !parsed.number && !parsed.name) {
+          setHint('Keine Karte erkannt – lege sie gerade in den Rahmen und halte still.');
+          setPhase(settledPhase.current);
+          return;
+        }
         setOcr(result);
         setPreview(result.preview ?? (dataUrl.startsWith('data:image/heic') ? null : dataUrl));
-        const parsed = parseScan(result.lines);
+        if (fromCamera) setResults([]);
         if (!parsed.number && !parsed.name) {
           setInfo(parsed);
           setDraft(parsed);
@@ -116,6 +181,19 @@ const Scanner: React.FC = () => {
     [search]
   );
 
+  const scanFile = useCallback(
+    async (file: File) => {
+      try {
+        await scanDataUrl(withImageType(await readAsDataUrl(file), file.name), false);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setPhase('error');
+      }
+    },
+    [scanDataUrl]
+  );
+  const scanCapture = useCallback((dataUrl: string) => void scanDataUrl(dataUrl, true), [scanDataUrl]);
+
   const onFiles = (files: FileList | null) => {
     const file = files?.[0];
     if (file) void scanFile(file);
@@ -123,17 +201,24 @@ const Scanner: React.FC = () => {
 
   const busy = phase === 'reading' || phase === 'searching';
   const confident = isConfident(results);
-  const openCard = (c: RankedCandidate) => navigate(`/katalog/${encodeURIComponent(c.setId)}?karte=${encodeURIComponent(c.cardId)}`);
+  const closeSelected = useCallback(() => setSelected(null), []);
+
+  const changeLang = (next: CatalogLang) => {
+    setLang(next);
+    // Schon gelesene Angaben gleich im anderen Katalog suchen.
+    if ((phase === 'done' || phase === 'error') && (draft.number || draft.name)) {
+      setError(null);
+      void search(draft);
+    }
+  };
 
   return (
     <div className="py-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 md:px-8">
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">Kartenscanner</h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Fotografiere eine Karte, am besten gerade von oben und ohne Spiegelung, und lege das Foto hier ab. Gelesen
-          werden Kartennummer, Set und Name; das Foto bleibt auf deinem Mac. Tipp: Mit dem iPhone geht es am schnellsten –
-          im Finder Rechtsklick auf den Schreibtisch, „Von iPhone importieren“ → „Foto aufnehmen“, dann das Foto
-          hierher ziehen.
+          Scanne eine Karte mit der Kamera – am besten mit dem iPhone – oder lege ein Foto ab. Gelesen werden
+          Kartennummer, Set und Name; die Bilder bleiben auf deinem Mac.
         </p>
 
         {available === false && (
@@ -143,68 +228,135 @@ const Scanner: React.FC = () => {
         )}
 
         {available && (
-          <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
-            <div>
-              <div
-                role="button"
-                tabIndex={0}
-                aria-label="Foto einer Karte auswählen oder hier ablegen"
-                onClick={() => !busy && fileInput.current?.click()}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !busy && fileInput.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragging(false);
-                  if (!busy) onFiles(e.dataTransfer.files);
-                }}
-                className={`relative flex aspect-[5/7] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
-                  dragging
-                    ? 'border-pokemon-blue bg-blue-50 dark:bg-blue-900/20'
-                    : 'border-gray-300 bg-white hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500'
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <div role="tablist" aria-label="Art der Aufnahme" className="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
+            {(
+              [
+                ['camera', 'Kamera', VideoCameraIcon],
+                ['photo', 'Foto', PhotoIcon],
+              ] as const
+            ).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={mode === value}
+                disabled={busy}
+                onClick={() => setMode(value)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  mode === value
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-gray-100'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 }`}
               >
-                {preview ? (
-                  <img src={preview} alt="Gelesene Karte" className="h-full w-full object-contain" />
-                ) : (
-                  <div className="p-6 text-gray-500 dark:text-gray-400">
-                    <PhotoIcon className="mx-auto h-10 w-10" aria-hidden="true" />
-                    <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-200">Foto hier ablegen</p>
-                    <p className="mt-1 text-xs">oder klicken zum Auswählen (JPEG, PNG, HEIC)</p>
-                  </div>
-                )}
-                {busy && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm font-medium text-gray-700 dark:bg-gray-900/70 dark:text-gray-200">
-                    <ArrowPathIcon className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
-                    {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
-                  </div>
+                <Icon className="h-4 w-4" aria-hidden="true" /> {label}
+              </button>
+            ))}
+          </div>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <span className="whitespace-nowrap">Sprache der Karte</span>
+              <select
+                value={lang}
+                disabled={busy}
+                onChange={(e) => isCatalogLang(e.target.value) && changeLang(e.target.value)}
+                className={`${inputClass} w-auto py-1.5`}
+              >
+                {CATALOG_LANGUAGES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
+        {available && (
+          <div className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr]">
+            {mode === 'camera' ? (
+              <div>
+                <LiveCamera paused={busy} onCapture={scanCapture} />
+                <div className="mt-3 min-h-[1.25rem] text-sm" aria-live="polite">
+                  {busy ? (
+                    <span className="inline-flex items-center text-gray-700 dark:text-gray-200">
+                      <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                      {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
+                    </span>
+                  ) : (
+                    hint && <span className="text-gray-500 dark:text-gray-400">{hint}</span>
+                  )}
+                </div>
+                {preview && (
+                  <img
+                    src={preview}
+                    alt="Zuletzt gelesene Karte"
+                    className="mt-2 h-32 rounded border border-gray-200 object-contain dark:border-gray-700"
+                  />
                 )}
               </div>
-              <input
-                ref={fileInput}
-                type="file"
-                accept={ACCEPT}
-                className="hidden"
-                onChange={(e) => {
-                  onFiles(e.target.files);
-                  e.target.value = '';
-                }}
-              />
-              {preview && !busy && (
-                <button type="button" onClick={() => fileInput.current?.click()} className={`mt-3 w-full ${secondaryButtonSmallClass}`}>
-                  <CameraIcon className="h-4 w-4" aria-hidden="true" /> Nächste Karte
-                </button>
-              )}
-              {ocr && !ocr.cardDetected && !busy && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Der Kartenrand war nicht zu erkennen; gelesen wurde das ganze Foto. Ein ruhiger, einfarbiger Hintergrund
-                  hilft.
-                </p>
-              )}
-            </div>
+            ) : (
+              <div>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Foto einer Karte auswählen oder hier ablegen"
+                  onClick={() => !busy && fileInput.current?.click()}
+                  onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && !busy && fileInput.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragging(false);
+                    if (!busy) onFiles(e.dataTransfer.files);
+                  }}
+                  className={`relative flex aspect-[5/7] w-full cursor-pointer flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
+                    dragging
+                      ? 'border-pokemon-blue bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-300 bg-white hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500'
+                  }`}
+                >
+                  {preview ? (
+                    <img src={preview} alt="Gelesene Karte" className="h-full w-full object-contain" />
+                  ) : (
+                    <div className="p-6 text-gray-500 dark:text-gray-400">
+                      <PhotoIcon className="mx-auto h-10 w-10" aria-hidden="true" />
+                      <p className="mt-2 text-sm font-medium text-gray-700 dark:text-gray-200">Foto hier ablegen</p>
+                      <p className="mt-1 text-xs">oder klicken zum Auswählen (JPEG, PNG, HEIC)</p>
+                    </div>
+                  )}
+                  {busy && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm font-medium text-gray-700 dark:bg-gray-900/70 dark:text-gray-200">
+                      <ArrowPathIcon className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
+                      {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={fileInput}
+                  type="file"
+                  accept={ACCEPT}
+                  className="hidden"
+                  onChange={(e) => {
+                    onFiles(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                {preview && !busy && (
+                  <button type="button" onClick={() => fileInput.current?.click()} className={`mt-3 w-full ${secondaryButtonSmallClass}`}>
+                    <CameraIcon className="h-4 w-4" aria-hidden="true" /> Nächste Karte
+                  </button>
+                )}
+                {ocr && !ocr.cardDetected && !busy && (
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    Der Kartenrand war nicht zu erkennen; gelesen wurde das ganze Foto. Ein ruhiger, einfarbiger Hintergrund
+                    hilft.
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="min-w-0">
               {phase === 'idle' && (
@@ -233,6 +385,21 @@ const Scanner: React.FC = () => {
                     </div>
                   )}
 
+                  {results.length > 0 && (
+                    <label className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={reverse}
+                        onChange={(e) => setReverse(e.target.checked)}
+                        className="rounded"
+                      />
+                      <span className="whitespace-nowrap font-medium">Reverse Holo</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        (erkennt der Scanner nicht – wird beim Übernehmen vorausgewählt)
+                      </span>
+                    </label>
+                  )}
+
                   {phase === 'done' && results.length === 0 && (
                     <p className="mb-4 text-sm text-gray-600 dark:text-gray-300">
                       Keine passende Karte gefunden. Prüfe die gelesenen Angaben unten und suche erneut.
@@ -240,54 +407,13 @@ const Scanner: React.FC = () => {
                   )}
 
                   {results.length > 0 && (
-                    <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                      {results.map((c, index) => {
-                        const best = index === 0 && confident;
-                        return (
-                          <li key={c.cardId}>
-                            <button
-                              type="button"
-                              onClick={() => openCard(c)}
-                              className={`flex w-full gap-3 rounded-lg border p-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
-                                best
-                                  ? 'border-green-400 bg-green-50 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/30'
-                                  : 'border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700/60'
-                              }`}
-                            >
-                              <div className="relative aspect-[5/7] w-20 flex-shrink-0 overflow-hidden rounded bg-gray-100 dark:bg-gray-900">
-                                <FallbackImage
-                                  sources={catalogCardImageSources('de', c, c.setId, 'low')}
-                                  alt={c.name}
-                                  loading="lazy"
-                                  showLanguageBadge
-                                  className="h-full w-full object-contain"
-                                />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                {best && (
-                                  <div className="mb-1 inline-flex items-center gap-1 text-xs font-semibold text-green-700 dark:text-green-300">
-                                    <CheckBadgeIcon className="h-4 w-4" aria-hidden="true" /> Sicherer Treffer
-                                  </div>
-                                )}
-                                <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{c.name}</div>
-                                <div className="truncate text-xs text-gray-500 dark:text-gray-400">{c.setName}</div>
-                                <div className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
-                                  {c.localId}
-                                  {c.official && /^\d+$/.test(c.localId) ? `/${c.official}` : ''}
-                                </div>
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  {c.matches.map((m) => (
-                                    <span key={m} className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                                      {MATCH_LABEL[m]}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    <ScanResults
+                      results={results}
+                      confident={confident}
+                      lang={lang}
+                      reverse={reverse}
+                      onOpen={setSelected}
+                    />
                   )}
 
                   <form
@@ -350,6 +476,22 @@ const Scanner: React.FC = () => {
           </div>
         )}
       </div>
+
+      {selected && (
+        <CatalogCardDialog
+          card={{ id: selected.cardId, localId: selected.localId, name: selected.name, image: selected.image }}
+          setId={selected.setId}
+          setName={selected.setName}
+          lang={lang}
+          initialVariant={reverse ? 'reverse' : 'normal'}
+          strictLanguage
+          onAdded={(category, _id, name) => {
+            notify(`„${name}“ in „${category.name}“ übernommen`);
+            setSelected(null);
+          }}
+          onClose={closeSelected}
+        />
+      )}
     </div>
   );
 };

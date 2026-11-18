@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, dialog, protocol, net, session } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog, protocol, net, session, systemPreferences } = require('electron');
 const path = require('path');
 const isDev = require('electron-is-dev');
 const { autoUpdater } = require('electron-updater');
@@ -337,8 +337,21 @@ function registerImageProtocol() {
 
 // App Events
 app.on('ready', () => {
-  // Die App braucht keine Browser-Berechtigungen (Kamera, Standort, Mitteilungen …).
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  // Browser-Berechtigungen bleiben gesperrt – bis auf die Kamera für den
+  // Kartenscanner (#169), nur auf dem Mac und nur für die App selbst.
+  // macOS fragt beim ersten Mal selbst nach (NSCameraUsageDescription).
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const own = mainWindow && !mainWindow.isDestroyed() && webContents === mainWindow.webContents;
+    if (!own || !security.isCameraRequest({ permission, details, appUrl })) return callback(false);
+    systemPreferences
+      .askForMediaAccess('camera')
+      .then((granted) => callback(granted))
+      .catch(() => callback(false));
+  });
+  session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
+    const own = mainWindow && !mainWindow.isDestroyed() && webContents === mainWindow.webContents;
+    return Boolean(own) && security.isCameraCheck({ permission, requestingOrigin, details, appUrl });
+  });
   registerImageProtocol();
   createWindow();
 });

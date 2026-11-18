@@ -73,11 +73,16 @@ const CONDITION_ID = { nm: '2', ex: '3' } as const;
 export const buildCardmarketFilter = (
   s: Pick<CatalogSettings, 'sellerCountry' | 'language' | 'minCondition'>,
   /** Sprache der Karte; hat Vorrang vor der eingestellten Sprache. */
-  cardLanguage?: CatalogLang
+  cardLanguage?: CatalogLang,
+  /**
+   * Sprache sicher bekannt (Kartenscanner): auch Deutsch immer filtern. Sonst
+   * gilt für deutsche Karten die eingestellte Sprache, etwa „alle Sprachen“.
+   */
+  strictLanguage = false
 ): string =>
   [
     s.sellerCountry === 'de' ? 'sellerCountry=7' : null,
-    cardLanguage && cardLanguage !== 'de'
+    cardLanguage && (strictLanguage || cardLanguage !== 'de')
       ? `language=${LANGUAGE_ID[cardLanguage === 'ja' ? 'jp' : cardLanguage]}`
       : s.language !== 'all'
         ? `language=${LANGUAGE_ID[s.language]}`

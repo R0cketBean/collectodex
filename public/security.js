@@ -46,4 +46,23 @@ const isAppUrl = (value, appUrl) => {
   return url.origin === own.origin;
 };
 
-module.exports = { ALLOWED_STORE_KEYS, isAllowedStoreKey, isSafeExternalUrl, isAppUrl };
+/**
+ * Kamera für den Kartenscanner (#169): nur auf dem Mac, nur für die App selbst
+ * und nur Video – Mikrofon, Bildschirmfreigabe und alles andere bleiben gesperrt.
+ * `details` ist das Objekt aus Electrons setPermissionRequestHandler.
+ */
+const isCameraRequest = ({ permission, details, appUrl, platform = process.platform }) => {
+  if (platform !== 'darwin' || permission !== 'media') return false;
+  const types = Array.isArray(details?.mediaTypes) ? details.mediaTypes : [];
+  if (types.length === 0 || types.some((t) => t !== 'video')) return false;
+  return isAppUrl(details?.requestingUrl, appUrl);
+};
+
+/** Abfrage ohne Anfrage (z. B. für Gerätenamen): dieselben Regeln, ohne Medientypen. */
+const isCameraCheck = ({ permission, requestingOrigin, details, appUrl, platform = process.platform }) => {
+  if (platform !== 'darwin' || permission !== 'media') return false;
+  if (details?.mediaType && details.mediaType !== 'video') return false;
+  return isAppUrl(details?.requestingUrl || requestingOrigin, appUrl);
+};
+
+module.exports = { ALLOWED_STORE_KEYS, isAllowedStoreKey, isSafeExternalUrl, isAppUrl, isCameraRequest, isCameraCheck };

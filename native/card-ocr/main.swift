@@ -48,12 +48,18 @@ func detectCard(_ image: CGImage) -> CGImage? {
   filter.setValue(point(rect.bottomLeft), forKey: "inputBottomLeft")
   filter.setValue(point(rect.bottomRight), forKey: "inputBottomRight")
   guard var output = filter.outputImage else { return nil }
-  // Querformat: Karte lag seitlich – aufrichten. Eine Karte, die auf dem
-  // Kopf liegt, wird nicht gedreht; dann bitte das Foto neu aufnehmen.
+  // Querformat: Karte lag seitlich – ins Hochformat bringen. Ob sie dann auf
+  // dem Kopf steht, klärt isUpsideDown().
   if output.extent.width > output.extent.height {
     output = output.oriented(.right)
   }
   return ciContext.createCGImage(output, from: output.extent)
+}
+
+func rotated(_ image: CGImage, _ orientation: CGImagePropertyOrientation) -> CGImage? {
+  if orientation == .up { return image }
+  let ci = CIImage(cgImage: image).oriented(orientation)
+  return ciContext.createCGImage(ci, from: ci.extent)
 }
 
 func recognize(_ image: CGImage) throws -> [VNRecognizedTextObservation] {
@@ -90,6 +96,30 @@ func lines(_ obs: [VNRecognizedTextObservation], pass: String, frame: CGRect) ->
   }
 }
 
+/// Fußzeile der Karte: Nummer („150/132“), Illustrator, Copyright.
+let footer = try! NSRegularExpression(pattern: "\\d{1,3}\\s*/\\s*\\d{2,3}|illus|©|pok[eé]mon/", options: [.caseInsensitive])
+
+/// Steht die Karte auf dem Kopf? Apples Texterkennung liest auch gedrehten
+/// Text, liefert die Lage aber im Bild: Liegt die Fußzeile oben, ist es verkehrt.
+func isUpsideDown(_ obs: [VNRecognizedTextObservation]) -> Bool {
+  let ys: [CGFloat] = obs.compactMap { o in
+    guard let text = o.topCandidates(1).first?.string,
+      footer.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    else { return nil }
+    return o.boundingBox.midY  // Vision: Ursprung unten links
+  }
+  guard !ys.isEmpty else { return false }
+  return ys.reduce(0, +) / CGFloat(ys.count) > 0.5
+}
+
+/// Läuft der Text senkrecht? (Karte nicht gefunden, Bild um 90° gedreht.)
+func isSideways(_ obs: [VNRecognizedTextObservation], width: Int, height: Int) -> Bool {
+  let long = obs.filter { ($0.topCandidates(1).first?.string.count ?? 0) >= 6 }
+  guard long.count >= 3 else { return false }
+  let vertical = long.filter { $0.boundingBox.height * CGFloat(height) > $0.boundingBox.width * CGFloat(width) }
+  return vertical.count * 2 > long.count
+}
+
 let args = CommandLine.arguments
 guard args.count >= 2 else { fail("Aufruf: card-ocr <bild>", 2) }
 let options = [kCGImageSourceShouldAllowFloat: false] as CFDictionary
@@ -109,11 +139,24 @@ if let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: An
 }
 
 let detected = detectCard(photo)
-let card = detected ?? photo
+var card = detected ?? photo
 
 var out: [[String: Any]] = []
 do {
-  out += lines(try recognize(card), pass: "full", frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+  // Das iPhone als Kamera dreht sein Bild je nach Haltung (flach gehalten
+  // auch falsch herum). Erst die Lage klären, dann genau lesen.
+  var full = try recognize(card)
+  if detected == nil, isSideways(full, width: card.width, height: card.height),
+    let turned = rotated(card, .right)
+  {
+    card = turned
+    full = try recognize(card)
+  }
+  if isUpsideDown(full), let turned = rotated(card, .down) {
+    card = turned
+    full = try recognize(card)
+  }
+  out += lines(full, pass: "full", frame: CGRect(x: 0, y: 0, width: 1, height: 1))
   let W = CGFloat(card.width), H = CGFloat(card.height)
   let frame = CGRect(x: 0, y: 0.88, width: 0.6, height: 0.12)
   let crop = CGRect(x: frame.minX * W, y: frame.minY * H, width: frame.width * W, height: frame.height * H)
