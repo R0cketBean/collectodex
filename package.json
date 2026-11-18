@@ -36,6 +36,7 @@
   "scripts": {
     "start": "vite",
     "build": "vite build",
+    "build:native": "node scripts/build-card-ocr.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -47,7 +48,7 @@
     "electron-pack": "electron-builder build --mac -c.extraMetadata.main=public/electron.js",
     "electron-pack-all": "electron-builder build --mac --win --linux -c.extraMetadata.main=build/electron.js",
     "postinstall": "electron-builder install-app-deps",
-    "preelectron-pack": "npm run build",
+    "preelectron-pack": "npm run build && npm run build:native",
     "electron-build": "electron-builder -c.extraMetadata.main=build/electron.js",
     "convert-icon": "node scripts/convert-icon.js"
   },
@@ -111,6 +112,7 @@
       "public/imageStore.js",
       "public/security.js",
       "public/errorLog.js",
+      "public/cardOcr.js",
       "node_modules/**/*",
       "!node_modules/**/*.{md,MD,txt,TXT}",
       "!node_modules/**/LICENSE*",
@@ -154,6 +156,15 @@
       "target": [
         "dmg",
         "zip"
+      ],
+      "extraResources": [
+        {
+          "from": "native/bin",
+          "to": "bin",
+          "filter": [
+            "card-ocr"
+          ]
+        }
       ]
     },
     "win": {

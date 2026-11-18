@@ -45,6 +45,11 @@ jobs:
         env:
           CI: true
 
+      - name: Kartenscanner-Hilfsprogramm bauen
+        # Universal-Binary (arm64 + x86_64) für die Texterkennung (#168);
+        # electron-builder signiert es mit und reicht es zur Notarisierung ein.
+        run: npm run build:native
+
       - name: Package macOS app (signed + notarized)
         # Signs with the Developer ID cert from CSC_LINK and notarizes via
         # notarytool using the APPLE_* credentials. Produces a signed,

@@ -53,3 +53,6 @@ yarn-error.log*
 .claude/launch.json
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Kartenscanner: gebautes Swift-Hilfsprogramm (scripts/build-card-ocr.mjs)
+/native/bin

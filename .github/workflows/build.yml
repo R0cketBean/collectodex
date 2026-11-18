@@ -76,6 +76,12 @@ jobs:
         env:
           CI: true
 
+      - name: Kartenscanner-Hilfsprogramm bauen (macOS)
+        # Swift-Programm für die Texterkennung (#168); landet über
+        # mac.extraResources unter Resources/bin in der App.
+        if: runner.os == 'macOS'
+        run: npm run build:native
+
       - name: Package app (unsigned, unpacked)
         # shell: bash – PowerShell zerlegt die -c.…-Argumente (siehe release.yml).
         shell: bash

@@ -45,6 +45,28 @@ export interface LogInfo {
   exists: boolean;
 }
 
+/** Eine von der Texterkennung gelesene Zeile; Koordinaten 0…1 der Karte, Ursprung oben links. */
+export interface OcrLine {
+  text: string;
+  confidence: number;
+  /** „full“: ganze Karte; „bottom“: vergrößerter unterer Rand (Set-Code, Nummer). */
+  pass: 'full' | 'bottom';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface OcrResult {
+  width: number;
+  height: number;
+  /** Karte im Foto gefunden und entzerrt; sonst wurde das ganze Bild gelesen. */
+  cardDetected: boolean;
+  lines: OcrLine[];
+  /** Die gelesene (entzerrte) Karte als JPEG-Data-URL; null, wenn keine erzeugt wurde. */
+  preview?: string | null;
+}
+
 export interface ElectronAPI {
   // Persistenter Speicher (electron-store); nur die Schlüssel aus STORAGE_KEYS,
   // alles andere lehnt der Hauptprozess mit einem Fehler ab.
@@ -83,6 +105,10 @@ export interface ElectronAPI {
   getLogInfo?: () => Promise<LogInfo>;
   openLog?: () => Promise<boolean>;
   exportLog?: () => Promise<{ ok: boolean; canceled?: boolean; path?: string; error?: string }>;
+
+  // Kartenscanner (#168), nur macOS; fehlt in älteren App-Versionen.
+  isScannerAvailable?: () => Promise<boolean>;
+  recognizeCard?: (dataUrl: string) => Promise<OcrResult>;
 
   // Auto-Backup (#91)
   chooseBackupFolder: () => Promise<string | null>;

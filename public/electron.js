@@ -9,6 +9,7 @@ const os = require('os');
 const imageStore = require('./imageStore');
 const security = require('./security');
 const { createErrorLog } = require('./errorLog');
+const cardOcr = require('./cardOcr');
 
 // Nur für Entwicklung und Tests: Datenordner umlenken, damit sich Änderungen
 // am Speicherformat an einer Kopie ausprobieren lassen, ohne die echte
@@ -539,6 +540,23 @@ handle('update:check', async () => {
 
 // Aktuelle App-Version für die Anzeige im Settings-Tab.
 handle('app:version', async () => app.getVersion());
+
+// --- Kartenscanner (#168) --------------------------------------------------
+// Texterkennung über das Swift-Hilfsprogramm (Apple Vision, nur macOS).
+const cardOcrBinary = () =>
+  cardOcr.binaryPath({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appRoot: path.join(__dirname, '..'),
+  });
+
+handle('scanner:available', async () => cardOcr.isAvailable(cardOcrBinary()));
+
+handle('scanner:recognize', async (event, dataUrl) => {
+  const binary = cardOcrBinary();
+  if (!cardOcr.isAvailable(binary)) throw new Error('Der Kartenscanner ist auf diesem System nicht verfügbar.');
+  return cardOcr.recognize(binary, dataUrl);
+});
 
 // --- Auto-Backup (#91) -----------------------------------------------------
 // Das eigentliche Schreiben ins Dateisystem muss im Main-Prozess passieren.
