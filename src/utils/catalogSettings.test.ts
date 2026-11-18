@@ -45,6 +45,15 @@ describe('Sprache der Karte im Link', () => {
     expect(buildCardmarketFilter(DEFAULT_CATALOG_SETTINGS, 'en')).toBe('sellerCountry=7&language=1&minCondition=2');
     expect(buildCardmarketFilter(DEFAULT_CATALOG_SETTINGS, 'de')).toBe('sellerCountry=7&language=3&minCondition=2');
   });
+
+  it('filtert gescannte deutsche Karten immer nach Deutsch', () => {
+    const all = { ...DEFAULT_CATALOG_SETTINGS, language: 'all' as const };
+    expect(buildCardmarketFilter(all, 'de')).toBe('sellerCountry=7&minCondition=2');
+    expect(buildCardmarketFilter(all, 'de', true)).toBe('sellerCountry=7&language=3&minCondition=2');
+    expect(buildCardmarketFilter({ ...DEFAULT_CATALOG_SETTINGS, language: 'en' }, 'de', true)).toBe(
+      'sellerCountry=7&language=3&minCondition=2'
+    );
+  });
 });
 
 describe('pickCatalogPrice', () => {

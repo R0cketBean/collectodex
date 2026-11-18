@@ -34,6 +34,8 @@ interface CatalogCardDialogProps {
   detail?: CardDetail;
   englishImage?: string;
   initialVariant?: CatalogVariant;
+  /** Sprache der Karte sicher bekannt (Scanner): Cardmarket-Links immer danach filtern. */
+  strictLanguage?: boolean;
   /** Nach dem Übernehmen; ohne Angabe geht es zum neuen Eintrag. */
   onAdded?: (category: Category, itemId: string, name: string) => void;
   onClose: () => void;
@@ -47,6 +49,7 @@ const CatalogCardDialog: React.FC<CatalogCardDialogProps> = ({
   detail: givenDetail,
   englishImage,
   initialVariant,
+  strictLanguage = false,
   onAdded,
   onClose,
 }) => {
@@ -82,7 +85,7 @@ const CatalogCardDialog: React.FC<CatalogCardDialogProps> = ({
   // Direkt zum Produkt, gefiltert wie die Links neuer Einträge.
   const cardmarketUrl =
     price?.idProduct != null
-      ? cardmarketProductUrl(price.idProduct, card.name, buildCardmarketFilter(settings, lang))
+      ? cardmarketProductUrl(price.idProduct, card.name, buildCardmarketFilter(settings, lang, strictLanguage))
       : undefined;
 
   const add = async (category: Category, variant: CatalogVariant) => {
@@ -98,7 +101,7 @@ const CatalogCardDialog: React.FC<CatalogCardDialogProps> = ({
       variant,
       price: pickCatalogPrice(price, settings.priceBasis, variant),
       imageUrl: image,
-      productUrl: cardmarketProductUrl(price?.idProduct, card.name, buildCardmarketFilter(settings, lang)),
+      productUrl: cardmarketProductUrl(price?.idProduct, card.name, buildCardmarketFilter(settings, lang, strictLanguage)),
     });
     const id = addItem(category.id, draft.values, {
       links: draft.links,

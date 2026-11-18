@@ -484,6 +484,7 @@ const Scanner: React.FC = () => {
           setName={selected.setName}
           lang={lang}
           initialVariant={reverse ? 'reverse' : 'normal'}
+          strictLanguage
           onAdded={(category, _id, name) => {
             notify(`„${name}“ in „${category.name}“ übernommen`);
             setSelected(null);
