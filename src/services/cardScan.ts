@@ -18,6 +18,7 @@ import {
   type SetBrief,
   type SetDetail,
 } from './tcgdex';
+import type { CatalogLang } from '../types/models';
 import { localIdMatches, nameSimilarity, rankCandidates, type RankedCandidate, type ScanCandidate, type ScanInfo } from '../utils/cardScan';
 
 export interface CatalogSource {
@@ -27,12 +28,13 @@ export interface CatalogSource {
   cardsByName: (name: string) => Promise<CardBrief[]>;
 }
 
-const tcgdexSource: CatalogSource = {
-  setsByCode: (code) => fetchSetsByCode(code),
-  allSets: () => fetchSetSummaries(),
-  set: (setId) => fetchSet(setId),
-  cardsByName: (name) => searchCardsByName(name),
-};
+/** Katalog von TCGdex in der Sprache der Karte (#169: Deutsch, Englisch, Japanisch). */
+export const tcgdexSource = (lang: CatalogLang = 'de'): CatalogSource => ({
+  setsByCode: (code) => fetchSetsByCode(code, lang),
+  allSets: () => fetchSetSummaries(lang),
+  set: (setId) => fetchSet(setId, lang),
+  cardsByName: (name) => searchCardsByName(name, lang),
+});
 
 // Mehr Sets lädt der Scanner pro Foto nicht – jedes ist eine Abfrage.
 const MAX_SETS = 8;
@@ -68,7 +70,10 @@ export interface ScanSearchResult {
 }
 
 /** Sucht und bewertet passende Katalogkarten. */
-export async function findScanCandidates(read: ScanInfo, source: CatalogSource = tcgdexSource): Promise<ScanSearchResult> {
+export async function findScanCandidates(
+  read: ScanInfo,
+  source: CatalogSource = tcgdexSource('de')
+): Promise<ScanSearchResult> {
   let info = read;
   const setIds = new Set<string>();
 
