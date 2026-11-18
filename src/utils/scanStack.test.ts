@@ -80,8 +80,8 @@ describe('Anpassen', () => {
 
 describe('Preise und Summe', () => {
   it('nimmt für Reverse den Reverse-Preis, sonst den normalen', () => {
-    expect(unitPrice({ variant: 'reverse', price: price(0.1, 0.3) })).toBe(0.3);
-    expect(unitPrice({ variant: 'reverse', price: price(0.1, null) })).toBe(0.1);
+    expect(unitPrice({ variant: 'reverse', price: price(0.1, 0.3) }, 'trend')).toBe(0.3);
+    expect(unitPrice({ variant: 'reverse', price: price(0.1, null) }, 'trend')).toBe(0.1);
     expect(unitPrice({ variant: 'normal', price: undefined })).toBeNull();
   });
 
@@ -91,7 +91,7 @@ describe('Preise und Summe', () => {
     expect(unitPrice({ variant: 'reverse', price: p }, 'low')).toBe(0.02);
     expect(unitPrice({ variant: 'normal', price: p }, 'avg30')).toBe(0.06);
     const s = addToStack([], card('me06-052', { variant: 'reverse', quantity: 3, price: p }));
-    expect(stackTotals(s, 'low').value).toBe(0.06);
+    expect(stackTotals(s).value).toBe(0.06); // Vorgabe: günstigstes Angebot
     expect(stackTotals(s, 'trend').value).toBe(0.21);
   });
 
@@ -99,7 +99,7 @@ describe('Preise und Summe', () => {
     let s = addToStack([], card('sv01-1', { quantity: 3, price: price(0.1) }));
     s = addToStack(s, card('sv01-2', { variant: 'reverse', price: price(0.1, 0.31) }));
     s = addToStack(s, card('sv01-3', { price: null }));
-    expect(stackTotals(s)).toEqual({ cards: 5, value: 0.61, unpriced: 1 });
+    expect(stackTotals(s, 'trend')).toEqual({ cards: 5, value: 0.61, unpriced: 1 });
   });
 });
 

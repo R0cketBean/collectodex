@@ -5,7 +5,6 @@ import LiveCamera from '../components/scanner/LiveCamera';
 import ScanResults from '../components/scanner/ScanResults';
 import ScanStack from '../components/scanner/ScanStack';
 import { useScanStack } from '../hooks/useScanStack';
-import { useCatalogSettings } from '../hooks/useCatalogSettings';
 import { stackKey, stackTotals, type StackEntry } from '../utils/scanStack';
 import { useFeedback } from '../context/FeedbackContext';
 import { findScanCandidates, tcgdexSource } from '../services/cardScan';
@@ -118,7 +117,6 @@ const Scanner: React.FC = () => {
   const stackModeRef = useRef(stackMode);
   stackModeRef.current = stackMode;
   const stackApi = useScanStack();
-  const { priceBasis } = useCatalogSettings();
   const { stack, add: addEntry } = stackApi;
 
   const setStackMode = (on: boolean) => {
@@ -341,7 +339,7 @@ const Scanner: React.FC = () => {
               <span className="whitespace-nowrap">Stapel-Modus</span>
               {stack.length > 0 && (
                 <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium tabular-nums text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                  {stackTotals(stack, priceBasis).cards} · {formatEur(stackTotals(stack, priceBasis).value)}
+                  {stackTotals(stack).cards} · {formatEur(stackTotals(stack).value)}
                 </span>
               )}
             </label>

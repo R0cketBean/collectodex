@@ -6,6 +6,9 @@
 import type { CatalogLang, CatalogVariant } from '../types/models';
 import { pickCatalogPrice, type PriceBasis } from './catalogSettings';
 
+/** Der Scanner zeigt immer das günstigste Angebot („ab“) – das, was ein Stapel mindestens bringt. */
+export const SCAN_PRICE_BASIS: PriceBasis = 'low';
+
 export interface StackPrice {
   trend: number | null;
   low: number | null;
@@ -80,11 +83,13 @@ export const setPrice = (
   stack.map((e) => (e.cardId === cardId && e.lang === lang ? { ...e, price, hasReverse } : e));
 
 /**
- * Stückpreis der gewählten Fassung nach der eingestellten Preisbasis (Trend,
- * günstigstes Angebot, 30-Tage-Schnitt) – wie der Startwert neuer Einträge.
- * Ohne Reverse-Preis gilt der normale.
+ * Stückpreis der gewählten Fassung nach Preisbasis (Vorgabe: günstigstes
+ * Angebot). Ohne Reverse-Preis gilt der normale.
  */
-export const unitPrice = (e: Pick<StackEntry, 'price' | 'variant'>, basis: PriceBasis = 'trend'): number | null => {
+export const unitPrice = (
+  e: Pick<StackEntry, 'price' | 'variant'>,
+  basis: PriceBasis = SCAN_PRICE_BASIS
+): number | null => {
   if (!e.price) return null;
   const variant = e.variant === 'reverse' && e.price.reverseTrend !== null ? 'reverse' : 'normal';
   return pickCatalogPrice(e.price, basis, variant);
@@ -99,7 +104,7 @@ export interface StackTotals {
   unpriced: number;
 }
 
-export const stackTotals = (stack: StackEntry[], basis: PriceBasis = 'trend'): StackTotals =>
+export const stackTotals = (stack: StackEntry[], basis: PriceBasis = SCAN_PRICE_BASIS): StackTotals =>
   stack.reduce<StackTotals>(
     (t, e) => {
       const price = unitPrice(e, basis);

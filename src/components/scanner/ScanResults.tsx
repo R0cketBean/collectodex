@@ -31,8 +31,10 @@ interface ScanResultsProps {
   inStack?: (candidate: RankedCandidate) => boolean;
 }
 
-const priceOf = (price: PriceSummary | undefined, reverse: boolean) =>
-  price ? (reverse && price.reverseTrend !== null ? price.reverseTrend : price.trend) : undefined;
+// Beim Scannen zählt das günstigste Angebot („ab“); ohne Angebot der Trend.
+const lowOf = (price: PriceSummary, reverse: boolean) =>
+  reverse && price.reverseTrend !== null ? (price.reverseLow ?? price.reverseTrend) : (price.low ?? price.trend);
+const priceOf = (price: PriceSummary | undefined, reverse: boolean) => (price ? lowOf(price, reverse) : undefined);
 
 const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, reverse, onOpen, onAddToStack, inStack }) => {
   const [prices, setPrices] = useState<Record<string, PriceSummary | null>>({});
@@ -192,15 +194,15 @@ const PriceBlock: React.FC<{ price: PriceSummary | null | undefined; loaded: boo
   return (
     <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
       <div>
-        <dt className="text-xs text-gray-500 dark:text-gray-400">{showReverse ? 'Trend Reverse Holo' : 'Trend'}</dt>
+        <dt className="text-xs text-gray-500 dark:text-gray-400">{showReverse ? 'ab (Reverse Holo)' : 'ab'}</dt>
         <dd className="text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-          {formatEur(showReverse ? price.reverseTrend : price.trend)}
+          {formatEur(lowOf(price, reverse))}
         </dd>
       </div>
       <div>
-        <dt className="text-xs text-gray-500 dark:text-gray-400">ab</dt>
-        <dd className="text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-          {formatEur(showReverse ? price.reverseLow : price.low)}
+        <dt className="text-xs text-gray-500 dark:text-gray-400">Trend</dt>
+        <dd className="text-xl tabular-nums text-gray-500 dark:text-gray-400">
+          {formatEur(showReverse ? price.reverseTrend : price.trend)}
         </dd>
       </div>
       {reverse && price.reverseTrend === null && (
