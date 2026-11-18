@@ -7,6 +7,8 @@ import { useAddCatalogCard } from '../../hooks/useAddCatalogCard';
 import { catalogCardImageSources, formatEur } from '../../services/tcgdex';
 import type { CatalogVariant } from '../../types/models';
 import { stackTotals, unitPrice, type StackEntry } from '../../utils/scanStack';
+import { useCatalogSettings } from '../../hooks/useCatalogSettings';
+import { PRICE_BASIS_LABEL } from '../../utils/catalogSettings';
 import { primaryButtonClass, secondaryButtonSmallClass, selectClass } from '../../utils/formStyles';
 
 // Stapel des Kartenscanners (#171): gesammelte Karten mit Anzahl, Fassung und
@@ -33,7 +35,9 @@ const ScanStack: React.FC<ScanStackProps> = ({ stack, onQuantity, onVariant, onR
   const [targetId, setTargetId] = useState(() => (targets.find((c) => c.id === 'singles') ?? targets[0])?.id ?? '');
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
-  const totals = stackTotals(stack);
+  // Preisbasis aus den Katalog-Einstellungen – wie der Startwert neuer Einträge.
+  const { priceBasis } = useCatalogSettings();
+  const totals = stackTotals(stack, priceBasis);
   const target = targets.find((c) => c.id === targetId);
 
   const addAll = async () => {
@@ -88,14 +92,14 @@ const ScanStack: React.FC<ScanStackProps> = ({ stack, onQuantity, onVariant, onR
             {formatEur(totals.value)}
           </span>
           <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-            Trend{totals.unpriced > 0 ? ` · ${totals.unpriced} ohne Preis` : ''}
+            {PRICE_BASIS_LABEL[priceBasis]}{totals.unpriced > 0 ? ` · ${totals.unpriced} ohne Preis` : ''}
           </span>
         </div>
       </div>
 
       <ul className="max-h-[28rem] divide-y divide-gray-100 overflow-y-auto dark:divide-gray-700">
         {stack.map((e) => {
-          const price = unitPrice(e);
+          const price = unitPrice(e, priceBasis);
           return (
             <li key={e.key} className="flex items-center gap-3 px-4 py-2">
               <button
@@ -229,7 +233,8 @@ const ScanStack: React.FC<ScanStackProps> = ({ stack, onQuantity, onVariant, onR
         </div>
       </div>
       <p className="px-4 pb-3 text-xs text-gray-500 dark:text-gray-400">
-        Preise: Cardmarket-Trend über alle Sprachen und Zustände. „RH“ markiert eine Karte als Reverse Holo. Übernommen wird je Zeile ein Eintrag mit der Anzahl.
+        Preise: Cardmarket ({PRICE_BASIS_LABEL[priceBasis]}, einstellbar unter Einstellungen → Katalog &amp; Preise), über alle
+        Sprachen und Zustände. „RH“ markiert eine Karte als Reverse Holo. Übernommen wird je Zeile ein Eintrag mit der Anzahl.
       </p>
     </section>
   );

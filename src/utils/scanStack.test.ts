@@ -85,6 +85,16 @@ describe('Preise und Summe', () => {
     expect(unitPrice({ variant: 'normal', price: undefined })).toBeNull();
   });
 
+  it('rechnet nach der eingestellten Preisbasis', () => {
+    const p = { trend: 0.02, low: 0.02, avg30: 0.06, reverseTrend: 0.07, reverseLow: 0.02, idProduct: null };
+    expect(unitPrice({ variant: 'reverse', price: p }, 'trend')).toBe(0.07);
+    expect(unitPrice({ variant: 'reverse', price: p }, 'low')).toBe(0.02);
+    expect(unitPrice({ variant: 'normal', price: p }, 'avg30')).toBe(0.06);
+    const s = addToStack([], card('me06-052', { variant: 'reverse', quantity: 3, price: p }));
+    expect(stackTotals(s, 'low').value).toBe(0.06);
+    expect(stackTotals(s, 'trend').value).toBe(0.21);
+  });
+
   it('summiert Trendpreise mal Anzahl und zählt Karten ohne Preis', () => {
     let s = addToStack([], card('sv01-1', { quantity: 3, price: price(0.1) }));
     s = addToStack(s, card('sv01-2', { variant: 'reverse', price: price(0.1, 0.31) }));

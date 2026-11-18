@@ -4,6 +4,7 @@
 // später auch in einer mobilen App laufen können (#173).
 
 import type { CatalogLang, CatalogVariant } from '../types/models';
+import { pickCatalogPrice, type PriceBasis } from './catalogSettings';
 
 export interface StackPrice {
   trend: number | null;
@@ -78,26 +79,30 @@ export const setPrice = (
 ): StackEntry[] =>
   stack.map((e) => (e.cardId === cardId && e.lang === lang ? { ...e, price, hasReverse } : e));
 
-/** Stückpreis der gewählten Fassung (Trend); ohne Reverse-Preis gilt der normale. */
-export const unitPrice = (e: Pick<StackEntry, 'price' | 'variant'>): number | null => {
+/**
+ * Stückpreis der gewählten Fassung nach der eingestellten Preisbasis (Trend,
+ * günstigstes Angebot, 30-Tage-Schnitt) – wie der Startwert neuer Einträge.
+ * Ohne Reverse-Preis gilt der normale.
+ */
+export const unitPrice = (e: Pick<StackEntry, 'price' | 'variant'>, basis: PriceBasis = 'trend'): number | null => {
   if (!e.price) return null;
-  if (e.variant === 'reverse' && e.price.reverseTrend !== null) return e.price.reverseTrend;
-  return e.price.trend;
+  const variant = e.variant === 'reverse' && e.price.reverseTrend !== null ? 'reverse' : 'normal';
+  return pickCatalogPrice(e.price, basis, variant);
 };
 
 export interface StackTotals {
   /** Anzahl Karten (mit Mehrfachen). */
   cards: number;
-  /** Summe der Trendpreise. */
+  /** Summe nach Preisbasis. */
   value: number;
   /** Karten ohne bekannten Preis (zählen nicht zur Summe). */
   unpriced: number;
 }
 
-export const stackTotals = (stack: StackEntry[]): StackTotals =>
+export const stackTotals = (stack: StackEntry[], basis: PriceBasis = 'trend'): StackTotals =>
   stack.reduce<StackTotals>(
     (t, e) => {
-      const price = unitPrice(e);
+      const price = unitPrice(e, basis);
       return {
         cards: t.cards + e.quantity,
         value: Math.round((t.value + (price ?? 0) * e.quantity) * 100) / 100,
