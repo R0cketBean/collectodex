@@ -7,6 +7,7 @@
 // Bild wird so höchstens einmal geladen.
 
 import { catalogCardImageSources, englishCardImageBase } from './tcgdex';
+import { englishArtworks } from './jpVintageArtwork';
 import type { CatalogLang } from '../types/models';
 import {
   decodeFingerprint,
@@ -162,12 +163,12 @@ export function createVisualMatcher(scanImage: string, lang: CatalogLang, option
   // Bilder, die gerade nicht zu laden waren, in dieser Sitzung nicht erneut versuchen.
   const missing = new Set<string>();
 
-  const catalogFingerprint = async (card: VisualCard): Promise<Fingerprint | null> => {
-    const key = `${lang === 'ja' ? 'ja' : 'intl'}:${card.cardId}`;
+  const catalogFingerprint = async (card: VisualCard, cardLang: CatalogLang): Promise<Fingerprint | null> => {
+    const key = `${cardLang === 'ja' ? 'ja' : 'intl'}:${card.cardId}`;
     const cached = await cache.get(key);
     if (cached) return cached;
     if (missing.has(key)) return null;
-    for (const url of visualSources(card, lang)) {
+    for (const url of visualSources(card, cardLang)) {
       try {
         const fp = await fingerprintOf(url);
         await cache.set(key, fp);
@@ -182,8 +183,14 @@ export function createVisualMatcher(scanImage: string, lang: CatalogLang, option
 
   return {
     distance: async (card) => {
-      const [own, other] = await Promise.all([scan, catalogFingerprint(card)]);
-      return other ? fingerprintDistance(own, other) : null;
+      const [own, other] = await Promise.all([scan, catalogFingerprint(card, lang)]);
+      if (other) return fingerprintDistance(own, other);
+      // Japanische Vintage-Karte ohne Bild (#180): mit den englischen Karten
+      // desselben Artworks vergleichen, der nächste zählt.
+      const twins = lang === 'ja' ? englishArtworks(card.cardId) : [];
+      const prints = await Promise.all(twins.map((twin) => catalogFingerprint(twin, 'en')));
+      const distances = prints.filter((fp): fp is Fingerprint => fp !== null).map((fp) => fingerprintDistance(own, fp));
+      return distances.length > 0 ? Math.min(...distances) : null;
     },
   };
 }

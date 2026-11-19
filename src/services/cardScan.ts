@@ -35,6 +35,7 @@ import {
   type ScanInfo,
 } from '../utils/cardScan';
 import { IMAGE_MATCH_MAX, imageMatches } from '../utils/imageFingerprint';
+import { JP_VINTAGE_SETS } from './jpVintageArtwork';
 import type { VisualCard, VisualMatcher } from './imageMatch';
 
 export interface CatalogSource {
@@ -66,10 +67,28 @@ export const tcgdexSource = (lang: CatalogLang = 'de'): CatalogSource => {
     allSets: async () => withoutExcluded(await fetchSetSummaries(lang)),
     set: (setId) => fetchSet(setId, lang),
     cardsByName: async (name) => {
-      const [cards, skip] = await Promise.all([searchCardsByName(name, lang), excludedSets()]);
+      const [found, skip, vintage] = await Promise.all([
+        searchCardsByName(name, lang).catch(() => [] as CardBrief[]),
+        excludedSets(),
+        lang === 'ja' ? vintageByName(name) : Promise.resolve([] as CardBrief[]),
+      ]);
+      const cards = [...new Map([...found, ...vintage].map((c) => [c.id, c])).values()];
       return cards.filter((c) => !inSets(c, skip));
     },
   };
+};
+
+// Unscharfe Namenssuche in den japanischen Vintage-Sets (#180): Die alte
+// Schrift liest die Texterkennung oft nur halb richtig („リサードソ“), und
+// TCGdex sucht nur nach exakten Teilstücken. Die Sets sind wenige und werden
+// zwischengespeichert.
+const VINTAGE_NAME_MIN = 0.6;
+const vintageByName = async (name: string): Promise<CardBrief[]> => {
+  const sets = await mapLimit(JP_VINTAGE_SETS, 4, (id) => fetchSet(id, 'ja'));
+  return sets
+    .filter((s): s is SetDetail => s !== null)
+    .flatMap((s) => s.cards)
+    .filter((c) => nameSimilarity(name, c.name) >= VINTAGE_NAME_MIN);
 };
 
 // Mehr Sets lädt der Scanner pro Foto nicht – jedes ist eine Abfrage.

@@ -60,4 +60,21 @@ describe('createVisualMatcher', () => {
     expect(await none.distance(card)).toBeNull();
     expect(fingerprintOf.mock.calls.length).toBe(calls);
   });
+
+  it('vergleicht japanische Vintage-Karten mit dem englischen Artwork (#180)', async () => {
+    // PMCG1-021 (リザードン) hat kein Bild; Gegenstück ist Base Set Glurak.
+    const fingerprintOf = vi.fn(async (url: string) => {
+      if (url.startsWith('data:') || url.includes('/base1/4')) return pattern(1);
+      throw new Error('404');
+    });
+    const matcher = createVisualMatcher('data:x', 'ja', { cache: memoryCache(), fingerprintOf });
+    const card = { cardId: 'PMCG1-021', setId: 'PMCG1', localId: '021', serieId: 'PMCG' };
+    expect(await matcher.distance(card)).toBe(0);
+    expect(fingerprintOf).toHaveBeenCalledWith('https://assets.tcgdex.net/en/base/base1/4/low.webp');
+    // Ohne Gegenstück bleibt es bei „kein Bild“.
+    expect(await matcher.distance({ cardId: 'VS1-001', setId: 'VS1', localId: '001' })).toBeNull();
+    // Deutsche oder englische Karten nutzen die Tabelle nicht.
+    const de = createVisualMatcher('data:x', 'de', { cache: memoryCache(), fingerprintOf });
+    expect(await de.distance(card)).toBeNull();
+  });
 });
