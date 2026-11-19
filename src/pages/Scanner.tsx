@@ -239,7 +239,7 @@ const Scanner: React.FC = () => {
         return 'reading';
       });
       try {
-        const result = await recognize(dataUrl);
+        const result = await recognize(dataUrl, langRef.current);
         const parsed = parseScan(result.lines);
         const pictured = result.cardDetected && Boolean(result.preview);
         // Ohne Nummer und Namen hilft noch die Set-Größe – zusammen mit dem Bild.

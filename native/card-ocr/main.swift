@@ -64,10 +64,17 @@ func rotated(_ image: CGImage, _ orientation: CGImagePropertyOrientation) -> CGI
   return ciContext.createCGImage(ci, from: ci.extent)
 }
 
+/// Sprachen der Texterkennung: Japanisch nur für japanische Karten – sonst
+/// liest Vision lateinische Schrift schlechter.
+func recognitionLanguages(_ lang: String?) -> [String] {
+  lang == "ja" ? ["ja-JP", "en-US"] : ["de-DE", "en-US"]
+}
+var languages = recognitionLanguages(nil)
+
 func recognize(_ image: CGImage) throws -> [VNRecognizedTextObservation] {
   let request = VNRecognizeTextRequest()
   request.recognitionLevel = .accurate
-  request.recognitionLanguages = ["de-DE", "en-US"]
+  request.recognitionLanguages = languages
   request.usesLanguageCorrection = false
   try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
   return request.results ?? []
@@ -198,7 +205,7 @@ func json(_ value: [String: Any]) -> Data {
 /// neu für die Neural Engine (gemessen 50–70 s, der Zwischenspeicher hält nur
 /// kurz). Ein laufender Prozess behält es geladen.
 /// Erst eine kurze Erkennung zum Aufwärmen, dann {"ready":true}. Danach je
-/// Zeile auf stdin ein Auftrag {"image","preview"?} und je Auftrag eine Zeile
+/// Zeile auf stdin ein Auftrag {"image","preview"?,"lang"?} und je Auftrag eine Zeile
 /// Antwort: das Ergebnis oder {"error"}.
 func serve() {
   setvbuf(stdout, nil, _IOLBF, 0)
@@ -221,6 +228,7 @@ func serve() {
       write(["error": "Ungültiger Auftrag"])
       continue
     }
+    languages = recognitionLanguages(job["lang"] as? String)
     do {
       write(try autoreleasepool { try scan(image, preview: job["preview"] as? String) })
     } catch {

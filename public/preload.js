@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Kartenscanner (#168): Texterkennung eines Kartenfotos (Data-URL), nur macOS.
   isScannerAvailable: () => ipcRenderer.invoke('scanner:available'),
-  recognizeCard: (dataUrl) => ipcRenderer.invoke('scanner:recognize', dataUrl),
+  recognizeCard: (dataUrl, lang) => ipcRenderer.invoke('scanner:recognize', dataUrl, lang),
   warmUpScanner: () => ipcRenderer.invoke('scanner:warmup'),
 
   // Auto-Backup (#91)

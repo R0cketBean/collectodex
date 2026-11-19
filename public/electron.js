@@ -580,10 +580,10 @@ handle('scanner:warmup', async () => {
   return true;
 });
 
-handle('scanner:recognize', async (event, dataUrl) => {
+handle('scanner:recognize', async (event, dataUrl, lang) => {
   const worker = cardOcrRunner();
   if (!worker) throw new Error('Der Kartenscanner ist auf diesem System nicht verfügbar.');
-  return cardOcr.recognize(worker.run, dataUrl);
+  return cardOcr.recognize(worker.run, dataUrl, lang);
 });
 
 // --- Auto-Backup (#91) -----------------------------------------------------

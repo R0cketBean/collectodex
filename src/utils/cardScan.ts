@@ -71,6 +71,9 @@ const bottomLines = (lines: OcrLine[]) =>
     // Der vergrößerte Durchgang liest den kleinen Code meist besser.
     .sort((a, b) => (a.pass === b.pass ? b.confidence - a.confidence : a.pass === 'bottom' ? -1 : 1));
 
+/** Ein Name hat mindestens zwei Buchstaben – lateinisch oder japanisch. */
+const NAME_LETTERS = /[A-Za-zÄÖÜäöüß]{2}|[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}ー]{2}/u;
+
 const pickName = (lines: OcrLine[]): string | undefined => {
   const candidates = lines
     // Mit Hülle oder leicht schräg liegt der Name etwas tiefer als 0,12.
@@ -79,7 +82,7 @@ const pickName = (lines: OcrLine[]): string | undefined => {
       ...l,
       text: l.text.replace(/\s+/g, ' ').trim().replace(LEADING_STAGE, '').replace(HIT_POINTS, '').replace(LEVEL, ''),
     }))
-    .filter((l) => l.text.length >= 2 && !HEADER_WORDS.test(l.text) && /[A-Za-zÄÖÜäöüß]{2}/.test(l.text));
+    .filter((l) => l.text.length >= 2 && !HEADER_WORDS.test(l.text) && NAME_LETTERS.test(l.text));
   // Der Name ist die oberste, größte Zeile in diesem Bereich.
   candidates.sort((a, b) => b.h - a.h || a.y - b.y);
   return candidates[0]?.text;

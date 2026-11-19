@@ -15,10 +15,14 @@ import type { Category, CollectionItem } from '../types/models';
 export const normalizeName = (s: string) =>
   s
     .toLowerCase()
+    // Halbbreiten-Katakana vereinheitlichen (japanische Namen, #169).
+    .normalize('NFKC')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    // Akzente und die Stimmhaftigkeitszeichen der Kana (ザ = サ + ゛): Die
+    // Texterkennung übersieht ゛ und ゜ oft, „リサードン“ ist „リザードン“.
+    .replace(/[\u0300-\u036f\u3099\u309a]/g, '')
     .replace(/&/g, 'und')
-    .replace(/[^a-z0-9]/g, '');
+    .replace(/[^a-z0-9\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}ー]/gu, '');
 
 export interface CatalogSetName {
   id: string;

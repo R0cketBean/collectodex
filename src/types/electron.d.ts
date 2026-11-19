@@ -3,6 +3,8 @@
 // 'electronAPI' in window genutzt — diese Deklaration macht die Nutzung
 // typsicher.
 
+import type { CatalogLang } from './models';
+
 export interface UpdateInfo {
   version?: string;
 }
@@ -108,7 +110,7 @@ export interface ElectronAPI {
 
   // Kartenscanner (#168), nur macOS; fehlt in älteren App-Versionen.
   isScannerAvailable?: () => Promise<boolean>;
-  recognizeCard?: (dataUrl: string) => Promise<OcrResult>;
+  recognizeCard?: (dataUrl: string, lang?: CatalogLang) => Promise<OcrResult>;
   /** Startet die Texterkennung vorab (macOS lädt das Modell beim ersten Mal lange). */
   warmUpScanner?: () => Promise<boolean>;
 

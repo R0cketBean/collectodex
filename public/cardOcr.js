@@ -166,12 +166,12 @@ function createWorker(binary, { spawnFn = spawn, readyMs = READY_TIMEOUT_MS, job
     return proc;
   };
 
-  const job = async (file, preview) => {
+  const job = async (file, preview, lang) => {
     const current = ensure();
     try {
       await withTimeout(current.ready, readyMs, 'Die Texterkennung startet nicht.');
       const answer = current.next();
-      current.child.stdin.write(`${JSON.stringify({ image: file, preview })}\n`);
+      current.child.stdin.write(`${JSON.stringify({ image: file, preview, lang })}\n`);
       const message = await withTimeout(answer, jobMs, 'Die Texterkennung antwortet nicht.');
       if (typeof message.error === 'string') throw new Error(message.error);
       return message;
@@ -190,8 +190,8 @@ function createWorker(binary, { spawnFn = spawn, readyMs = READY_TIMEOUT_MS, job
       ensure();
     },
     /** Liest ein Bild; liefert die Ausgabe des Programms (noch ungeprüft). */
-    run: (file, preview) => {
-      const result = chain.then(() => job(file, preview));
+    run: (file, preview, lang) => {
+      const result = chain.then(() => job(file, preview, lang));
       chain = result.catch(() => {});
       return result;
     },
@@ -199,15 +199,15 @@ function createWorker(binary, { spawnFn = spawn, readyMs = READY_TIMEOUT_MS, job
   };
 }
 
-/** Erkennt den Text einer Karte im übergebenen Foto (Data-URL). */
-async function recognize(run, dataUrl) {
+/** Erkennt den Text einer Karte im übergebenen Foto (Data-URL); `lang`: Sprache der Karte. */
+async function recognize(run, dataUrl, lang) {
   const { ext, data } = decodeImage(dataUrl);
   const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'collectodex-scan-'));
   const file = path.join(dir, `karte.${ext}`);
   const preview = path.join(dir, 'vorschau.jpg');
   try {
     await fs.promises.writeFile(file, data);
-    const result = parseOutput(await run(file, preview));
+    const result = parseOutput(await run(file, preview, lang === 'ja' ? 'ja' : undefined));
     // Vorschau der (entzerrten) Karte – auch für HEIC, das das Fenster nicht anzeigen kann.
     const jpeg = await fs.promises.readFile(preview).catch(() => null);
     return { ...result, preview: jpeg ? `data:image/jpeg;base64,${jpeg.toString('base64')}` : null };
