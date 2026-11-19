@@ -109,6 +109,8 @@ export interface ElectronAPI {
   // Kartenscanner (#168), nur macOS; fehlt in älteren App-Versionen.
   isScannerAvailable?: () => Promise<boolean>;
   recognizeCard?: (dataUrl: string) => Promise<OcrResult>;
+  /** Startet die Texterkennung vorab (macOS lädt das Modell beim ersten Mal lange). */
+  warmUpScanner?: () => Promise<boolean>;
 
   // Auto-Backup (#91)
   chooseBackupFolder: () => Promise<string | null>;

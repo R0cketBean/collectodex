@@ -67,6 +67,8 @@ const readLang = (): CatalogLang => {
 const LANG_FROM_CODE: Record<string, CatalogLang> = { DE: 'de', EN: 'en' };
 
 type Phase = 'idle' | 'reading' | 'searching' | 'done' | 'error';
+// Ab hier gilt das Lesen als langsam (sonst unter einer Sekunde).
+const SLOW_READ_MS = 4000;
 
 const ACCEPT = 'image/jpeg,image/png,image/heic,image/heif,image/webp,image/tiff,.heic,.heif';
 
@@ -175,9 +177,28 @@ const Scanner: React.FC = () => {
       return;
     }
     check()
-      .then(setAvailable)
+      .then((ok) => {
+        setAvailable(ok);
+        // Texterkennung schon vorbereiten: macOS lädt das Modell beim ersten Mal lange.
+        if (ok) window.electronAPI?.warmUpScanner?.().catch(() => {});
+      })
       .catch(() => setAvailable(false));
   }, []);
+
+  // Dauert das Lesen länger, liegt es fast immer am ersten Laden des Modells.
+  const [slowRead, setSlowRead] = useState(false);
+  useEffect(() => {
+    setSlowRead(false);
+    if (phase !== 'reading') return;
+    const timer = window.setTimeout(() => setSlowRead(true), SLOW_READ_MS);
+    return () => window.clearTimeout(timer);
+  }, [phase]);
+  const busyText =
+    phase === 'reading'
+      ? slowRead
+        ? 'Texterkennung wird vorbereitet – beim ersten Scan bis zu einer Minute …'
+        : 'Karte wird gelesen …'
+      : 'Katalog wird durchsucht …';
 
   /** `fromScan`: frisch gescannt – im Stapel-Modus kommt ein sicherer Treffer gleich in den Stapel. */
   const search = useCallback(async (next: ScanInfo, fromScan = false) => {
@@ -365,7 +386,7 @@ const Scanner: React.FC = () => {
                   {busy ? (
                     <span className="inline-flex items-center text-gray-700 dark:text-gray-200">
                       <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
-                      {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
+                      {busyText}
                     </span>
                   ) : (
                     hint && <span className="text-gray-500 dark:text-gray-400">{hint}</span>
@@ -415,7 +436,7 @@ const Scanner: React.FC = () => {
                   {busy && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/70 text-sm font-medium text-gray-700 dark:bg-gray-900/70 dark:text-gray-200">
                       <ArrowPathIcon className="mr-2 h-5 w-5 animate-spin" aria-hidden="true" />
-                      {phase === 'reading' ? 'Karte wird gelesen …' : 'Katalog wird durchsucht …'}
+                      {busyText}
                     </div>
                   )}
                 </div>
