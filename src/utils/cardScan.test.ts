@@ -34,6 +34,25 @@ const riesenzahn: OcrLine[] = [
 ];
 
 describe('parseScan', () => {
+  it('nimmt Kraftpunkte und Level nicht in den Namen (ältere Karten, #170)', () => {
+    // Gelesen von Fotos echter Karten: Base Set Pikachu, Diamant & Perl Dialga.
+    const pikachu = [line('Basic Pokémon', 0.04, { x: 0.1, h: 0.018 }), line('Pikachu', 0.06, { x: 0.1, h: 0.041 }), line('40 HP 4', 0.06, { x: 0.64, h: 0.049 })];
+    expect(parseScan(pikachu).name).toBe('Pikachu');
+    const dialga = [line('Dialga LV.68', 0.03, { x: 0.08, h: 0.048 }), line('HP 90 C', 0.03, { x: 0.6, h: 0.041 })];
+    expect(parseScan(dialga).name).toBe('Dialga');
+    expect(parseScan([line('Glurak 120 KP', 0.05, { x: 0.2 })]).name).toBe('Glurak');
+    expect(parseScan([line('Dialga LV.X', 0.05, { x: 0.2 })]).name).toBe('Dialga LV.X');
+  });
+
+  it('liest die Nummer unten rechts auf älteren Karten (WotC-Ära, #170)', () => {
+    const wotc: OcrLine[] = [
+      line('Charizard', 0.05, { x: 0.1 }),
+      line('Illus. Mitsuhiro Arita © 1995,96,98,99 Nintendo, Creatures, C', 0.97, { pass: 'bottom', x: 0.02, h: 0.01 }),
+      line('SAMEFREAK © 1999Wizards 4/102 *', 0.97, { pass: 'bottom', x: 0.6, h: 0.01 }),
+    ];
+    expect(parseScan(wotc)).toEqual({ number: '4', total: 102, name: 'Charizard' });
+  });
+
   it('liest Set-Code, Sprache, Nummer, Gesamtzahl und Name', () => {
     expect(parseScan(riesenzahn)).toEqual({ setCode: 'SVI', lang: 'DE', number: '123', total: 198, name: 'Riesenzahn ex' });
   });
@@ -184,5 +203,46 @@ describe('rankCandidates', () => {
       { number: '1' }
     );
     expect(ranked.map((r) => r.cardId)).toEqual(['a-1']);
+  });
+
+  describe('mit Bildvergleich (#170)', () => {
+    it('entscheidet zwischen Sets gleicher Größe, wenn der Name unlesbar ist', () => {
+      const info = { number: '50', total: 167 };
+      const candidates = [
+        card({ cardId: 'a-050', localId: '050', official: 167 }),
+        card({ cardId: 'b-050', localId: '050', official: 167 }),
+      ];
+      const ranked = rankCandidates(candidates, info, new Map([['a-050', 0.32], ['b-050', 0.09]]));
+      expect(ranked.map((r) => r.cardId)).toEqual(['b-050', 'a-050']);
+      expect(ranked[0].matches).toEqual(['number', 'total', 'image']);
+      expect(ranked[1].matches).toEqual(['number', 'total']);
+      expect(isConfident(ranked)).toBe(true);
+    });
+
+    it('macht Name und Artwork ohne Nummer zum sicheren Treffer', () => {
+      const ranked = rankCandidates(
+        [card({ cardId: 'base1-4', name: 'Glurak' }), card({ cardId: 'base2-4', name: 'Glurak' })],
+        { name: 'Glurak' },
+        new Map([['base1-4', 0.06], ['base2-4', 0.3]])
+      );
+      expect(ranked[0]).toMatchObject({ cardId: 'base1-4', matches: ['name', 'image'] });
+      expect(isConfident(ranked)).toBe(true);
+    });
+
+    it('bleibt bei Nachdrucken mit gleichem Artwork unsicher, wenn nur der Name passt', () => {
+      const ranked = rankCandidates(
+        [card({ cardId: 'base1-4', name: 'Glurak' }), card({ cardId: 'base4-4', name: 'Glurak' })],
+        { name: 'Glurak' },
+        new Map([['base1-4', 0.058], ['base4-4', 0.108]])
+      );
+      expect(ranked.every((r) => r.matches.includes('image'))).toBe(true);
+      expect(isConfident(ranked)).toBe(false);
+    });
+
+    it('zählt ein Bild allein nicht als sicher', () => {
+      const ranked = rankCandidates([card({ cardId: 'a-1', official: 102 })], { total: 102 }, new Map([['a-1', 0.05]]));
+      expect(ranked[0].matches).toEqual(['total', 'image']);
+      expect(isConfident(ranked)).toBe(false);
+    });
   });
 });

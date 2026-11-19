@@ -14,6 +14,7 @@
 
 import type { OcrLine } from '../types/electron';
 import { normalizeName } from './catalogMatch';
+import { IMAGE_MATCH_MAX, imageMatches } from './imageFingerprint';
 
 export interface ScanInfo {
   /** Set-Code wie „SVI“, „MEW“, „PAF“ (nur Karten ab Karmesin & Purpur). */
@@ -59,6 +60,10 @@ const PROMO = /(?:^|[^A-Za-z0-9])([A-Z]{2,4})\s+(DE|EN|FR|IT|ES|PT|NL)\s+([0-9Oo
 
 // Stufe vor dem Namen in derselben Zeile: „PHASEz Glurak“.
 const LEADING_STAGE = /^(basis|phase\s*[12ilzj]?|stufe\s*[12])\s+/i;
+// Kraftpunkte hinter dem Namen oder als eigene Zeile: „Glurak 120 KP“, „40 HP 4“, „HP 90“.
+const HIT_POINTS = /\s*(\d{2,3}\s*(HP|KP)|(HP|KP)\s*\d{2,3}).*$/i;
+// Level-Angabe der Diamant-&-Perl-Ära: „Dialga LV.68“ (aber „LV.X“ gehört zum Namen).
+const LEVEL = /\s*LV\.?\s*\d+\b.*$/i;
 
 const bottomLines = (lines: OcrLine[]) =>
   lines
@@ -70,7 +75,10 @@ const pickName = (lines: OcrLine[]): string | undefined => {
   const candidates = lines
     // Mit Hülle oder leicht schräg liegt der Name etwas tiefer als 0,12.
     .filter((l) => l.pass === 'full' && l.y < 0.17 && l.x > 0.04 && l.x < 0.65)
-    .map((l) => ({ ...l, text: l.text.replace(/\s+/g, ' ').trim().replace(LEADING_STAGE, '') }))
+    .map((l) => ({
+      ...l,
+      text: l.text.replace(/\s+/g, ' ').trim().replace(LEADING_STAGE, '').replace(HIT_POINTS, '').replace(LEVEL, ''),
+    }))
     .filter((l) => l.text.length >= 2 && !HEADER_WORDS.test(l.text) && /[A-Za-zÄÖÜäöüß]{2}/.test(l.text));
   // Der Name ist die oberste, größte Zeile in diesem Bereich.
   candidates.sort((a, b) => b.h - a.h || a.y - b.y);
@@ -204,16 +212,26 @@ export interface ScanCandidate {
   official?: number;
   /** Set-Code des Sets, falls bekannt. */
   setCode?: string;
+  /** Serie des Sets (für das englische Bild beim Bildvergleich). */
+  serieId?: string;
 }
 
 export interface RankedCandidate extends ScanCandidate {
   score: number;
   /** Welche Hinweise übereinstimmen – für die Anzeige. */
-  matches: Array<'code' | 'number' | 'total' | 'name'>;
+  matches: Array<'code' | 'number' | 'total' | 'name' | 'image'>;
 }
 
-/** Bewertet Kandidaten; der beste zuerst. Kandidaten ohne jede Übereinstimmung fallen weg. */
-export const rankCandidates = (candidates: ScanCandidate[], info: ScanInfo): RankedCandidate[] => {
+/**
+ * Bewertet Kandidaten; der beste zuerst. Kandidaten ohne jede Übereinstimmung fallen weg.
+ * `distances`: Ergebnis des Bildvergleichs (#170) je Karten-ID, falls gelaufen.
+ */
+export const rankCandidates = (
+  candidates: ScanCandidate[],
+  info: ScanInfo,
+  distances?: Map<string, number | null>
+): RankedCandidate[] => {
+  const pictured = distances ? imageMatches(distances) : new Set<string>();
   const ranked = candidates.map((c) => {
     const matches: RankedCandidate['matches'] = [];
     let score = 0;
@@ -234,6 +252,11 @@ export const rankCandidates = (candidates: ScanCandidate[], info: ScanInfo): Ran
       matches.push('name');
       score += 3 * similarity;
     }
+    if (pictured.has(c.cardId)) {
+      matches.push('image');
+      // Je näher, desto mehr: 3 bis 4 Punkte.
+      score += 3 + (1 - (distances?.get(c.cardId) ?? IMAGE_MATCH_MAX) / IMAGE_MATCH_MAX);
+    }
     return { ...c, score, matches };
   });
   const seen = new Set<string>();
@@ -250,7 +273,9 @@ export const isConfident = (ranked: RankedCandidate[]) => {
   const has = (m: RankedCandidate['matches'][number]) => first.matches.includes(m);
   const strong = has('number') && (has('code') || has('total'));
   // Code, Nummer und Gesamtzahl zusammen sind eindeutig – auch wenn der Name
-  // (z. B. auf Holo-Karten) nicht lesbar war.
-  const agrees = strong && (has('name') || (has('code') && has('total')));
-  return agrees && (!second || first.score - second.score >= 2);
+  // (z. B. auf Holo-Karten) nicht lesbar war. Das Bild ersetzt den Namen.
+  const agrees = strong && (has('name') || has('image') || (has('code') && has('total')));
+  // Ältere Karten ohne lesbare Nummer: Name und Artwork stimmen überein.
+  const pictured = has('image') && has('name');
+  return (agrees || pictured) && (!second || first.score - second.score >= 2);
 };

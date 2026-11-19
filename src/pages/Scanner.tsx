@@ -8,6 +8,7 @@ import { useScanStack } from '../hooks/useScanStack';
 import { stackKey, stackTotals, type StackEntry } from '../utils/scanStack';
 import { useFeedback } from '../context/FeedbackContext';
 import { findScanCandidates, tcgdexSource } from '../services/cardScan';
+import { createVisualMatcher } from '../services/imageMatch';
 import { CATALOG_LANGUAGES, formatEur, isCatalogLang } from '../services/tcgdex';
 import type { OcrResult } from '../types/electron';
 import type { CatalogLang, CatalogVariant } from '../types/models';
@@ -21,6 +22,7 @@ import { inputClass, labelClass, primaryButtonClass, secondaryButtonSmallClass }
 // Live-Kamera (#169): statt eines Fotos das Kamerabild, z. B. vom iPhone.
 // Sprache der Karte wählbar; „DE“/„EN“ neben dem Set-Code stellt sie selbst um.
 // Stapel-Modus (#171): sichere Treffer landen in einer Liste mit Gesamtwert.
+// Bildvergleich (#170): Reicht der Text nicht, entscheidet das Artwork mit.
 
 type Mode = 'photo' | 'camera';
 const MODE_KEY = 'collectodex_scanner_mode';
@@ -105,6 +107,8 @@ const Scanner: React.FC = () => {
   // Live-Kamera: Hinweis, wenn eine Aufnahme nichts Lesbares enthielt.
   const [hint, setHint] = useState<string | null>(null);
   const settledPhase = useRef<Phase>('idle');
+  // Entzerrte Karte des letzten Scans für den Bildvergleich (nur wenn der Kartenrand gefunden wurde).
+  const scanImage = useRef<string | null>(null);
   // Reverse Holo ist auf dem Foto nicht vom normalen Druck zu unterscheiden
   // (gleicher Text) – deshalb von Hand; bleibt für einen ganzen Stapel an.
   const [reverse, setReverse] = useState(false);
@@ -181,7 +185,8 @@ const Scanner: React.FC = () => {
     setDraft(next);
     setPhase('searching');
     try {
-      const found = await findScanCandidates(next, tcgdexSource(langRef.current));
+      const visual = scanImage.current ? createVisualMatcher(scanImage.current, langRef.current) : undefined;
+      const found = await findScanCandidates(next, tcgdexSource(langRef.current), visual);
       setInfo(found.info);
       setDraft(found.info);
       setResults(found.candidates);
@@ -206,6 +211,7 @@ const Scanner: React.FC = () => {
         setResults([]);
         setOcr(null);
         setPreview(null);
+        scanImage.current = null;
       }
       setPhase((p) => {
         if (p !== 'reading' && p !== 'searching') settledPhase.current = p;
@@ -214,19 +220,23 @@ const Scanner: React.FC = () => {
       try {
         const result = await recognize(dataUrl);
         const parsed = parseScan(result.lines);
+        const pictured = result.cardDetected && Boolean(result.preview);
+        // Ohne Nummer und Namen hilft noch die Set-Größe – zusammen mit dem Bild.
+        const readable = Boolean(parsed.number || parsed.name || (pictured && parsed.total));
         const codeLang = parsed.lang ? LANG_FROM_CODE[parsed.lang] : undefined;
         if (codeLang && codeLang !== langRef.current) setLang(codeLang);
         // Kamera: Aufnahme ohne lesbare Karte (Hand im Bild, leerer Tisch)
         // still übergehen und das letzte Ergebnis stehen lassen.
-        if (fromCamera && !parsed.number && !parsed.name) {
+        if (fromCamera && !readable) {
           setHint('Keine Karte erkannt – lege sie gerade in den Rahmen und halte still.');
           setPhase(settledPhase.current);
           return;
         }
         setOcr(result);
         setPreview(result.preview ?? (dataUrl.startsWith('data:image/heic') ? null : dataUrl));
+        scanImage.current = pictured ? (result.preview ?? null) : null;
         if (fromCamera) setResults([]);
-        if (!parsed.number && !parsed.name) {
+        if (!readable) {
           setInfo(parsed);
           setDraft(parsed);
           setError('Auf dem Foto war keine Kartennummer und kein Name lesbar. Trage sie unten selbst ein oder nimm ein schärferes Foto auf.');
@@ -437,7 +447,8 @@ const Scanner: React.FC = () => {
               {phase === 'idle' && (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Am zuverlässigsten klappt es bei Karten ab Karmesin &amp; Purpur, die unten links einen Set-Code tragen
-                  (z. B. „SVI DE 123/198“). Bei älteren Karten genügen meist Nummer und Name.
+                  (z. B. „SVI DE 123/198“). Bei älteren Karten helfen Nummer, Name und das Artwork, das mit den
+                  Katalogbildern verglichen wird.
                 </p>
               )}
 
