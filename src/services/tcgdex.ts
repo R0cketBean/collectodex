@@ -449,6 +449,23 @@ export const fetchSetSummaries = (lang: Lang = 'de') => cachedJson<SetBrief[]>('
 export const fetchSetsByCode = (code: string, lang: Lang = 'de') =>
   cachedJson<SetBrief[]>(`/sets?abbreviation.official=${encodeURIComponent(code)}`, lang);
 
+/**
+ * Set-Kennungen der ausgeschlossenen Serien (Pokémon TCG Pocket: „A1“, „P-A“ …).
+ * Die Set- und Namenssuche von TCGdex liefert sie mit; der Katalog zeigt sie nicht.
+ * Die Kennungen sind in allen Sprachen gleich, die Listen aber unterschiedlich
+ * vollständig – daher zusätzlich die englische. Ist nichts abrufbar, bleibt die
+ * Menge leer.
+ */
+export async function fetchExcludedSetIds(lang: Lang = 'de'): Promise<Set<string>> {
+  const langs = [...new Set<Lang>([lang, 'en'])];
+  const series = await Promise.all(
+    [...EXCLUDED_SERIES].flatMap((id) =>
+      langs.map((l) => cachedJson<SerieDetail>(`/series/${encodeURIComponent(id)}`, l).catch(() => null))
+    )
+  );
+  return new Set(series.flatMap((s) => (Array.isArray(s?.sets) ? s.sets.map((set) => set.id) : [])));
+}
+
 /** Karten, deren Name den Text enthält (TCGdex sucht unscharf nach Teilstücken). */
 export const searchCardsByName = (name: string, lang: Lang = 'de') =>
   cachedJson<CardBrief[]>(`/cards?name=${encodeURIComponent(name)}`, lang);
