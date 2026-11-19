@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CheckBadgeIcon, CheckIcon, ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../catalog/FallbackImage';
-import { catalogCardImageSources, fetchCard, formatEur, mapLimit, summarizePricing, type PriceSummary } from '../../services/tcgdex';
+import { catalogCardImageSources, englishCardImageBase, fetchCard, formatEur, mapLimit, summarizePricing, type PriceSummary } from '../../services/tcgdex';
 import type { CatalogLang } from '../../types/models';
 import type { RankedCandidate } from '../../utils/cardScan';
 
@@ -14,6 +14,7 @@ const MATCH_LABEL: Record<RankedCandidate['matches'][number], string> = {
   number: 'Nummer',
   total: 'Set-Größe',
   name: 'Name',
+  image: 'Bild',
 };
 
 // Preise nur für die ersten Treffer laden – jede Karte ist eine Abfrage.
@@ -77,7 +78,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
 
   const image = (c: RankedCandidate) => (
     <FallbackImage
-      sources={catalogCardImageSources(lang, c, c.setId, 'low')}
+      sources={catalogCardImageSources(lang, c, c.setId, 'low', englishCardImageBase(c.serieId, c.setId, c.localId))}
       alt={c.name}
       loading="lazy"
       showLanguageBadge={lang === 'de'}

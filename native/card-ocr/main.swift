@@ -4,8 +4,9 @@
 // 1. Karte im Foto suchen (Rechteck im Seitenverhältnis einer Karte) und
 //    perspektivisch entzerren. Findet sich keins, gilt das ganze Bild als Karte.
 // 2. Durchgang „full“: ganze Karte (Name oben, Regeltexte).
-// 3. Durchgang „bottom“: unterer Rand links vergrößert, weil Set-Code und
-//    Nummer (z. B. „SVI DE 123/198“) dort sehr klein gedruckt sind.
+// 3. Durchgang „bottom“: unterer Rand vergrößert, weil Set-Code und Nummer
+//    sehr klein gedruckt sind – links (heute, z. B. „SVI DE 123/198“) und
+//    rechts (WotC-Ära bis HeartGold/SoulSilver, z. B. „4/102“, #170).
 //
 // Aufruf: card-ocr <bildpfad> [<vorschau.jpg>]
 // Mit zweitem Pfad wird die (entzerrte) Karte dort als kleines JPEG abgelegt.
@@ -158,11 +159,16 @@ do {
   }
   out += lines(full, pass: "full", frame: CGRect(x: 0, y: 0, width: 1, height: 1))
   let W = CGFloat(card.width), H = CGFloat(card.height)
-  let frame = CGRect(x: 0, y: 0.88, width: 0.6, height: 0.12)
-  let crop = CGRect(x: frame.minX * W, y: frame.minY * H, width: frame.width * W, height: frame.height * H)
-  let factor = max(1, min(4, 2400 / crop.width))
-  if let zoom = scaled(card, crop: crop, factor: factor) {
-    out += lines(try recognize(zoom), pass: "bottom", frame: frame)
+  let frames = [
+    CGRect(x: 0, y: 0.88, width: 0.6, height: 0.12),
+    CGRect(x: 0.6, y: 0.88, width: 0.4, height: 0.12),
+  ]
+  for frame in frames {
+    let crop = CGRect(x: frame.minX * W, y: frame.minY * H, width: frame.width * W, height: frame.height * H)
+    let factor = max(1, min(4, 2400 / crop.width))
+    if let zoom = scaled(card, crop: crop, factor: factor) {
+      out += lines(try recognize(zoom), pass: "bottom", frame: frame)
+    }
   }
 } catch { fail("Texterkennung fehlgeschlagen: \(error)", 4) }
 

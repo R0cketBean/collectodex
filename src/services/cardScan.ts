@@ -7,6 +7,11 @@
 // 3. Nichts davon lesbar → Suche über den Kartennamen.
 // In den gefundenen Sets zählt die Karte mit der gelesenen Nummer; der Name
 // entscheidet bei mehreren Sets. Bewertet wird in utils/cardScan.ts.
+//
+// Bildvergleich (#170): Reicht der Text nicht für einen sicheren Treffer,
+// entscheidet das Artwork mit – unter den gefundenen Kandidaten, unter allen
+// Karten der Sets mit der gelesenen Gesamtzahl (Nummer unlesbar) oder unter
+// allen Karten mit dem gelesenen Namen (Set unbekannt, z. B. WotC-Ära).
 
 import {
   fetchSet,
@@ -19,7 +24,17 @@ import {
   type SetDetail,
 } from './tcgdex';
 import type { CatalogLang } from '../types/models';
-import { localIdMatches, nameSimilarity, rankCandidates, type RankedCandidate, type ScanCandidate, type ScanInfo } from '../utils/cardScan';
+import {
+  isConfident,
+  localIdMatches,
+  nameSimilarity,
+  rankCandidates,
+  type RankedCandidate,
+  type ScanCandidate,
+  type ScanInfo,
+} from '../utils/cardScan';
+import { imageMatches } from '../utils/imageFingerprint';
+import type { VisualCard, VisualMatcher } from './imageMatch';
 
 export interface CatalogSource {
   setsByCode: (code: string) => Promise<SetBrief[]>;
@@ -38,6 +53,14 @@ export const tcgdexSource = (lang: CatalogLang = 'de'): CatalogSource => ({
 
 // Mehr Sets lädt der Scanner pro Foto nicht – jedes ist eine Abfrage.
 const MAX_SETS = 8;
+// Bildvergleich: so viele Sets werden ganz durchsucht (Nummer unlesbar) …
+const VISUAL_SETS = 3;
+// … und so viele gleichnamige Karten verglichen (Set unbekannt). Beliebte
+// Pokémon haben über hundert Karten; die richtige steht in der Namenssuche
+// irgendwo. Jedes Bild wird nur einmal geladen und dann zwischengespeichert.
+const VISUAL_NAMED = 160;
+// Bilder gleichzeitig laden – schonend für die Bildquellen.
+const VISUAL_PARALLEL = 6;
 
 const toCandidate = (set: SetDetail, card: CardBrief): ScanCandidate => ({
   cardId: card.id,
@@ -48,6 +71,7 @@ const toCandidate = (set: SetDetail, card: CardBrief): ScanCandidate => ({
   image: card.image,
   official: set.cardCount?.official,
   setCode: set.abbreviation?.official,
+  serieId: set.serie?.id,
 });
 
 /** Set-Kennung aus einer Karten-ID („sv03.5-006“ → „sv03.5“). */
@@ -69,12 +93,33 @@ export interface ScanSearchResult {
   candidates: RankedCandidate[];
 }
 
-/** Sucht und bewertet passende Katalogkarten. */
+/** Bildabstände, je Karte höchstens einmal berechnet. */
+const distanceMemo = (visual: VisualMatcher) => {
+  const memo = new Map<string, number | null>();
+  const measure = async (cards: VisualCard[]) => {
+    const todo = cards.filter((c) => !memo.has(c.cardId));
+    const unique = [...new Map(todo.map((c) => [c.cardId, c])).values()];
+    await mapLimit(unique, VISUAL_PARALLEL, async (card) => {
+      memo.set(card.cardId, await visual.distance(card).catch(() => null));
+    });
+    return memo;
+  };
+  return { memo, measure };
+};
+
+/**
+ * Sucht und bewertet passende Katalogkarten. Mit `visual` (Bild der
+ * entzerrten Karte) entscheidet das Artwork mit, wenn der Text nicht reicht.
+ */
 export async function findScanCandidates(
   read: ScanInfo,
-  source: CatalogSource = tcgdexSource('de')
+  source: CatalogSource = tcgdexSource('de'),
+  visual?: VisualMatcher
 ): Promise<ScanSearchResult> {
   let info = read;
+  const images = visual ? distanceMemo(visual) : null;
+  // Nur Bildtreffer behalten – wenn alle Karten eines Sets verglichen wurden.
+  let onlyPictured = false;
   const setIds = new Set<string>();
 
   if (info.setCode) {
@@ -96,8 +141,16 @@ export async function findScanCandidates(
 
   let candidates: ScanCandidate[] = [];
   if (setIds.size > 0) {
-    const sets = await mapLimit([...setIds].slice(0, MAX_SETS), 4, (id) => source.set(id));
-    candidates = candidatesInSets(sets.filter((s): s is SetDetail => s !== null), info);
+    const sets = (await mapLimit([...setIds].slice(0, MAX_SETS), 4, (id) => source.set(id))).filter(
+      (s): s is SetDetail => s !== null
+    );
+    candidates = candidatesInSets(sets, info);
+    // Nummer und Name unlesbar, aber die Gesamtzahl grenzt auf wenige Sets ein:
+    // alle Karten dieser Sets per Bild vergleichen.
+    if (candidates.length === 0 && images && sets.length <= VISUAL_SETS) {
+      candidates = sets.flatMap((set) => set.cards.map((card) => toCandidate(set, card)));
+      onlyPictured = true;
+    }
   }
 
   // Ohne Treffer über Code und Gesamtzahl: über den Namen suchen.
@@ -106,9 +159,20 @@ export async function findScanCandidates(
     // Passt keine Nummer (z. B. Promo, die im Katalog fehlt), wenigstens die
     // Karten mit diesem Namen zeigen – als unsichere Vorschläge.
     const byNumber = cards.filter((c) => localIdMatches(c.localId, info.number));
-    const relevant = (byNumber.length > 0 ? byNumber : cards)
-      .sort((a, b) => nameSimilarity(info.name, b.name) - nameSimilarity(info.name, a.name))
-      .slice(0, MAX_SETS);
+    let relevant = (byNumber.length > 0 ? byNumber : cards).sort(
+      (a, b) => nameSimilarity(info.name, b.name) - nameSimilarity(info.name, a.name)
+    );
+    // Ohne Nummer gibt es oft Dutzende gleichnamige Karten (z. B. „Glurak“):
+    // die mit dem passenden Artwork nach vorn holen.
+    if (images && byNumber.length === 0 && relevant.length > MAX_SETS) {
+      // Nur Karten mit genau diesem Namen, falls es welche gibt („Pikachu“, nicht „Pikachu-V“).
+      const top = nameSimilarity(info.name, relevant[0].name);
+      const named = relevant.filter((c) => nameSimilarity(info.name, c.name) >= top).slice(0, VISUAL_NAMED);
+      const memo = await images.measure(named.map((c) => ({ cardId: c.id, setId: setIdOfCard(c), localId: c.localId, image: c.image })));
+      const far = (c: CardBrief) => memo.get(c.id) ?? Number.POSITIVE_INFINITY;
+      relevant = [...named].sort((a, b) => far(a) - far(b));
+    }
+    relevant = relevant.slice(0, MAX_SETS);
     const sets = await mapLimit([...new Set(relevant.map(setIdOfCard))], 4, (id) => source.set(id));
     const byId = new Map(sets.filter((s): s is SetDetail => s !== null).map((s) => [s.id, s]));
     candidates = relevant.flatMap((card) => {
@@ -117,5 +181,17 @@ export async function findScanCandidates(
     });
   }
 
-  return { info, candidates: rankCandidates(candidates, info).slice(0, 12) };
+  if (!images || candidates.length === 0) return { info, candidates: rankCandidates(candidates, info).slice(0, 12) };
+
+  // Bildvergleich, wenn der Text allein nicht sicher ist.
+  const byText = rankCandidates(candidates, info);
+  if (!onlyPictured && isConfident(byText)) return { info, candidates: byText.slice(0, 12) };
+  const pool = onlyPictured ? candidates : byText.slice(0, 16);
+  const memo = await images.measure(pool);
+  let ranked = rankCandidates(onlyPictured ? candidates : pool, info, memo);
+  if (onlyPictured) {
+    const pictured = imageMatches(memo);
+    ranked = ranked.filter((c) => pictured.has(c.cardId));
+  }
+  return { info, candidates: ranked.slice(0, 12) };
 }
