@@ -14,6 +14,7 @@
 // allen Karten mit dem gelesenen Namen (Set unbekannt, z. B. WotC-Ära).
 
 import {
+  fetchExcludedSetIds,
   fetchSet,
   fetchSetsByCode,
   fetchSetSummaries,
@@ -43,13 +44,33 @@ export interface CatalogSource {
   cardsByName: (name: string) => Promise<CardBrief[]>;
 }
 
-/** Katalog von TCGdex in der Sprache der Karte (#169: Deutsch, Englisch, Japanisch). */
-export const tcgdexSource = (lang: CatalogLang = 'de'): CatalogSource => ({
-  setsByCode: (code) => fetchSetsByCode(code, lang),
-  allSets: () => fetchSetSummaries(lang),
-  set: (setId) => fetchSet(setId, lang),
-  cardsByName: (name) => searchCardsByName(name, lang),
-});
+/** Gehört die Karte zu einem dieser Sets? („A1-094“ zu „A1“, nicht zu „A1a“.) */
+const inSets = (card: CardBrief, setIds: Set<string>) =>
+  [...setIds].some((id) => card.id.startsWith(`${id}-`));
+
+/**
+ * Katalog von TCGdex in der Sprache der Karte (#169: Deutsch, Englisch,
+ * Japanisch) – ohne Pokémon TCG Pocket: Dessen digitale Karten liefert TCGdex
+ * bei der Set- und Namenssuche mit („Unschlagbare Gene 094/226“), gedruckt
+ * gibt es sie nicht.
+ */
+export const tcgdexSource = (lang: CatalogLang = 'de'): CatalogSource => {
+  let excluded: Promise<Set<string>> | null = null;
+  const excludedSets = () => (excluded ??= fetchExcludedSetIds(lang).catch(() => new Set<string>()));
+  const withoutExcluded = async (sets: SetBrief[]) => {
+    const skip = await excludedSets();
+    return sets.filter((s) => !skip.has(s.id));
+  };
+  return {
+    setsByCode: async (code) => withoutExcluded(await fetchSetsByCode(code, lang)),
+    allSets: async () => withoutExcluded(await fetchSetSummaries(lang)),
+    set: (setId) => fetchSet(setId, lang),
+    cardsByName: async (name) => {
+      const [cards, skip] = await Promise.all([searchCardsByName(name, lang), excludedSets()]);
+      return cards.filter((c) => !inSets(c, skip));
+    },
+  };
+};
 
 // Mehr Sets lädt der Scanner pro Foto nicht – jedes ist eine Abfrage.
 const MAX_SETS = 8;
