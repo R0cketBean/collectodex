@@ -138,12 +138,36 @@ describe('Nummern', () => {
   });
 });
 
+describe('parseScan – japanische Karten', () => {
+  it('liest den japanischen Namen', () => {
+    // Zeilen wie von Vision mit Japanisch für SV2a 006.
+    const info = parseScan([
+      line('二進化', 0.03, { x: 0.05, h: 0.02 }),
+      line('リサードンCX', 0.05, { x: 0.2, h: 0.045 }),
+      line('リサードから進化', 0.02, { x: 0.2, h: 0.015 }),
+      line('Ihos PLANETA Mochizoki', 0.92, { h: 0.01 }),
+      bottom('G ［sv2a）'),
+      bottom('006/165 RR.'),
+    ]);
+    expect(info.name).toBe('リサードンCX');
+    expect(info).toMatchObject({ number: '6', total: 165 });
+  });
+});
+
 describe('nameSimilarity', () => {
   it('verzeiht typische Lesefehler', () => {
     expect(nameSimilarity('GlurakeX', 'Glurak-ex')).toBe(1);
     expect(nameSimilarity('Riesenzahn ex', 'Riesenzahn-ex')).toBe(1);
     expect(nameSimilarity('Lugia / STAR', 'Lugia-VSTAR')).toBeGreaterThan(0.8);
     expect(nameSimilarity('Pikachuex', 'Pikachu-ex')).toBe(1);
+  });
+
+  it('vergleicht japanische Namen und übersieht fehlende ゛ und ゜', () => {
+    // Gelesen von Vision auf einer japanischen Karte (SV2a 006 リザードンex).
+    expect(nameSimilarity('リサードンCX', 'リザードンex')).toBeGreaterThan(0.8);
+    expect(nameSimilarity('ピカチュウ', 'ピカチュウ')).toBe(1);
+    expect(nameSimilarity('ﾋﾟｶﾁｭｳ', 'ピカチュウ')).toBe(1);
+    expect(nameSimilarity('ピカチュウ', 'リザードン')).toBeLessThan(0.4);
   });
 
   it('bewertet fremde Namen niedrig', () => {

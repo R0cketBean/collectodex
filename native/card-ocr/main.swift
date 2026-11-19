@@ -10,6 +10,7 @@
 //
 // Aufruf: card-ocr <bildpfad> [<vorschau.jpg>]
 // Mit zweitem Pfad wird die (entzerrte) Karte dort als kleines JPEG abgelegt.
+// Dauerbetrieb: card-ocr --serve (Aufträge zeilenweise als JSON, siehe serve()).
 // Ausgabe: {"width","height","cardDetected","lines":[{"text","confidence","pass","x","y","w","h"}]}
 // Koordinaten normiert auf 0…1 der (entzerrten) Karte, Ursprung oben links.
 
@@ -63,10 +64,17 @@ func rotated(_ image: CGImage, _ orientation: CGImagePropertyOrientation) -> CGI
   return ciContext.createCGImage(ci, from: ci.extent)
 }
 
+/// Sprachen der Texterkennung: Japanisch nur für japanische Karten – sonst
+/// liest Vision lateinische Schrift schlechter.
+func recognitionLanguages(_ lang: String?) -> [String] {
+  lang == "ja" ? ["ja-JP", "en-US"] : ["de-DE", "en-US"]
+}
+var languages = recognitionLanguages(nil)
+
 func recognize(_ image: CGImage) throws -> [VNRecognizedTextObservation] {
   let request = VNRecognizeTextRequest()
   request.recognitionLevel = .accurate
-  request.recognitionLanguages = ["de-DE", "en-US"]
+  request.recognitionLanguages = languages
   request.usesLanguageCorrection = false
   try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
   return request.results ?? []
@@ -121,56 +129,10 @@ func isSideways(_ obs: [VNRecognizedTextObservation], width: Int, height: Int) -
   return vertical.count * 2 > long.count
 }
 
-let args = CommandLine.arguments
-guard args.count >= 2 else { fail("Aufruf: card-ocr <bild>", 2) }
-let options = [kCGImageSourceShouldAllowFloat: false] as CFDictionary
-guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: args[1]) as CFURL, options),
-  let raw = CGImageSourceCreateImageAtIndex(src, 0, nil)
-else { fail("Bild nicht lesbar", 3) }
-
-// Fotos vom iPhone liegen oft gedreht vor (EXIF-Ausrichtung); erst aufrichten.
-var photo = raw
-if let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
-  let value = props[kCGImagePropertyOrientation] as? UInt32,
-  let orientation = CGImagePropertyOrientation(rawValue: value), orientation != .up,
-  let upright = ciContext.createCGImage(
-    CIImage(cgImage: raw).oriented(orientation), from: CIImage(cgImage: raw).oriented(orientation).extent)
-{
-  photo = upright
+struct ScanError: Error, CustomStringConvertible {
+  let description: String
+  let code: Int32
 }
-
-let detected = detectCard(photo)
-var card = detected ?? photo
-
-var out: [[String: Any]] = []
-do {
-  // Das iPhone als Kamera dreht sein Bild je nach Haltung (flach gehalten
-  // auch falsch herum). Erst die Lage klären, dann genau lesen.
-  var full = try recognize(card)
-  if detected == nil, isSideways(full, width: card.width, height: card.height),
-    let turned = rotated(card, .right)
-  {
-    card = turned
-    full = try recognize(card)
-  }
-  if isUpsideDown(full), let turned = rotated(card, .down) {
-    card = turned
-    full = try recognize(card)
-  }
-  out += lines(full, pass: "full", frame: CGRect(x: 0, y: 0, width: 1, height: 1))
-  let W = CGFloat(card.width), H = CGFloat(card.height)
-  let frames = [
-    CGRect(x: 0, y: 0.88, width: 0.6, height: 0.12),
-    CGRect(x: 0.6, y: 0.88, width: 0.4, height: 0.12),
-  ]
-  for frame in frames {
-    let crop = CGRect(x: frame.minX * W, y: frame.minY * H, width: frame.width * W, height: frame.height * H)
-    let factor = max(1, min(4, 2400 / crop.width))
-    if let zoom = scaled(card, crop: crop, factor: factor) {
-      out += lines(try recognize(zoom), pass: "bottom", frame: frame)
-    }
-  }
-} catch { fail("Texterkennung fehlgeschlagen: \(error)", 4) }
 
 /// Legt die Karte verkleinert (höchstens 700 px hoch) als JPEG ab.
 func writePreview(_ image: CGImage, to path: String) {
@@ -180,9 +142,111 @@ func writePreview(_ image: CGImage, to path: String) {
     of: input, to: URL(fileURLWithPath: path), colorSpace: CGColorSpaceCreateDeviceRGB(),
     options: [kCGImageDestinationLossyCompressionQuality as CIImageRepresentationOption: 0.8])
 }
-if args.count >= 3 { writePreview(card, to: args[2]) }
 
-let result: [String: Any] = [
-  "width": card.width, "height": card.height, "cardDetected": detected != nil, "lines": out,
-]
-FileHandle.standardOutput.write(try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys]))
+/// Liest eine Karte aus dem Bild unter `path`; legt mit `preview` die entzerrte Karte dort ab.
+func scan(_ path: String, preview: String?) throws -> [String: Any] {
+  let options = [kCGImageSourceShouldAllowFloat: false] as CFDictionary
+  guard let src = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, options),
+    let raw = CGImageSourceCreateImageAtIndex(src, 0, nil)
+  else { throw ScanError(description: "Bild nicht lesbar", code: 3) }
+
+  // Fotos vom iPhone liegen oft gedreht vor (EXIF-Ausrichtung); erst aufrichten.
+  var photo = raw
+  if let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+    let value = props[kCGImagePropertyOrientation] as? UInt32,
+    let orientation = CGImagePropertyOrientation(rawValue: value), orientation != .up,
+    let upright = rotated(raw, orientation)
+  {
+    photo = upright
+  }
+
+  let detected = detectCard(photo)
+  var card = detected ?? photo
+
+  var out: [[String: Any]] = []
+  do {
+    // Das iPhone als Kamera dreht sein Bild je nach Haltung (flach gehalten
+    // auch falsch herum). Erst die Lage klären, dann genau lesen.
+    var full = try recognize(card)
+    if detected == nil, isSideways(full, width: card.width, height: card.height),
+      let turned = rotated(card, .right)
+    {
+      card = turned
+      full = try recognize(card)
+    }
+    if isUpsideDown(full), let turned = rotated(card, .down) {
+      card = turned
+      full = try recognize(card)
+    }
+    out += lines(full, pass: "full", frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+    let W = CGFloat(card.width), H = CGFloat(card.height)
+    let frames = [
+      CGRect(x: 0, y: 0.88, width: 0.6, height: 0.12),
+      CGRect(x: 0.6, y: 0.88, width: 0.4, height: 0.12),
+    ]
+    for frame in frames {
+      let crop = CGRect(x: frame.minX * W, y: frame.minY * H, width: frame.width * W, height: frame.height * H)
+      let factor = max(1, min(4, 2400 / crop.width))
+      if let zoom = scaled(card, crop: crop, factor: factor) {
+        out += lines(try recognize(zoom), pass: "bottom", frame: frame)
+      }
+    }
+  } catch { throw ScanError(description: "Texterkennung fehlgeschlagen: \(error)", code: 4) }
+
+  if let preview { writePreview(card, to: preview) }
+  return ["width": card.width, "height": card.height, "cardDetected": detected != nil, "lines": out]
+}
+
+func json(_ value: [String: Any]) -> Data {
+  (try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])) ?? Data("{}".utf8)
+}
+
+/// Dauerbetrieb: macOS übersetzt das Texterkennungsmodell bei jedem Kaltstart
+/// neu für die Neural Engine (gemessen 50–70 s, der Zwischenspeicher hält nur
+/// kurz). Ein laufender Prozess behält es geladen.
+/// Erst eine kurze Erkennung zum Aufwärmen, dann {"ready":true}. Danach je
+/// Zeile auf stdin ein Auftrag {"image","preview"?,"lang"?} und je Auftrag eine Zeile
+/// Antwort: das Ergebnis oder {"error"}.
+func serve() {
+  setvbuf(stdout, nil, _IOLBF, 0)
+  if let ctx = CGContext(
+    data: nil, width: 64, height: 64, bitsPerComponent: 8, bytesPerRow: 0,
+    space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue),
+    let blank = ctx.makeImage()
+  {
+    _ = try? recognize(blank)
+  }
+  let write = { (value: [String: Any]) in
+    FileHandle.standardOutput.write(json(value) + Data("\n".utf8))
+  }
+  write(["ready": true])
+  while let line = readLine() {
+    guard let data = line.data(using: .utf8),
+      let job = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+      let image = job["image"] as? String
+    else {
+      write(["error": "Ungültiger Auftrag"])
+      continue
+    }
+    languages = recognitionLanguages(job["lang"] as? String)
+    do {
+      write(try autoreleasepool { try scan(image, preview: job["preview"] as? String) })
+    } catch {
+      write(["error": "\(error)"])
+    }
+  }
+}
+
+let args = CommandLine.arguments
+if args.count == 2 && args[1] == "--serve" {
+  serve()
+  exit(0)
+}
+guard args.count >= 2 else { fail("Aufruf: card-ocr <bild> [<vorschau.jpg>] | card-ocr --serve", 2) }
+do {
+  FileHandle.standardOutput.write(json(try scan(args[1], preview: args.count >= 3 ? args[2] : nil)))
+} catch let error as ScanError {
+  fail(error.description, error.code)
+} catch {
+  fail("\(error)", 4)
+}

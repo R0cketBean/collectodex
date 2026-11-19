@@ -563,12 +563,27 @@ const cardOcrBinary = () =>
     appRoot: path.join(__dirname, '..'),
   });
 
+// Läuft dauerhaft, solange gescannt wird (siehe cardOcr.js).
+let cardOcrWorker = null;
+const cardOcrRunner = () => {
+  const binary = cardOcrBinary();
+  if (!cardOcr.isAvailable(binary)) return null;
+  cardOcrWorker ??= cardOcr.createWorker(binary);
+  return cardOcrWorker;
+};
+
 handle('scanner:available', async () => cardOcr.isAvailable(cardOcrBinary()));
 
-handle('scanner:recognize', async (event, dataUrl) => {
-  const binary = cardOcrBinary();
-  if (!cardOcr.isAvailable(binary)) throw new Error('Der Kartenscanner ist auf diesem System nicht verfügbar.');
-  return cardOcr.recognize(binary, dataUrl);
+// Beim Öffnen des Scanners: Texterkennung schon vorbereiten.
+handle('scanner:warmup', async () => {
+  cardOcrRunner()?.warmUp();
+  return true;
+});
+
+handle('scanner:recognize', async (event, dataUrl, lang) => {
+  const worker = cardOcrRunner();
+  if (!worker) throw new Error('Der Kartenscanner ist auf diesem System nicht verfügbar.');
+  return cardOcr.recognize(worker.run, dataUrl, lang);
 });
 
 // --- Auto-Backup (#91) -----------------------------------------------------
@@ -643,5 +658,5 @@ handle('backup:open-folder', async (event, folder) => {
 
 // Speichere beim Beenden der App automatisch den aktuellen Zustand
 app.on('before-quit', () => {
-  // Kann verwendet werden, um bestimmte Aufräumarbeiten vor dem Beenden durchzuführen
+  cardOcrWorker?.stop();
 }); 

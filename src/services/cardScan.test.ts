@@ -95,13 +95,13 @@ describe('findScanCandidates', () => {
         cardsByName: vi.fn(async (name: string) => OLD.flatMap((s) => s.cards).filter((c) => c.name === name)),
       });
     /** Bildabstand je Karte; nicht genannte Karten zeigen ein anderes Motiv. */
-    const matcher = (near: Record<string, number>): VisualMatcher & { calls: VisualCard[] } => {
+    const matcher = (near: Record<string, number | null>): VisualMatcher & { calls: VisualCard[] } => {
       const calls: VisualCard[] = [];
       return {
         calls,
         distance: async (card) => {
           calls.push(card);
-          return near[card.cardId] ?? 0.4;
+          return card.cardId in near ? near[card.cardId] : 0.4;
         },
       };
     };
@@ -147,6 +147,22 @@ describe('findScanCandidates', () => {
       // Ohne Bildvergleich wäre es gar nicht unter den geladenen Sets.
       const { candidates: plain } = await findScanCandidates({ name: 'Glurak' }, src);
       expect(plain.map((c) => c.cardId)).not.toContain('neo1-9');
+    });
+
+    it('behält Karten ohne Katalogbild vor denen mit unpassendem Bild', async () => {
+      // Japanische Vintage-Karten haben bei TCGdex kein Bild, moderne schon.
+      const modern = Array.from({ length: 12 }, (_, i) => set(`SV${i}`, `Modern ${i}`, 100 + i, [['1', 'リザードン']]));
+      const vintage = set('PMCG1', '拡張パック', 102, [['006', 'リザードン']]);
+      const all = [...modern, vintage];
+      const src = source({
+        setsByCode: vi.fn(async () => []),
+        allSets: vi.fn(async () => all.map(brief)),
+        set: vi.fn(async (id: string) => all.find((s) => s.id === id)!),
+        cardsByName: vi.fn(async () => all.flatMap((s) => s.cards)),
+      });
+      const { candidates } = await findScanCandidates({ name: 'リサードン' }, src, matcher({ 'PMCG1-006': null }));
+      expect(candidates.map((c) => c.cardId)).toContain('PMCG1-006');
+      expect(candidates[0].cardId).toBe('PMCG1-006');
     });
 
     it('übergibt die Serie, damit das englische Bild gefunden wird', async () => {

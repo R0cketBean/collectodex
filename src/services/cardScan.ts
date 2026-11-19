@@ -34,7 +34,7 @@ import {
   type ScanCandidate,
   type ScanInfo,
 } from '../utils/cardScan';
-import { imageMatches } from '../utils/imageFingerprint';
+import { IMAGE_MATCH_MAX, imageMatches } from '../utils/imageFingerprint';
 import type { VisualCard, VisualMatcher } from './imageMatch';
 
 export interface CatalogSource {
@@ -190,7 +190,13 @@ export async function findScanCandidates(
       const top = nameSimilarity(info.name, relevant[0].name);
       const named = relevant.filter((c) => nameSimilarity(info.name, c.name) >= top).slice(0, VISUAL_NAMED);
       const memo = await images.measure(named.map((c) => ({ cardId: c.id, setId: setIdOfCard(c), localId: c.localId, image: c.image })));
-      const far = (c: CardBrief) => memo.get(c.id) ?? Number.POSITIVE_INFINITY;
+      // Passende Bilder zuerst, dann Karten ohne Bild (z. B. japanische
+      // Vintage-Karten – nicht ausgeschlossen), zuletzt unpassende Bilder.
+      const far = (c: CardBrief) => {
+        const d = memo.get(c.id);
+        if (d === undefined || d === null) return 1;
+        return d <= IMAGE_MATCH_MAX ? d : 2 + d;
+      };
       relevant = [...named].sort((a, b) => far(a) - far(b));
     }
     relevant = relevant.slice(0, MAX_SETS);
