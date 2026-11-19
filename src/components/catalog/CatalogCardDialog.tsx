@@ -5,14 +5,12 @@ import { useCategoriesData, useCollectionActions, useItemsData } from '../../con
 import { useFeedback } from '../../context/FeedbackContext';
 import { toggleCatalogOwned, useCatalogOwned } from '../../hooks/useCatalogOwned';
 import { useCatalogSettings } from '../../hooks/useCatalogSettings';
+import { useAddCatalogCard } from '../../hooks/useAddCatalogCard';
 import type { CatalogLang, CatalogVariant, Category } from '../../types/models';
-import { buildCatalogItem } from '../../utils/catalogItem';
 import { cardOwnership, catalogSetKey, linkedItemsByCard } from '../../utils/catalogOwnership';
-import { buildCardmarketFilter, pickCatalogPrice } from '../../utils/catalogSettings';
-import { firstLoadableImage } from '../../utils/imageProbe';
+import { buildCardmarketFilter } from '../../utils/catalogSettings';
 import { captureRemoved, restoreRemoved } from '../../utils/undo';
 import {
-  catalogCardImageSources,
   cardmarketProductUrl,
   fetchCard,
   summarizePricing,
@@ -56,7 +54,8 @@ const CatalogCardDialog: React.FC<CatalogCardDialogProps> = ({
   const navigate = useNavigate();
   const items = useItemsData();
   const categories = useCategoriesData();
-  const { addItem, deleteItem, setItemCatalogRefs, setItems } = useCollectionActions();
+  const { deleteItem, setItemCatalogRefs, setItems } = useCollectionActions();
+  const addCatalogCard = useAddCatalogCard();
   const { notify } = useFeedback();
   const settings = useCatalogSettings();
   const setKey = catalogSetKey(setId, lang);
@@ -89,24 +88,16 @@ const CatalogCardDialog: React.FC<CatalogCardDialogProps> = ({
       : undefined;
 
   const add = async (category: Category, variant: CatalogVariant) => {
-    // Nur ein Bild übernehmen, das sich wirklich laden lässt.
-    const image = await firstLoadableImage(catalogCardImageSources(lang, card, setId, 'high', englishImage));
-    const draft = buildCatalogItem(category, {
-      cardId: card.id,
+    const id = await addCatalogCard({
+      category,
+      card,
       setId,
-      lang,
       setName: setName ?? detail?.set.name ?? setId,
-      name: card.name,
-      localId: card.localId,
+      lang,
       variant,
-      price: pickCatalogPrice(price, settings.priceBasis, variant),
-      imageUrl: image,
-      productUrl: cardmarketProductUrl(price?.idProduct, card.name, buildCardmarketFilter(settings, lang, strictLanguage)),
-    });
-    const id = addItem(category.id, draft.values, {
-      links: draft.links,
-      images: draft.images,
-      catalog: draft.catalog,
+      price,
+      englishImage,
+      strictLanguage,
     });
     if (onAdded) onAdded(category, id, card.name);
     else navigate(`/category/${category.id}?highlight=${id}`);

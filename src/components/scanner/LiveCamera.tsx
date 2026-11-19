@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUturnRightIcon, CameraIcon } from '@heroicons/react/24/outline';
-import { createAutoCapture, toGray } from '../../utils/autoCapture';
+import { createAutoCapture, toGray, type GrayFrame } from '../../utils/autoCapture';
+import { detectRotation, rotateSquare } from '../../utils/frameRotation';
 import { inputClass, labelClass, primaryButtonClass } from '../../utils/formStyles';
 
 // Kartenscanner, Live-Kamera (#169): zeigt das Kamerabild – am liebsten vom
@@ -16,8 +17,10 @@ interface LiveCameraProps {
 
 const DEVICE_KEY = 'collectodex_scanner_camera';
 const ROTATION_KEY = 'collectodex_scanner_rotation';
-const SAMPLE_W = 64;
-const SAMPLE_H = 48;
+const STABILIZE_KEY = 'collectodex_scanner_stabilize';
+// Quadratische Proben: Dreht das iPhone sein Bild, tauscht es Breite und
+// Höhe – im Quadrat ist das genau eine Drehung (utils/frameRotation.ts).
+const SAMPLE = 48;
 const SAMPLE_MS = 200;
 
 const readStoredDevice = () => {
@@ -68,7 +71,27 @@ const LiveCamera: React.FC<LiveCameraProps> = ({ paused, onCapture }) => {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [auto, setAuto] = useState(true);
   // Von Hand gedreht – das iPhone dreht sein Bild je nach Haltung selbst.
-  const [rotation, setRotation] = useState<Rotation>(readRotation);
+  const [rotation, setRotationState] = useState<Rotation>(readRotation);
+  const rotationRef = useRef(rotation);
+  // Drehungen des iPhones selbst erkennen und zurückdrehen.
+  const [stabilize, setStabilize] = useState(() => {
+    try {
+      return localStorage.getItem(STABILIZE_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const lastSample = useRef<GrayFrame | null>(null);
+
+  const setRotation = useCallback((next: Rotation) => {
+    rotationRef.current = next;
+    setRotationState(next);
+    try {
+      localStorage.setItem(ROTATION_KEY, String(next));
+    } catch {
+      // Nur eine Bequemlichkeit.
+    }
+  }, []);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -157,35 +180,43 @@ const LiveCamera: React.FC<LiveCameraProps> = ({ paused, onCapture }) => {
   }, [onCapture, rotation]);
 
   const rotate = () => {
-    const next = ((rotation + 90) % 360) as Rotation;
-    setRotation(next);
+    setRotation(((rotation + 90) % 360) as Rotation);
     autoCapture.current.reset();
-    try {
-      localStorage.setItem(ROTATION_KEY, String(next));
-    } catch {
-      // Nur eine Bequemlichkeit.
-    }
+    lastSample.current = null;
   };
 
-  // Automatisch auslösen, sobald die Karte ruhig liegt.
+  // Takt: kleine Probe des Kamerabilds, so gedreht wie die Anzeige.
+  // 1. Drehung ausgleichen: Hat das iPhone sein Bild gedreht, zurückdrehen.
+  // 2. Automatisch auslösen, sobald die Karte ruhig liegt. Ausgewertet wird
+  //    die ausgeglichene Probe – eine nur gedrehte Karte gilt nicht als neue.
   useEffect(() => {
-    if (!ready || !auto || paused) return;
+    if (!ready) return;
+    const watchRotation = stabilize;
+    const watchStill = auto && !paused;
+    if (!watchRotation && !watchStill) return;
     const timer = window.setInterval(() => {
       const v = video.current;
       if (!v || !v.videoWidth) return;
-      sampleCanvas.current ??= Object.assign(document.createElement('canvas'), {
-        width: SAMPLE_W,
-        height: SAMPLE_H,
-      });
-      const ctx = sampleCanvas.current.getContext('2d', {
-        willReadFrequently: true,
-      });
+      sampleCanvas.current ??= Object.assign(document.createElement('canvas'), { width: SAMPLE, height: SAMPLE });
+      const ctx = sampleCanvas.current.getContext('2d', { willReadFrequently: true });
       if (!ctx) return;
-      ctx.drawImage(v, 0, 0, SAMPLE_W, SAMPLE_H);
-      if (autoCapture.current.feed(toGray(ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H).data))) capture();
+      ctx.drawImage(v, 0, 0, SAMPLE, SAMPLE);
+      const raw = toGray(ctx.getImageData(0, 0, SAMPLE, SAMPLE).data);
+      let turns = rotationRef.current / 90;
+      let sample = rotateSquare(raw, SAMPLE, turns);
+      if (watchRotation && lastSample.current) {
+        const fix = detectRotation(lastSample.current, sample, SAMPLE);
+        if (fix !== 0) {
+          turns = (turns + fix) % 4;
+          setRotation((turns * 90) as Rotation);
+          sample = rotateSquare(raw, SAMPLE, turns);
+        }
+      }
+      lastSample.current = sample;
+      if (watchStill && autoCapture.current.feed(sample)) capture();
     }, SAMPLE_MS);
     return () => window.clearInterval(timer);
-  }, [ready, auto, paused, capture]);
+  }, [ready, auto, paused, stabilize, capture, setRotation]);
 
   return (
     <div>
@@ -257,13 +288,33 @@ const LiveCamera: React.FC<LiveCameraProps> = ({ paused, onCapture }) => {
         </label>
       )}
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
         <button type="button" onClick={capture} disabled={!ready || paused} className={`flex-1 ${primaryButtonClass}`}>
           <CameraIcon className="h-4 w-4" aria-hidden="true" /> Jetzt scannen
         </button>
         <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} className="rounded" />
           Automatisch
+        </label>
+        <label
+          className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300"
+          title="Dreht das iPhone sein Bild beim Neigen, wird es automatisch zurückgedreht"
+        >
+          <input
+            type="checkbox"
+            checked={stabilize}
+            onChange={(e) => {
+              setStabilize(e.target.checked);
+              lastSample.current = null;
+              try {
+                localStorage.setItem(STABILIZE_KEY, e.target.checked ? '1' : '0');
+              } catch {
+                // Nur eine Bequemlichkeit.
+              }
+            }}
+            className="rounded"
+          />
+          Drehung ausgleichen
         </label>
       </div>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">

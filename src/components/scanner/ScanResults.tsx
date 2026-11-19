@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CheckBadgeIcon } from '@heroicons/react/24/outline';
+import { CheckBadgeIcon, CheckIcon, ExclamationTriangleIcon, PlusIcon } from '@heroicons/react/24/outline';
 import FallbackImage from '../catalog/FallbackImage';
 import { catalogCardImageSources, fetchCard, formatEur, mapLimit, summarizePricing, type PriceSummary } from '../../services/tcgdex';
 import type { CatalogLang } from '../../types/models';
@@ -25,12 +25,18 @@ interface ScanResultsProps {
   lang: CatalogLang;
   reverse: boolean;
   onOpen: (candidate: RankedCandidate) => void;
+  /** Stapel-Modus (#171): Treffer in den Stapel legen. */
+  onAddToStack?: (candidate: RankedCandidate) => void;
+  /** Ob die Karte (in der gewählten Fassung) schon im Stapel liegt. */
+  inStack?: (candidate: RankedCandidate) => boolean;
 }
 
-const priceOf = (price: PriceSummary | undefined, reverse: boolean) =>
-  price ? (reverse && price.reverseTrend !== null ? price.reverseTrend : price.trend) : undefined;
+// Beim Scannen zählt das günstigste Angebot („ab“); ohne Angebot der Trend.
+const lowOf = (price: PriceSummary, reverse: boolean) =>
+  reverse && price.reverseTrend !== null ? (price.reverseLow ?? price.reverseTrend) : (price.low ?? price.trend);
+const priceOf = (price: PriceSummary | undefined, reverse: boolean) => (price ? lowOf(price, reverse) : undefined);
 
-const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, reverse, onOpen }) => {
+const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, reverse, onOpen, onAddToStack, inStack }) => {
   const [prices, setPrices] = useState<Record<string, PriceSummary | null>>({});
 
   useEffect(() => {
@@ -45,8 +51,29 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
     return () => controller.abort();
   }, [results, lang]);
 
-  const [best, ...rest] = confident ? results : [];
-  const others = confident ? rest : results;
+  // Liegt neben der Kartenschaltfläche (Schaltflächen dürfen nicht verschachtelt sein).
+  const stackButton = (c: RankedCandidate, position = 'bottom-2 right-2') => {
+    if (!onAddToStack) return null;
+    const added = inStack?.(c) ?? false;
+    return (
+      <button
+        type="button"
+        onClick={() => onAddToStack(c)}
+        title={added ? 'Liegt schon im Stapel – noch eine hinzufügen' : 'In den Stapel legen'}
+        className={`absolute ${position} inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ${
+          added
+            ? 'bg-green-600 text-white hover:bg-green-700'
+            : 'bg-pokemon-blue text-white hover:bg-blue-700'
+        }`}
+      >
+        {added ? <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" /> : <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+        {added ? 'Im Stapel' : 'Zum Stapel'}
+      </button>
+    );
+  };
+
+  // Der beste Treffer steht immer groß da; ist er unsicher, zum Prüfen markiert.
+  const [best, ...others] = results;
 
   const image = (c: RankedCandidate) => (
     <FallbackImage
@@ -74,18 +101,29 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
   return (
     <div className="space-y-4">
       {best && (
+        <div className="relative">
         <button
           type="button"
           onClick={() => onOpen(best)}
-          className="flex w-full gap-4 rounded-lg border border-green-400 bg-green-50 p-3 text-left transition-colors hover:bg-green-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/30"
+          className={`flex w-full gap-4 rounded-lg border p-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-pokemon-blue ${
+            confident
+              ? 'border-green-400 bg-green-50 hover:bg-green-100 dark:border-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/30'
+              : 'border-amber-300 bg-amber-50 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-900/20 dark:hover:bg-amber-900/30'
+          }`}
         >
           <div className="relative aspect-[5/7] w-28 flex-shrink-0 overflow-hidden rounded bg-gray-100 dark:bg-gray-900 sm:w-36">
             {image(best)}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 dark:text-green-300">
-              <CheckBadgeIcon className="h-4 w-4" aria-hidden="true" /> Sicherer Treffer
-            </div>
+            {confident ? (
+              <div className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 dark:text-green-300">
+                <CheckBadgeIcon className="h-4 w-4" aria-hidden="true" /> Sicherer Treffer
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                <ExclamationTriangleIcon className="h-4 w-4" aria-hidden="true" /> Bester Treffer – bitte prüfen
+              </div>
+            )}
             <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-gray-100">{best.name}</div>
             <div className="text-sm text-gray-600 dark:text-gray-300">
               {best.setName} · <span className="tabular-nums">{number(best)}</span>
@@ -95,6 +133,8 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
             <div className="mt-2 text-xs text-pokemon-blue dark:text-blue-300">Details und „In Sammlung übernehmen“ →</div>
           </div>
         </button>
+        {stackButton(best, 'top-2 right-2')}
+        </div>
       )}
 
       {others.length > 0 && (
@@ -108,7 +148,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
             {others.map((c) => {
               const value = priceOf(prices[c.cardId] ?? undefined, reverse);
               return (
-                <li key={c.cardId}>
+                <li key={c.cardId} className="relative">
                   <button
                     type="button"
                     onClick={() => onOpen(c)}
@@ -127,8 +167,10 @@ const ScanResults: React.FC<ScanResultsProps> = ({ results, confident, lang, rev
                         </div>
                       )}
                       {chips(c)}
+                      {onAddToStack && <div className="h-6" aria-hidden="true" />}
                     </div>
                   </button>
+                  {stackButton(c)}
                 </li>
               );
             })}
@@ -152,15 +194,15 @@ const PriceBlock: React.FC<{ price: PriceSummary | null | undefined; loaded: boo
   return (
     <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
       <div>
-        <dt className="text-xs text-gray-500 dark:text-gray-400">{showReverse ? 'Trend Reverse Holo' : 'Trend'}</dt>
+        <dt className="text-xs text-gray-500 dark:text-gray-400">{showReverse ? 'ab (Reverse Holo)' : 'ab'}</dt>
         <dd className="text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-          {formatEur(showReverse ? price.reverseTrend : price.trend)}
+          {formatEur(lowOf(price, reverse))}
         </dd>
       </div>
       <div>
-        <dt className="text-xs text-gray-500 dark:text-gray-400">ab</dt>
-        <dd className="text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
-          {formatEur(showReverse ? price.reverseLow : price.low)}
+        <dt className="text-xs text-gray-500 dark:text-gray-400">Trend</dt>
+        <dd className="text-xl tabular-nums text-gray-500 dark:text-gray-400">
+          {formatEur(showReverse ? price.reverseTrend : price.trend)}
         </dd>
       </div>
       {reverse && price.reverseTrend === null && (

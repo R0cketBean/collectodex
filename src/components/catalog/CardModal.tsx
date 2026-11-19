@@ -58,7 +58,8 @@ export interface CardModalProps {
 
 const CardModal: React.FC<CardModalProps> = ({ card, detail, englishImage, setId, setName, lang, ownership, categories, onToggle, onAdd, onUnlink, onDelete, initialVariant = 'normal', cardmarketUrl, onClose }) => {
   const price = detail ? summarizePricing(detail) : null;
-  const hasReverse = lang !== 'ja' && Boolean(detail?.variants?.reverse);
+  // Reverse auch dann, wenn TCGdex die Fassung (noch) nicht kennt, Cardmarket aber einen Reverse-Preis hat.
+  const hasReverse = lang !== 'ja' && (Boolean(detail?.variants?.reverse) || (price?.reverseTrend ?? null) !== null);
   // Nur Kategorien mit Attributen taugen als Ziel (unvollständig angelegte fallen raus).
   const targets = categories.filter((c) => Array.isArray(c.attributes) && c.attributes.length > 0);
   const [targetId, setTargetId] = useState(
@@ -117,8 +118,8 @@ const CardModal: React.FC<CardModalProps> = ({ card, detail, englishImage, setId
                 <PriceRow label="Trend" value={price?.trend ?? null} />
                 <PriceRow label="Ab (günstigstes Angebot)" value={price?.low ?? null} />
                 <PriceRow label="Ø 30 Tage" value={price?.avg30 ?? null} />
-                {price?.reverseTrend !== null && <PriceRow label="Reverse Holo – Trend" value={price?.reverseTrend ?? null} />}
-                {price?.reverseLow !== null && <PriceRow label="Reverse Holo – ab" value={price?.reverseLow ?? null} />}
+                {hasReverse && price?.reverseTrend !== null && <PriceRow label="Reverse Holo – Trend" value={price?.reverseTrend ?? null} />}
+                {hasReverse && price?.reverseLow !== null && <PriceRow label="Reverse Holo – ab" value={price?.reverseLow ?? null} />}
               </dl>
             )}
             {price?.updated && (

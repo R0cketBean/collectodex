@@ -36,6 +36,13 @@ describe('summarizePricing', () => {
     expect(p.reverseTrend).toBeNull();
   });
 
+  it('nimmt die -holo-Felder als Reverse-Preis, wenn TCGdex die Reverse-Fassung noch nicht kennt', () => {
+    const p = summarizePricing(
+      withPricing({ trend: 0.02, 'trend-holo': 0.07, 'low-holo': 0.02 }, { normal: true, reverse: false, holo: false })
+    );
+    expect(p).toMatchObject({ trend: 0.02, reverseTrend: 0.07, reverseLow: 0.02 });
+  });
+
   it('fällt bei fehlendem Trend auf den Durchschnitt zurück und ignoriert 0/null', () => {
     expect(summarizePricing(withPricing({ trend: 0, avg: 1.5 })).trend).toBe(1.5);
     expect(summarizePricing(withPricing({ trend: null, avg: null })).trend).toBeNull();

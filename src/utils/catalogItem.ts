@@ -16,6 +16,8 @@ export interface CatalogItemSource {
   price: number | null;
   imageUrl?: string;
   productUrl?: string;
+  /** Anzahl (Vorgabe 1), z. B. aus dem Stapel des Kartenscanners. */
+  quantity?: number;
 }
 
 export interface CatalogItemDraft {
@@ -60,7 +62,7 @@ export const buildCatalogItem = (
 ): CatalogItemDraft => {
   const known: Record<string, unknown> = {
     name: catalogItemName(source),
-    quantity: 1,
+    quantity: source.quantity && source.quantity > 0 ? Math.floor(source.quantity) : 1,
     purchasePrice: 0,
     currentValue: source.price ?? 0,
     addedDate: today,
