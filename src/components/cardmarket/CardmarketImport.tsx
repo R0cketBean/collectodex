@@ -49,6 +49,7 @@ const lookup: CatalogLookup = {
 };
 
 const euro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+const lines = (n: number) => `${n} ${n === 1 ? 'Zeile' : 'Zeilen'}`;
 const germanDate = (iso: string | null) => (iso ? iso.split('-').reverse().join('.') : '–');
 
 type Phase = 'idle' | 'reading' | 'review' | 'applying';
@@ -199,7 +200,7 @@ const CardmarketImport: React.FC = () => {
               <div>
                 <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Cardmarket-Import prüfen</h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {orders.length} {orders.length === 1 ? 'Bestellung' : 'Bestellungen'}, {rows.length} Zeilen ·{' '}
+                  {orders.length} {orders.length === 1 ? 'Bestellung' : 'Bestellungen'}, {lines(rows.length)} ·{' '}
                   {counts.create} neu · {counts.setPrice} Kaufpreis · {counts.addQuantity} Anzahl · {counts.skip} übersprungen
                 </p>
               </div>
@@ -283,7 +284,7 @@ const CardmarketImport: React.FC = () => {
                 disabled={phase === 'applying' || rows.length === counts.skip}
                 className={primaryButtonClass}
               >
-                {phase === 'applying' ? progress || 'Übernehme …' : `${rows.length - counts.skip} Zeilen übernehmen`}
+                {phase === 'applying' ? progress || 'Übernehme …' : `${lines(rows.length - counts.skip)} übernehmen`}
               </button>
             </div>
           </div>

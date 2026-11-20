@@ -6,6 +6,8 @@ import {
   normalizeNumber,
   orderValues,
   planImport,
+  sealedKey,
+  sealedType,
   resolveCatalogCard,
   type CatalogLookup,
 } from './cardmarketImport';
@@ -167,5 +169,45 @@ describe('applyImport', () => {
     expect(created).toMatchObject({ categoryId: 'singles', purchaseOrders: ['72300505'] });
     expect(created.values).toMatchObject({ name: 'Neu', purchasePrice: 2.5 });
     expect(items[0].values.purchasePrice).toBe(0);
+  });
+});
+
+describe('Sealed-Artikel', () => {
+  const sealedLine = line({
+    kind: 'sealed',
+    section: 'Pokémon Elite Trainer Boxes',
+    name: 'Farbenschock Top-Trainer-Box',
+    number: undefined,
+    condition: undefined,
+    setCode: 'VIV',
+    unitPrice: 75.99,
+  });
+
+  it('erkennt gleiche Produkte trotz anderer Schreibweise', async () => {
+    expect(sealedKey('ETB Farbenschock')).toBe(sealedKey('Farbenschock Top-Trainer-Box'));
+    expect(sealedKey('Fatale Flammen Booster Bundle')).toBe(sealedKey('Fatale Flammen Boosterbundle'));
+    expect(sealedKey('ETB Fatale Flammen Pokémon Center')).not.toBe(sealedKey('Fatale Flammen Top-Trainer-Box'));
+
+    const etb = (id: string, name: string, purchasePrice: number) =>
+      item({ id, categoryId: 'sealed', values: { name, quantity: 1, purchasePrice, language: 'Deutsch', category: 'Elite Trainer Box' } });
+    const [row] = await planImport(
+      [order([sealedLine])],
+      [etb('other', 'ETB Drachenwandel', 59.99), etb('vivid', 'ETB Farbenschock', 75.99)],
+      categories,
+      lookup
+    );
+    expect(row).toMatchObject({ action: 'skip', existing: { id: 'vivid' } });
+    expect(row.note).toMatch(/stimmt schon/);
+  });
+
+  it('füllt die Produktart aus dem Abschnitt', () => {
+    const sealed = categories.find((c) => c.id === 'sealed')!;
+    expect(orderValues(sealed, { line: sealedLine, date: '2021-01-19', hit: null })).toMatchObject({
+      name: 'Farbenschock Top-Trainer-Box',
+      category: 'Elite Trainer Box',
+      language: 'deutsch',
+      purchasePrice: 75.99,
+    });
+    expect(sealedType('Pokémon Tins', 'Kanto Power Mini Tins: Mew')).toBe('Mini Tin Box');
   });
 });

@@ -38,6 +38,44 @@ const CONDITION_WORDS: Record<string, string> = {
   PO: 'Poor',
 };
 
+/**
+ * Vergleichsschlüssel für Sealed-Namen: Produktarten vereinheitlicht („ETB“ =
+ * „Top-Trainer-Box“ = „Elite Trainer Box“), Sprachzusätze weggelassen, Wörter
+ * sortiert. „ETB Farbenschock“ und „Farbenschock Top-Trainer-Box“ sind gleich.
+ */
+const SEALED_SYNONYMS: Array<[RegExp, string]> = [
+  [/\b(elite[\s-]*trainer[\s-]*box(es)?|top[\s-]*trainer[\s-]*box(en)?|etb)\b/g, ' etb '],
+  [/\bbooster[\s-]*bundles?\b/g, ' bundle '],
+  [/\b(booster[\s-]*box(es)?|displays?)\b/g, ' display '],
+  [/\bmini[\s-]*tins?\b/g, ' minitin '],
+  [/\btin[\s-]*box(es|en)?\b/g, ' tin '],
+  [/\b(kollektion|collection)\b/g, ' collection '],
+  [/&/g, ' und '],
+];
+const SEALED_IGNORED = new Set(['eng', 'en', 'de', 'dt', 'jp', 'ja', 'deutsch', 'englisch', 'japanisch', 'pokemon', 'ovp', 'sealed']);
+
+export const sealedKey = (name: string): string => {
+  let s = name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  for (const [re, to] of SEALED_SYNONYMS) s = s.replace(re, to);
+  const tokens = s.split(/[^a-z0-9ß]+/).filter((t) => t && !SEALED_IGNORED.has(t));
+  return [...new Set(tokens)].sort().join(' ');
+};
+
+/** Produktart für das Feld „Kategorie“ der Sealed-Produkte, aus Abschnitt und Name. */
+export const sealedType = (section: string, name: string): string | undefined => {
+  const text = `${section} ${name}`.toLowerCase();
+  if (/mini[\s-]*tin/.test(text)) return 'Mini Tin Box';
+  if (/elite trainer|top-trainer|\betb\b/.test(text)) return 'Elite Trainer Box';
+  if (/bundle/.test(text)) return 'Boosterbundle';
+  if (/display|booster box/.test(text)) return 'Display';
+  if (/blister/.test(text)) return 'Blister';
+  if (/\btins?\b|tin-box/.test(text)) return 'Tin Box';
+  if (/theme deck|themendeck/.test(text)) return 'Theme Deck';
+  if (/box set|collection|kollektion/.test(text)) return 'Box Sets';
+  if (/booster/.test(text)) return 'Booster';
+  return undefined;
+};
+
 /** Katalogsprache zum Sprachkürzel: Deutsch und Japanisch haben eigene Kataloge, sonst Englisch. */
 export const catalogLangOf = (language: string | undefined): CatalogLang =>
   language === 'JP' ? 'ja' : language === 'DE' || !language ? 'de' : 'en';
@@ -155,8 +193,12 @@ export const findExisting = (
   hit: CatalogHit | null
 ): CollectionItem | null => {
   const condition = conditionWord(line.condition)?.toLowerCase();
+  const cents = Math.round(line.unitPrice * 100);
   const prefer = (list: CollectionItem[]) =>
-    list.find((i) => String(i.values?.condition ?? '').toLowerCase() === condition) ?? list[0] ?? null;
+    list.find((i) => Math.round((Number(i.values?.purchasePrice) || 0) * 100) === cents) ??
+    list.find((i) => String(i.values?.condition ?? '').toLowerCase() === condition) ??
+    list[0] ??
+    null;
 
   if (hit) {
     const linked = items.filter((i) => i.catalog?.cardId === hit.cardId && itemLang(i) === hit.lang);
@@ -168,6 +210,7 @@ export const findExisting = (
     categories.filter((c) => (line.kind === 'single' ? isCardCategory(c) : !isCardCategory(c))).map((c) => c.id)
   );
   const name = normalizeName(line.name);
+  const sealed = sealedKey(line.name);
   const lang = languageWord(line.language)?.toLowerCase();
   const code = line.kind === 'single' && line.setCode && line.number ? normalizeNumber(`${line.setCode}${line.number}`) : null;
   const byCode: CollectionItem[] = [];
@@ -182,12 +225,14 @@ export const findExisting = (
       byCode.push(i);
       continue;
     }
-    if (normalizeName(String(i.values?.name ?? '')) !== name) continue;
-    if (line.kind === 'single') {
-      // Ohne passenden Link muss die Erweiterung zum Katalogset passen.
-      const expansion = normalizeName(String(i.values?.expansion ?? ''));
-      if (!hit || !expansion || expansion !== normalizeName(hit.setName)) continue;
+    if (line.kind === 'sealed') {
+      if (sealedKey(String(i.values?.name ?? '')) === sealed) byName.push(i);
+      continue;
     }
+    if (normalizeName(String(i.values?.name ?? '')) !== name) continue;
+    // Ohne passenden Link muss die Erweiterung zum Katalogset passen.
+    const expansion = normalizeName(String(i.values?.expansion ?? ''));
+    if (!hit || !expansion || expansion !== normalizeName(hit.setName)) continue;
     byName.push(i);
   }
   return prefer(byCode.length > 0 ? byCode : byName);
@@ -322,6 +367,12 @@ export const orderValues = (
   if (attrs.has('language') && line.language) values.language = option(languageWord(line.language), attrs.get('language')?.options);
   if (attrs.has('condition') && line.condition)
     values.condition = option(conditionWord(line.condition), attrs.get('condition')?.options);
+  if (attrs.has('category') && line.kind === 'sealed' && !values.category) {
+    const type = sealedType(line.section, line.name);
+    const options = attrs.get('category')?.options;
+    // Nur eine vorhandene Auswahl übernehmen, sonst bleibt das Feld leer.
+    if (type) values.category = options?.length ? options.find((o) => o.toLowerCase() === type.toLowerCase()) ?? '' : type;
+  }
   if (attrs.has('expansion') && !values.expansion) values.expansion = row.hit?.setName ?? line.setCode ?? '';
   return values;
 };
