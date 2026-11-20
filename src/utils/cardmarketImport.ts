@@ -238,13 +238,128 @@ export const findExisting = (
   return prefer(byCode.length > 0 ? byCode : byName);
 };
 
+// --- Vergleich Eintrag ↔ Rechnung -----------------------------------------
+
+/** Felder, die sich aus der Rechnung in einen vorhandenen Eintrag übernehmen lassen. */
+export type FieldKey = 'name' | 'purchasePrice' | 'addedDate' | 'quantity' | 'language' | 'condition' | 'catalog';
+
+export interface FieldDiff {
+  key: FieldKey;
+  label: string;
+  /** Anzeige des Werts im Eintrag („–“ wenn leer). */
+  current: string;
+  /** Anzeige des Werts laut Rechnung. */
+  incoming: string;
+  /** Wert, der beim Übernehmen gesetzt wird. */
+  value: unknown;
+  /** Eintrag und Rechnung stimmen schon überein. */
+  equal: boolean;
+  /** Im Eintrag ist noch nichts eingetragen. */
+  empty: boolean;
+}
+
+const formatEuro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+const germanDate = (iso: string) => iso.split('-').reverse().join('.');
+
+/**
+ * Stellt Eintrag und Rechnung Feld für Feld gegenüber. Felder, die die
+ * Kategorie nicht führt, fehlen; die Katalogverknüpfung erscheint nur, wenn
+ * der Eintrag noch keine hat und die Karte im Katalog gefunden wurde.
+ */
+export const compareFields = (
+  category: Pick<Category, 'attributes'> | undefined,
+  row: Pick<ImportRow, 'line' | 'date' | 'hit' | 'existing'>
+): FieldDiff[] => {
+  const item = row.existing;
+  if (!item) return [];
+  const attrs = new Map((category?.attributes ?? []).map((a) => [a.id, a]));
+  const v = item.values ?? {};
+  const { line } = row;
+  const diffs: FieldDiff[] = [];
+  const text = (key: FieldKey, label: string, incoming: string | undefined) => {
+    if (!incoming || (key !== 'name' && !attrs.has(key))) return;
+    const current = String(v[key] ?? '').trim();
+    diffs.push({
+      key,
+      label,
+      current: current || '–',
+      incoming,
+      value: incoming,
+      equal: normalizeName(current) === normalizeName(incoming),
+      empty: current === '',
+    });
+  };
+
+  text('name', 'Name', line.kind === 'sealed' ? line.name : row.hit?.name ?? line.name);
+  const price = Number(v.purchasePrice) || 0;
+  diffs.push({
+    key: 'purchasePrice',
+    label: 'Kaufpreis',
+    current: price ? formatEuro(price) : '–',
+    incoming: formatEuro(line.unitPrice),
+    value: line.unitPrice,
+    equal: Math.round(price * 100) === Math.round(line.unitPrice * 100),
+    empty: price === 0,
+  });
+  if (row.date && attrs.has('addedDate')) {
+    const current = typeof v.addedDate === 'string' ? v.addedDate.slice(0, 10) : '';
+    diffs.push({
+      key: 'addedDate',
+      label: 'Gekauft am',
+      current: current ? germanDate(current) : '–',
+      incoming: germanDate(row.date),
+      value: row.date,
+      equal: current === row.date,
+      empty: current === '',
+    });
+  }
+  const qty = Number(v.quantity) || 0;
+  diffs.push({
+    key: 'quantity',
+    label: 'Anzahl',
+    current: String(qty),
+    incoming: String(line.quantity),
+    value: line.quantity,
+    equal: qty === line.quantity,
+    empty: qty === 0,
+  });
+  text('language', 'Sprache', option(languageWord(line.language), attrs.get('language')?.options) || undefined);
+  text('condition', 'Zustand', option(conditionWord(line.condition), attrs.get('condition')?.options) || undefined);
+  if (row.hit && !item.catalog) {
+    diffs.push({
+      key: 'catalog',
+      label: 'Katalogkarte',
+      current: 'nicht verknüpft',
+      incoming: `${row.hit.setName} #${row.hit.localId}${row.hit.status === 'review' ? ' (unsicher)' : ''}`,
+      value: { cardId: row.hit.cardId, setId: row.hit.setId, variant: 'normal', ...(row.hit.lang !== 'de' ? { lang: row.hit.lang } : {}) },
+      equal: false,
+      empty: true,
+    });
+  }
+  return diffs;
+};
+
+/**
+ * Vorauswahl: leere Felder füllen und sicher gefundene Katalogkarten
+ * verknüpfen. Was schon eingetragen ist, ändert nur der Nutzer selbst.
+ */
+export const defaultPicks = (fields: FieldDiff[], hit: CatalogHit | null): FieldKey[] => {
+  // Steht schon ein anderer Kaufpreis drin, stammt der Eintrag vermutlich aus
+  // einem anderen Kauf – dann nichts vorwählen.
+  const price = fields.find((f) => f.key === 'purchasePrice');
+  if (price && !price.equal && !price.empty) return [];
+  return fields
+    .filter((f) => !f.equal && f.empty && (f.key !== 'catalog' || hit?.status === 'sure'))
+    .map((f) => f.key);
+};
+
 // --- Vorschlag je Zeile ----------------------------------------------------
 
-export type ImportAction = 'create' | 'setPrice' | 'addQuantity' | 'skip';
+export type ImportAction = 'create' | 'update' | 'addQuantity' | 'skip';
 
 export const ACTION_LABEL: Record<ImportAction, string> = {
   create: 'Neu anlegen',
-  setPrice: 'Kaufpreis eintragen',
+  update: 'Felder anpassen',
   addQuantity: 'Anzahl erhöhen',
   skip: 'Überspringen',
 };
@@ -260,17 +375,18 @@ export interface ImportRow {
   action: ImportAction;
   /** Kurze Begründung des Vorschlags für die Vorschau. */
   note: string;
+  /** Vergleich mit dem vorhandenen Eintrag (leer ohne Eintrag). */
+  fields: FieldDiff[];
+  /** Felder, die beim Anpassen übernommen werden. */
+  picks: FieldKey[];
 }
-
-const price = (item: CollectionItem) => Number(item.values?.purchasePrice) || 0;
-const formatEuro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 
 /** Welche Aktionen für eine Zeile in Frage kommen. */
 export const allowedActions = (row: Pick<ImportRow, 'existing' | 'categoryId'>): ImportAction[] =>
   !row.categoryId
     ? ['skip']
     : row.existing
-      ? ['setPrice', 'addQuantity', 'create', 'skip']
+      ? ['update', 'addQuantity', 'create', 'skip']
       : ['create', 'skip'];
 
 export const suggestAction = (
@@ -278,7 +394,8 @@ export const suggestAction = (
   orderId: string,
   existing: CollectionItem | null,
   hit: CatalogHit | null,
-  categoryId: string | null
+  categoryId: string | null,
+  picks: FieldKey[] = []
 ): { action: ImportAction; note: string } => {
   if (!categoryId) return { action: 'skip', note: 'Keine passende Kategorie in der Sammlung' };
   if (!existing) {
@@ -290,13 +407,19 @@ export const suggestAction = (
   if (existing.purchaseOrders?.includes(orderId)) {
     return { action: 'skip', note: 'Aus dieser Bestellung schon übernommen' };
   }
-  const current = price(existing);
+  const current = Number(existing.values?.purchasePrice) || 0;
   const firstEd = isFirstEditionLink(existing) ? ' (Eintrag ist 1. Edition – bitte prüfen)' : '';
-  if (current === 0) return { action: 'setPrice', note: `In der Sammlung, noch ohne Kaufpreis${firstEd}` };
-  if (Math.round(current * 100) === Math.round(line.unitPrice * 100)) {
-    return { action: 'skip', note: `In der Sammlung, Kaufpreis stimmt schon${firstEd}` };
-  }
-  return { action: 'skip', note: `In der Sammlung mit Kaufpreis ${formatEuro(current)}${firstEd}` };
+  const priceNote =
+    current === 0
+      ? 'noch ohne Kaufpreis'
+      : Math.round(current * 100) === Math.round(line.unitPrice * 100)
+        ? 'Kaufpreis stimmt schon'
+        : `Kaufpreis ${formatEuro(current)}`;
+  return {
+    // Nur leere Felder werden von selbst gefüllt; sonst entscheidet der Nutzer.
+    action: picks.length > 0 ? 'update' : 'skip',
+    note: `In der Sammlung, ${priceNote}${firstEd}`,
+  };
 };
 
 /** Baut die Vorschau-Zeilen für alle Bestellungen. */
@@ -314,7 +437,10 @@ export async function planImport(
       const hit = await resolveCatalogCard(line, lookup);
       const category = targetCategory(categories, line);
       const existing = category ? findExisting(items, categories, line, hit) : null;
-      const { action, note } = suggestAction(line, order.orderId, existing, hit, category?.id ?? null);
+      const base = { line, date: order.date, hit, existing };
+      const fields = compareFields(categories.find((c) => c.id === existing?.categoryId), base);
+      const picks = existing?.purchaseOrders?.includes(order.orderId) ? [] : defaultPicks(fields, hit);
+      const { action, note } = suggestAction(line, order.orderId, existing, hit, category?.id ?? null, picks);
       rows.push({
         key: `${order.orderId}:${index}`,
         orderId: order.orderId,
@@ -325,6 +451,8 @@ export async function planImport(
         existing,
         action,
         note,
+        fields,
+        picks,
       });
       onProgress?.(rows.length, total);
     }
@@ -425,17 +553,26 @@ export const applyImport = (
     const current = row.existing ? byId.get(row.existing.id) : undefined;
     if (!current) continue;
     const values = { ...current.values };
-    if (row.action === 'setPrice') {
-      values.purchasePrice = row.line.unitPrice;
-      if (!values.addedDate && row.date) values.addedDate = row.date;
-    } else {
-      const oldQty = Number(values.quantity) || 0;
+    let catalog = current.catalog;
+    // Gewählte Felder übernehmen; beim Erhöhen der Anzahl gelten Menge und
+    // Kaufpreis aus der Rechnung nicht, die werden unten verrechnet.
+    for (const key of row.picks) {
+      const field = row.fields.find((f) => f.key === key);
+      if (!field) continue;
+      if (row.action === 'addQuantity' && (key === 'quantity' || key === 'purchasePrice')) continue;
+      if (key === 'catalog') catalog = field.value as CatalogRef;
+      else values[key] = field.value;
+    }
+    if (row.action === 'addQuantity') {
+      const oldQty = Number(current.values?.quantity) || 0;
       const newQty = oldQty + row.line.quantity;
-      const cost = oldQty * (Number(values.purchasePrice) || 0) + row.line.quantity * row.line.unitPrice;
+      const cost = oldQty * (Number(current.values?.purchasePrice) || 0) + row.line.quantity * row.line.unitPrice;
       values.quantity = newQty;
       values.purchasePrice = Math.round((cost / newQty) * 100) / 100;
     }
-    byId.set(current.id, { ...current, values, purchaseOrders: withOrder(current, row.orderId), updatedAt: now });
+    const next: CollectionItem = { ...current, values, purchaseOrders: withOrder(current, row.orderId), updatedAt: now };
+    if (catalog) next.catalog = catalog;
+    byId.set(current.id, next);
     updated += 1;
   }
   return { items: [...items.map((i) => byId.get(i.id) ?? i), ...added], created, updated };

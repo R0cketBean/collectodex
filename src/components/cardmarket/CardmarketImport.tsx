@@ -32,6 +32,7 @@ import {
   orderValues,
   planImport,
   type CatalogLookup,
+  type FieldKey,
   type ImportAction,
   type ImportRow,
   type NewItemDraft,
@@ -111,8 +112,21 @@ const CardmarketImport: React.FC = () => {
   const setAction = (key: string, action: ImportAction) =>
     setRows((prev) => prev.map((r) => (r.key === key ? { ...r, action } : r)));
 
+  /** Häkchen je Feld; ein Häkchen bei „Überspringen“ schaltet auf „Felder anpassen“. */
+  const togglePick = (key: string, field: FieldKey) =>
+    setRows((prev) =>
+      prev.map((r) => {
+        if (r.key !== key) return r;
+        const active = r.action !== 'skip' && r.action !== 'create';
+        const picks =
+          active && r.picks.includes(field) ? r.picks.filter((f) => f !== field) : [...new Set([...r.picks, field])];
+        const action = picks.length > 0 && (r.action === 'skip' || r.action === 'create') ? 'update' : r.action;
+        return { ...r, picks, action };
+      })
+    );
+
   const counts = useMemo(() => {
-    const c: Record<ImportAction, number> = { create: 0, setPrice: 0, addQuantity: 0, skip: 0 };
+    const c: Record<ImportAction, number> = { create: 0, update: 0, addQuantity: 0, skip: 0 };
     for (const r of rows) c[r.action] += 1;
     return c;
   }, [rows]);
@@ -201,7 +215,7 @@ const CardmarketImport: React.FC = () => {
                 <h2 className="text-lg font-medium text-gray-900 dark:text-gray-100">Cardmarket-Import prüfen</h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {orders.length} {orders.length === 1 ? 'Bestellung' : 'Bestellungen'}, {lines(rows.length)} ·{' '}
-                  {counts.create} neu · {counts.setPrice} Kaufpreis · {counts.addQuantity} Anzahl · {counts.skip} übersprungen
+                  {counts.create} neu · {counts.update} anpassen · {counts.addQuantity} Anzahl · {counts.skip} übersprungen
                 </p>
               </div>
               <button onClick={reset} disabled={phase === 'applying'} aria-label="Schließen" className="p-1 text-gray-500 hover:text-gray-800 dark:hover:text-gray-200">
@@ -230,11 +244,12 @@ const CardmarketImport: React.FC = () => {
                       {rows
                         .filter((r) => r.orderId === order.orderId)
                         .map((row) => (
-                          <tr key={row.key} className={row.action === 'skip' ? 'opacity-60' : ''}>
-                            <td className="py-1.5 pr-2 w-8 text-right tabular-nums">{row.line.quantity}×</td>
-                            <td className="py-1.5 pr-2">
+                          <React.Fragment key={row.key}>
+                          <tr className={row.action === 'skip' ? 'opacity-60' : ''}>
+                            <td className="py-1.5 pr-2 w-8 text-right tabular-nums align-top">{row.line.quantity}×</td>
+                            <td className="py-1.5 pr-2 align-top">
                               <div className="font-medium text-gray-900 dark:text-gray-100">
-                                {row.hit?.name ?? row.line.name}
+                                {row.line.kind === 'sealed' ? row.line.name : row.hit?.name ?? row.line.name}
                                 {row.line.number ? <span className="text-gray-500"> #{row.line.number}</span> : null}
                               </div>
                               <div className="text-gray-500 dark:text-gray-400">
@@ -243,8 +258,8 @@ const CardmarketImport: React.FC = () => {
                                   .join(' · ')}
                               </div>
                             </td>
-                            <td className="py-1.5 pr-2 text-right tabular-nums whitespace-nowrap">{euro(row.line.unitPrice)}</td>
-                            <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300">
+                            <td className="py-1.5 pr-2 text-right tabular-nums whitespace-nowrap align-top">{euro(row.line.unitPrice)}</td>
+                            <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 align-top">
                               {row.note}
                               {row.existing ? (
                                 <div className="text-gray-400">
@@ -252,7 +267,7 @@ const CardmarketImport: React.FC = () => {
                                 </div>
                               ) : null}
                             </td>
-                            <td className="py-1.5 w-44">
+                            <td className="py-1.5 w-44 align-top">
                               <select
                                 aria-label={`Aktion für ${row.line.name}`}
                                 className={`${selectClass} !py-1 !text-xs`}
@@ -268,6 +283,57 @@ const CardmarketImport: React.FC = () => {
                               </select>
                             </td>
                           </tr>
+                          {row.fields.length > 0 && (
+                            <tr className="!border-t-0">
+                              <td />
+                              <td colSpan={4} className="pb-2">
+                                <table
+                                  className="w-full text-xs rounded border border-gray-200 dark:border-gray-700"
+                                  aria-label={`Vergleich für ${row.line.name}`}
+                                >
+                                  <thead className="text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40">
+                                    <tr>
+                                      <th className="text-left font-normal px-2 py-1 w-28">Feld</th>
+                                      <th className="text-left font-normal px-2 py-1">In der Sammlung</th>
+                                      <th className="text-left font-normal px-2 py-1">Laut Rechnung</th>
+                                      <th className="text-right font-normal px-2 py-1 w-24">übernehmen</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {row.fields.map((field) => {
+                                      const blocked =
+                                        row.action === 'addQuantity' && (field.key === 'quantity' || field.key === 'purchasePrice');
+                                      return (
+                                        <tr key={field.key} className={field.equal ? 'text-gray-400 dark:text-gray-500' : ''}>
+                                          <td className="px-2 py-1">{field.label}</td>
+                                          <td className="px-2 py-1">{field.current}</td>
+                                          <td className={`px-2 py-1 ${field.equal ? '' : 'font-medium text-amber-700 dark:text-amber-300'}`}>
+                                            {field.incoming}
+                                          </td>
+                                          <td className="px-2 py-1 text-right">
+                                            {field.equal ? (
+                                              <span>gleich</span>
+                                            ) : blocked ? (
+                                              <span title="Wird beim Erhöhen der Anzahl verrechnet">verrechnet</span>
+                                            ) : (
+                                              <input
+                                                type="checkbox"
+                                                aria-label={`${field.label} übernehmen`}
+                                                checked={row.picks.includes(field.key) && row.action !== 'skip' && row.action !== 'create'}
+                                                disabled={phase === 'applying'}
+                                                onChange={() => togglePick(row.key, field.key)}
+                                              />
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         ))}
                     </tbody>
                   </table>

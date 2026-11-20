@@ -86,11 +86,12 @@ describe('planImport', () => {
       lookup
     );
     expect(rows.map((r) => [r.action, r.existing?.id ?? null])).toEqual([
-      ['setPrice', 'a'],
+      ['update', 'a'],
       ['skip', 'b'],
       ['create', null],
     ]);
     expect(rows[1].note).toMatch(/Kaufpreis/);
+    expect(rows[1].picks).toEqual([]);
     expect(rows[2].hit).toBeNull();
   });
 
@@ -107,7 +108,8 @@ describe('planImport', () => {
       categories,
       lookup
     );
-    expect(rows[0]).toMatchObject({ action: 'setPrice', existing: { id: 'base' } });
+    expect(rows[0]).toMatchObject({ action: 'update', existing: { id: 'base' } });
+    expect(rows[0].picks).toEqual(['purchasePrice', 'addedDate', 'condition']);
     expect(rows[0].note).toMatch(/1\. Edition/);
     expect(rows[1]).toMatchObject({ action: 'create', existing: null });
   });
@@ -196,7 +198,8 @@ describe('Sealed-Artikel', () => {
       categories,
       lookup
     );
-    expect(row).toMatchObject({ action: 'skip', existing: { id: 'vivid' } });
+    // Kaufpreis stimmt; nur das leere Kaufdatum wird vorgeschlagen.
+    expect(row).toMatchObject({ action: 'update', existing: { id: 'vivid' }, picks: ['addedDate'] });
     expect(row.note).toMatch(/stimmt schon/);
   });
 
@@ -209,5 +212,44 @@ describe('Sealed-Artikel', () => {
       purchasePrice: 75.99,
     });
     expect(sealedType('Pokémon Tins', 'Kanto Power Mini Tins: Mew')).toBe('Mini Tin Box');
+  });
+});
+
+describe('Feldvergleich', () => {
+  it('zeigt Unterschiede zwischen Eintrag und Rechnung und füllt nur leere Felder vor', async () => {
+    const sealedLine = line({
+      kind: 'sealed',
+      section: 'Pokémon Elite Trainer Boxes',
+      name: 'Farbenschock Top-Trainer-Box',
+      number: undefined,
+      condition: undefined,
+      setCode: 'VIV',
+      unitPrice: 75.99,
+    });
+    const existing = item({
+      id: 'vivid',
+      categoryId: 'sealed',
+      values: { name: 'ETB Farbenschock', quantity: 1, purchasePrice: 75.99, language: 'Deutsch', addedDate: null },
+    });
+    const [row] = await planImport([order([sealedLine])], [existing], categories, lookup);
+    const byKey = Object.fromEntries(row.fields.map((f) => [f.key, f]));
+    expect(byKey.name).toMatchObject({ current: 'ETB Farbenschock', incoming: 'Farbenschock Top-Trainer-Box', equal: false });
+    expect(byKey.purchasePrice.equal).toBe(true);
+    expect(byKey.language.equal).toBe(true);
+    expect(byKey.addedDate).toMatchObject({ current: '–', incoming: '27.03.2019', empty: true });
+    expect(row.picks).toEqual(['addedDate']);
+    expect(row.action).toBe('update');
+
+    // Der Nutzer wählt zusätzlich den Namen aus der Rechnung.
+    const result = applyImport([existing], [{ ...row, picks: ['addedDate', 'name'] }], new Map());
+    expect(result.items[0].values).toMatchObject({ name: 'Farbenschock Top-Trainer-Box', addedDate: '2019-03-27', purchasePrice: 75.99 });
+  });
+
+  it('verknüpft einen vorhandenen Eintrag mit der gefundenen Katalogkarte', async () => {
+    const existing = item({ id: 'x', values: { name: 'Nidoking', quantity: 1, purchasePrice: 0, language: 'Deutsch', expansion: 'Grundset' } });
+    const [row] = await planImport([order([line()])], [existing], categories, lookup);
+    expect(row.fields.find((f) => f.key === 'catalog')).toMatchObject({ incoming: 'Grundset #11' });
+    const result = applyImport([existing], [row], new Map());
+    expect(result.items[0].catalog).toEqual({ cardId: 'base1-11', setId: 'base1', variant: 'normal' });
   });
 });
