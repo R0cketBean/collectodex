@@ -73,10 +73,19 @@ describe('parseCardmarketOrder', () => {
     const order = parseCardmarketOrder(
       header([
         ...at(477, [[17, 'Pokémon Booster:']]),
-        ...at(463, [[18, '3'], [31, 'Karmesin & Purpur Booster'], [240, 'DE'], [537, '4,60 EUR']]),
+        ...at(463, [[18, '1'], [31, 'Farbenschock Top-Trainer-Box'], [240, 'DE'], [284, 'VIV'], [337, '! OVP-Sealed !'], [531, '4,60 EUR']]),
       ])
     );
-    expect(order.lines[0]).toMatchObject({ kind: 'sealed', quantity: 3, name: 'Karmesin & Purpur Booster', language: 'DE' });
+    expect(order.lines[0]).toEqual({
+      section: 'Pokémon Booster',
+      kind: 'sealed',
+      quantity: 1,
+      name: 'Farbenschock Top-Trainer-Box',
+      language: 'DE',
+      setCode: 'VIV',
+      comment: '! OVP-Sealed !',
+      unitPrice: 4.6,
+    });
   });
 
   it('lehnt andere PDFs ab', () => {

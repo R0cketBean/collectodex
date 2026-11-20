@@ -145,7 +145,13 @@ export const parseLine = (row: PdfTextItem[], section: string): CardmarketOrderL
     line.condition = rest[0];
     rest = rest.slice(1);
   }
-  if (kind === 'single') {
+  if (kind === 'sealed') {
+    // Sealed-Zeilen nennen nach der Sprache das Set-Kürzel („VIV“), dann den Kommentar.
+    if (rest[0] && /^[A-Z0-9]{2,6}$/.test(rest[0])) {
+      line.setCode = rest[0];
+      rest = rest.slice(1);
+    }
+  } else {
     if (rest[0] && /^[A-Za-z0-9-]{1,8}$/.test(rest[0]) && !RARITIES.has(rest[0])) {
       line.setCode = rest[0];
       rest = rest.slice(1);
