@@ -13,6 +13,7 @@ import { useFeedback } from '../context/FeedbackContext';
 import { wrapBackup, validateBackup } from '../utils/backup';
 import { getCatalogOwned, replaceCatalogOwned } from '../hooks/useCatalogOwned';
 import { externalizeItemImages, inlineItemImages } from '../utils/imageStorage';
+import CardmarketImport from '../components/cardmarket/CardmarketImport';
 
 const ImportExport: React.FC = () => {
   // Re-Render-Isolation (#18): nur den Categories-Slice + die (stabilen) Actions.
@@ -449,6 +450,14 @@ const ImportExport: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="mb-6 p-3 sm:p-4 bg-blue-50 dark:bg-gray-800 rounded-lg border border-blue-100 dark:border-gray-700">
+            <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Käufe übernehmen</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+              Trägt Kaufpreise aus deinen Bestellungen ein, ohne die übrige Sammlung zu ersetzen.
+            </p>
+            <CardmarketImport />
           </div>
           
           {importError && (
