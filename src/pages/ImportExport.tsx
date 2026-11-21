@@ -14,6 +14,7 @@ import { wrapBackup, validateBackup } from '../utils/backup';
 import { getCatalogOwned, replaceCatalogOwned } from '../hooks/useCatalogOwned';
 import { externalizeItemImages, inlineItemImages } from '../utils/imageStorage';
 import CardmarketImport from '../components/cardmarket/CardmarketImport';
+import { getPendingImport } from '../components/cardmarket/pendingImport';
 
 const ImportExport: React.FC = () => {
   // Re-Render-Isolation (#18): nur den Categories-Slice + die (stabilen) Actions.
@@ -33,7 +34,8 @@ const ImportExport: React.FC = () => {
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<string>('export');
+  // Eine offene Cardmarket-Vorschau (nach „Zum Eintrag“) öffnet direkt den Import.
+  const [activeTab, setActiveTab] = useState<string>(getPendingImport() ? 'import' : 'export');
 
   // Wickelt einen asynchronen Export so, dass das Overlay erst nach
   // OVERLAY_DELAY_MS sichtbar wird — schnelle Operationen (kleine

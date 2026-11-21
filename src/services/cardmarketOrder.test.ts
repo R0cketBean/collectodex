@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseCardmarketOrder, parseEuro, type PdfTextItem } from './cardmarketOrder';
+import { parseCardmarketOrder, parseEuro, splitFlags, type PdfTextItem } from './cardmarketOrder';
 
 // Nachgebaut nach einer echten Cardmarket-PDF (Positionen wie von pdf.js),
 // Namen und Adressen erfunden.
@@ -90,5 +90,27 @@ describe('parseCardmarketOrder', () => {
 
   it('lehnt andere PDFs ab', () => {
     expect(() => parseCardmarketOrder(at(800, [[31, 'Rechnung 2024']]))).toThrow(/Cardmarket/);
+  });
+});
+
+describe('Merkmale und Seltenheit', () => {
+  it('trennt vorangestellte Merkmale vom Kommentar', () => {
+    expect(splitFlags('Reverse Holo - booster to sleeve')).toEqual({ flags: { reverseHolo: true }, comment: 'booster to sleeve' });
+    expect(splitFlags('Foil, First Edition - MAPPE')).toEqual({ flags: { foil: true, firstEdition: true }, comment: 'MAPPE' });
+    expect(splitFlags('Reverse Holo')).toEqual({ flags: { reverseHolo: true } });
+    expect(splitFlags('Holo | Sicherer Versand')).toEqual({ comment: 'Holo | Sicherer Versand' });
+  });
+
+  it('liest Seltenheiten wie ART und K statt sie in den Kommentar zu schieben', () => {
+    const order = parseCardmarketOrder(
+      header([
+        ...at(477, [[17, 'Pokémon Einzelkarten:']]),
+        ...at(463, [[18, '1'], [31, 'Quaputzi'], [220, '176'], [240, 'DE NM'], [270, 'MEW'], [315, 'ART'], [537, '2,50 EUR']]),
+        ...at(449, [[18, '1'], [31, 'Strahlendes Glurak'], [220, '011'], [240, 'JP NM'], [270, 's10b'], [315, 'K'], [337, 'Reverse Holo - top'], [537, '2,10 EUR']]),
+      ])
+    );
+    expect(order.lines[0]).toMatchObject({ rarity: 'ART', setCode: 'MEW' });
+    expect(order.lines[0].comment).toBeUndefined();
+    expect(order.lines[1]).toMatchObject({ rarity: 'K', flags: { reverseHolo: true }, comment: 'top' });
   });
 });

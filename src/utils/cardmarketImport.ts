@@ -14,6 +14,7 @@ import type { CardmarketOrder, CardmarketOrderLine } from '../services/cardmarke
 import type { CatalogLang, CatalogRef, Category, CollectionItem } from '../types/models';
 import { isCardCategory, itemProductLink, normalizeName } from './catalogMatch';
 import { recordValue } from './valueTrail';
+import { rarityInfo } from './cardmarketRarity';
 
 // --- Kürzel von Cardmarket -------------------------------------------------
 
@@ -185,6 +186,29 @@ const linkCode = (item: CollectionItem): string | null => {
 /** Ob der Link des Eintrags auf die 1. Edition zeigt. */
 export const isFirstEditionLink = (item: CollectionItem) => /[?&]isFirstEd=Y\b/.test(itemProductLink(item) ?? '');
 
+/** Das Ja/Nein-Feld „1. Edition“ einer Kategorie, falls angelegt. */
+export const firstEditionAttr = (category: Pick<Category, 'attributes'> | undefined) =>
+  (category?.attributes ?? []).find(
+    (a) => a.type === 'boolean' && /(^|\s)(1\.?\s*ed(ition)?|first\s*ed(ition)?|erstauflage)/i.test(a.name)
+  );
+
+/** Ein Feld für die Seltenheit („Seltenheit“, „Rarity“), falls angelegt. */
+export const rarityAttr = (category: Pick<Category, 'attributes'> | undefined) =>
+  (category?.attributes ?? []).find((a) => a.type !== 'boolean' && /seltenheit|rarit/i.test(a.name));
+
+/** Ob die Zeile eine Reverse-Holo-Fassung ist. */
+export const lineIsReverse = (line: CardmarketOrderLine) => Boolean(line.flags?.reverseHolo);
+
+/** Fassung und Edition eines vorhandenen Eintrags. */
+export const itemEdition = (item: CollectionItem, category?: Pick<Category, 'attributes'>) => {
+  const attr = firstEditionAttr(category);
+  const name = String(item.values?.name ?? '');
+  return {
+    reverse: item.catalog ? item.catalog.variant === 'reverse' : /reverse/i.test(name),
+    firstEdition: (attr ? item.values?.[attr.id] === true : false) || isFirstEditionLink(item) || /1\.\s*ed|first ed/i.test(name),
+  };
+};
+
 /** Sucht den Eintrag, zu dem die Zeile gehört. */
 export const findExisting = (
   items: CollectionItem[],
@@ -194,14 +218,30 @@ export const findExisting = (
 ): CollectionItem | null => {
   const condition = conditionWord(line.condition)?.toLowerCase();
   const cents = Math.round(line.unitPrice * 100);
+  const reverse = lineIsReverse(line);
+  const firstEd = Boolean(line.flags?.firstEdition);
+  const categoryOf = (i: CollectionItem) => categories.find((c) => c.id === i.categoryId);
+  // Gleiche Fassung und Edition zuerst, dann gleicher Kaufpreis, dann gleicher Zustand.
+  const score = (i: CollectionItem) => {
+    const e = itemEdition(i, categoryOf(i));
+    return (
+      (e.reverse === reverse ? 8 : 0) +
+      (e.firstEdition === firstEd ? 4 : 0) +
+      (Math.round((Number(i.values?.purchasePrice) || 0) * 100) === cents ? 2 : 0) +
+      (String(i.values?.condition ?? '').toLowerCase() === condition ? 1 : 0)
+    );
+  };
   const prefer = (list: CollectionItem[]) =>
-    list.find((i) => Math.round((Number(i.values?.purchasePrice) || 0) * 100) === cents) ??
-    list.find((i) => String(i.values?.condition ?? '').toLowerCase() === condition) ??
-    list[0] ??
-    null;
+    list.length === 0 ? null : list.reduce((best, i) => (score(i) > score(best) ? i : best), list[0]);
 
   if (hit) {
-    const linked = items.filter((i) => i.catalog?.cardId === hit.cardId && itemLang(i) === hit.lang);
+    // Normal und Reverse Holo sind im Katalog verschiedene Fassungen derselben Karte.
+    const linked = items.filter(
+      (i) =>
+        i.catalog?.cardId === hit.cardId &&
+        itemLang(i) === hit.lang &&
+        (i.catalog.variant === 'reverse') === reverse
+    );
     if (linked.length > 0) return prefer(linked);
   }
   // Ohne Katalogtreffer bzw. bei nicht verknüpften Einträgen: Name, Sprache und
@@ -241,7 +281,17 @@ export const findExisting = (
 // --- Vergleich Eintrag ↔ Rechnung -----------------------------------------
 
 /** Felder, die sich aus der Rechnung in einen vorhandenen Eintrag übernehmen lassen. */
-export type FieldKey = 'name' | 'purchasePrice' | 'addedDate' | 'quantity' | 'language' | 'condition' | 'catalog';
+export type FieldKey =
+  | 'name'
+  | 'purchasePrice'
+  | 'addedDate'
+  | 'quantity'
+  | 'language'
+  | 'condition'
+  | 'variant'
+  | 'firstEdition'
+  | 'rarity'
+  | 'catalog';
 
 export interface FieldDiff {
   key: FieldKey;
@@ -256,6 +306,8 @@ export interface FieldDiff {
   equal: boolean;
   /** Im Eintrag ist noch nichts eingetragen. */
   empty: boolean;
+  /** Lässt sich übernehmen; sonst nur ein Hinweis (z. B. Fassung ohne Katalogverknüpfung). */
+  pickable?: boolean;
 }
 
 const formatEuro = (n: number) => n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
@@ -325,6 +377,51 @@ export const compareFields = (
   });
   text('language', 'Sprache', option(languageWord(line.language), attrs.get('language')?.options) || undefined);
   text('condition', 'Zustand', option(conditionWord(line.condition), attrs.get('condition')?.options) || undefined);
+  // Fassung und Edition: nur zeigen, wenn Rechnung oder Eintrag etwas Besonderes haben.
+  const edition = itemEdition(item, category);
+  const reverse = lineIsReverse(line);
+  if (reverse || edition.reverse) {
+    diffs.push({
+      key: 'variant',
+      label: 'Fassung',
+      current: edition.reverse ? 'Reverse Holo' : 'Normal',
+      incoming: reverse ? 'Reverse Holo' : 'Normal',
+      value: reverse ? 'reverse' : 'normal',
+      equal: edition.reverse === reverse,
+      empty: false,
+      // Umstellen lässt sich nur die Fassung einer verknüpften Katalogkarte.
+      pickable: Boolean(item.catalog),
+    });
+  }
+  const firstEd = Boolean(line.flags?.firstEdition);
+  const edAttr = firstEditionAttr(category);
+  if (firstEd || edition.firstEdition) {
+    diffs.push({
+      key: 'firstEdition',
+      label: '1. Edition',
+      current: edition.firstEdition ? 'ja' : 'nein',
+      incoming: firstEd ? 'ja' : 'nein',
+      value: firstEd,
+      equal: edition.firstEdition === firstEd,
+      empty: false,
+      pickable: Boolean(edAttr),
+    });
+  }
+  const rarity = rarityInfo(line.rarity);
+  const rAttr = rarityAttr(category);
+  if (rarity && rAttr) {
+    const current = String(v[rAttr.id] ?? '').trim();
+    const incoming = option(rarity.label, rAttr.options);
+    diffs.push({
+      key: 'rarity',
+      label: 'Seltenheit',
+      current: current || '–',
+      incoming,
+      value: incoming,
+      equal: normalizeName(current) === normalizeName(incoming),
+      empty: current === '',
+    });
+  }
   if (row.hit && !item.catalog) {
     diffs.push({
       key: 'catalog',
@@ -349,7 +446,7 @@ export const defaultPicks = (fields: FieldDiff[], hit: CatalogHit | null): Field
   const price = fields.find((f) => f.key === 'purchasePrice');
   if (price && !price.equal && !price.empty) return [];
   return fields
-    .filter((f) => !f.equal && f.empty && (f.key !== 'catalog' || hit?.status === 'sure'))
+    .filter((f) => !f.equal && f.empty && f.pickable !== false && (f.key !== 'catalog' || hit?.status === 'sure'))
     .map((f) => f.key);
 };
 
@@ -501,6 +598,11 @@ export const orderValues = (
     // Nur eine vorhandene Auswahl übernehmen, sonst bleibt das Feld leer.
     if (type) values.category = options?.length ? options.find((o) => o.toLowerCase() === type.toLowerCase()) ?? '' : type;
   }
+  const edAttr = firstEditionAttr(category);
+  if (edAttr && line.flags?.firstEdition) values[edAttr.id] = true;
+  const rAttr = rarityAttr(category);
+  const rarity = rarityInfo(line.rarity);
+  if (rAttr && rarity && !values[rAttr.id]) values[rAttr.id] = option(rarity.label, rAttr.options);
   if (attrs.has('expansion') && !values.expansion) values.expansion = row.hit?.setName ?? line.setCode ?? '';
   return values;
 };
@@ -522,7 +624,8 @@ export const applyImport = (
   items: CollectionItem[],
   rows: ImportRow[],
   drafts: Map<string, NewItemDraft>,
-  now = new Date()
+  now = new Date(),
+  categories: Array<Pick<Category, 'id' | 'attributes'>> = []
 ): ImportResult => {
   const byId = new Map(items.map((i) => [i.id, i]));
   const added: CollectionItem[] = [];
@@ -560,8 +663,16 @@ export const applyImport = (
       const field = row.fields.find((f) => f.key === key);
       if (!field) continue;
       if (row.action === 'addQuantity' && (key === 'quantity' || key === 'purchasePrice')) continue;
+      if (field.pickable === false) continue;
       if (key === 'catalog') catalog = field.value as CatalogRef;
-      else values[key] = field.value;
+      else if (key === 'variant') catalog = catalog ? { ...catalog, variant: field.value as CatalogRef['variant'] } : catalog;
+      else if (key === 'firstEdition') {
+        const attr = firstEditionAttr(categories.find((c) => c.id === current.categoryId));
+        if (attr) values[attr.id] = field.value;
+      } else if (key === 'rarity') {
+        const attr = rarityAttr(categories.find((c) => c.id === current.categoryId));
+        if (attr) values[attr.id] = field.value;
+      } else values[key] = field.value;
     }
     if (row.action === 'addQuantity') {
       const oldQty = Number(current.values?.quantity) || 0;

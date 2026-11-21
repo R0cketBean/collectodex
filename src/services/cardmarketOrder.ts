@@ -35,9 +35,20 @@ export interface CardmarketOrderLine {
   /** Set-Kürzel von Cardmarket („BS“, „SVI“). */
   setCode?: string;
   rarity?: string;
+  /** Merkmale, die Cardmarket dem Kommentar voranstellt („Reverse Holo - …“). */
+  flags?: OrderLineFlags;
   comment?: string;
   /** Preis je Stück. */
   unitPrice: number;
+}
+
+export interface OrderLineFlags {
+  reverseHolo?: boolean;
+  firstEdition?: boolean;
+  /** „Foil“: Holo-Fassung bei Karten, die es auch ohne Holo gibt (Grundset, Evolutions …). */
+  foil?: boolean;
+  signed?: boolean;
+  altered?: boolean;
 }
 
 export interface CardmarketOrder {
@@ -53,9 +64,31 @@ export interface CardmarketOrder {
 
 const LANGUAGES = new Set(['DE', 'EN', 'FR', 'IT', 'ES', 'PT', 'JP', 'KR', 'RU', 'S-CN', 'T-CN', 'NL', 'PL']);
 const CONDITIONS = new Set(['MT', 'NM', 'EX', 'GD', 'LP', 'PL', 'PO']);
+// Seltenheits-Kürzel, wie Cardmarket sie in der Rechnung druckt (aus echten
+// Rechnungen: C, U, R, RH, RR, RRR, UR, SAR, RS, P, ACE, K, ART) plus die
+// übrigen bekannten Kürzel.
 const RARITIES = new Set([
-  'C', 'U', 'R', 'RH', 'RR', 'RRR', 'DR', 'UR', 'SR', 'SAR', 'AR', 'HR', 'P', 'PR', 'S', 'SSR', 'CHR', 'CSR', 'ACE', 'TR', 'IR', 'SIR', 'HFA', 'RS', 'RB', 'LV', 'L', 'X', 'BREAK', 'GX', 'V', 'VM', 'VS',
+  'C', 'U', 'R', 'RH', 'RR', 'RRR', 'DR', 'UR', 'SR', 'RS', 'SAR', 'SIR', 'AR', 'ART', 'IR', 'HR', 'MUR', 'P', 'PR',
+  'S', 'SSR', 'CHR', 'CSR', 'ACE', 'K', 'TR', 'BWR', 'A', 'LV', 'L', 'X', 'BREAK', 'GX', 'V', 'VM', 'VS',
 ]);
+const FLAG_WORDS: Record<string, keyof OrderLineFlags> = {
+  'reverse holo': 'reverseHolo',
+  'first edition': 'firstEdition',
+  foil: 'foil',
+  signed: 'signed',
+  altered: 'altered',
+};
+const FLAG_PREFIX = /^((?:Reverse Holo|First Edition|Foil|Signed|Altered)(?:,\s*(?:Reverse Holo|First Edition|Foil|Signed|Altered))*)(?:\s+-\s+|$)/i;
+
+/** Trennt die vorangestellten Merkmale vom eigentlichen Kommentar. */
+export const splitFlags = (comment: string): { flags?: OrderLineFlags; comment?: string } => {
+  const match = FLAG_PREFIX.exec(comment);
+  if (!match) return { comment: comment || undefined };
+  const flags: OrderLineFlags = {};
+  for (const word of match[1].split(/,\s*/)) flags[FLAG_WORDS[word.toLowerCase()]] = true;
+  const rest = comment.slice(match[0].length).trim();
+  return { flags, comment: rest || undefined };
+};
 const PRICE_RE = /^(\d{1,3}(?:\.\d{3})*|\d+),(\d{2})\s*(EUR|€|GBP|£|CHF|USD|\$)?$/;
 
 /** „1.234,50 EUR“ → 1234.5; null, wenn es kein Preis ist. */
@@ -165,7 +198,11 @@ export const parseLine = (row: PdfTextItem[], section: string): CardmarketOrderL
       rest = rest.slice(1);
     }
   }
-  if (rest.length > 0) line.comment = rest.join(' ');
+  if (rest.length > 0) {
+    const { flags, comment } = splitFlags(rest.join(' '));
+    if (flags) line.flags = flags;
+    if (comment) line.comment = comment;
+  }
   return line;
 };
 

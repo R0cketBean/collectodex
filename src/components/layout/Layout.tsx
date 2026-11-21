@@ -23,6 +23,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useCategoriesData } from '../../context/CollectionContext';
 import GlobalSearch, { searchShortcutLabel } from '../common/GlobalSearch';
+import { usePendingImport } from '../cardmarket/pendingImport';
 
 // Map von Icon-Namen zu Icon-Komponenten
 const iconMap: Record<string, React.ElementType> = {
@@ -89,6 +90,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(readCollapsed);
   const [searchOpen, setSearchOpen] = useState(false);
+  const pendingImport = usePendingImport();
   const location = useLocation();
 
   // Cmd/Strg+K öffnet die Suche über alle Kategorien (#130) und schließt sie
@@ -317,6 +319,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </main>
       </div>
+
+      {/* Offene Cardmarket-Vorschau nach „Zum Eintrag“: zurück mit einem Klick. */}
+      {pendingImport && location.pathname !== '/import-export' && (
+        <Link
+          to="/import-export"
+          className="fixed bottom-4 right-4 z-30 rounded-full bg-pokemon-blue px-4 py-2 text-sm font-medium text-white shadow-lg hover:opacity-90"
+        >
+          Zurück zum Cardmarket-Import
+        </Link>
+      )}
 
       {searchOpen && <GlobalSearch onClose={() => setSearchOpen(false)} />}
     </div>
