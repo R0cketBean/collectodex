@@ -5,8 +5,9 @@
 // Zeile, den der Nutzer ändern kann → Übernehmen in EINEM State-Update, mit
 // „Rückgängig“.
 
-import React, { useMemo, useState } from 'react';
-import { ArrowDownTrayIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useCategoriesData, useCollectionActions, useItemsData } from '../../context/CollectionContext';
 import { useFeedback } from '../../context/FeedbackContext';
 import { useCatalogSettings } from '../../hooks/useCatalogSettings';
@@ -29,6 +30,7 @@ import {
   applyImport,
   conditionWord,
   languageWord,
+  lineIsReverse,
   orderValues,
   planImport,
   type CatalogLookup,
@@ -40,6 +42,9 @@ import {
 import { primaryButtonClass, secondaryButtonClass, selectClass } from '../../utils/formStyles';
 import { firstLoadableImage } from '../../utils/imageProbe';
 import { logger } from '../../utils/logger';
+import { RARITY_TONE_CLASS, rarityInfo } from '../../utils/cardmarketRarity';
+import type { CardmarketOrderLine } from '../../services/cardmarketOrder';
+import { getPendingImport, setPendingImport } from './pendingImport';
 
 const lookup: CatalogLookup = {
   setsByCode: (code, lang) => fetchSetsByCode(code, lang),
@@ -55,6 +60,44 @@ const germanDate = (iso: string | null) => (iso ? iso.split('-').reverse().join(
 
 type Phase = 'idle' | 'reading' | 'review' | 'applying';
 
+/** Seltenheit als Symbol wie auf der Karte, mit Klartext beim Darüberfahren. */
+const RarityBadge: React.FC<{ code?: string }> = ({ code }) => {
+  const info = rarityInfo(code);
+  if (!info) return null;
+  return (
+    <span title={`${info.label} (${info.code})`} className="inline-flex items-center gap-1 whitespace-nowrap">
+      {info.symbol && <span className={`text-sm leading-none ${RARITY_TONE_CLASS[info.tone]}`}>{info.symbol}</span>}
+      <span>{info.label}</span>
+    </span>
+  );
+};
+
+const FLAG_LABEL: Array<[keyof NonNullable<CardmarketOrderLine['flags']>, string]> = [
+  ['reverseHolo', 'Reverse Holo'],
+  ['firstEdition', '1. Edition'],
+  ['foil', 'Holo (Foil)'],
+  ['signed', 'Signiert'],
+  ['altered', 'Verändert'],
+];
+
+/** Merkmale der Bestellzeile als kleine Etiketten. */
+const FlagChips: React.FC<{ line: CardmarketOrderLine }> = ({ line }) => {
+  const flags = FLAG_LABEL.filter(([key]) => line.flags?.[key]);
+  if (flags.length === 0) return null;
+  return (
+    <>
+      {flags.map(([key, label]) => (
+        <span
+          key={key}
+          className="ml-1.5 inline-block rounded px-1.5 py-px text-[10px] font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200"
+        >
+          {label}
+        </span>
+      ))}
+    </>
+  );
+};
+
 const CardmarketImport: React.FC = () => {
   const categories = useCategoriesData();
   const items = useItemsData();
@@ -62,18 +105,33 @@ const CardmarketImport: React.FC = () => {
   const { notify } = useFeedback();
   const settings = useCatalogSettings();
 
-  const [phase, setPhase] = useState<Phase>('idle');
+  const navigate = useNavigate();
+  // Eine begonnene Vorschau (z. B. nach „Zum Eintrag“) wiederherstellen.
+  const saved = getPendingImport();
+  const [phase, setPhase] = useState<Phase>(saved ? 'review' : 'idle');
   const [progress, setProgress] = useState('');
-  const [orders, setOrders] = useState<CardmarketOrder[]>([]);
-  const [rows, setRows] = useState<ImportRow[]>([]);
-  const [fileErrors, setFileErrors] = useState<string[]>([]);
+  const [orders, setOrders] = useState<CardmarketOrder[]>(saved?.orders ?? []);
+  const [rows, setRows] = useState<ImportRow[]>(saved?.rows ?? []);
+  const [fileErrors, setFileErrors] = useState<string[]>(saved?.fileErrors ?? []);
+
+  // Solange die Vorschau offen ist, bleibt sie für einen Seitenwechsel erhalten.
+  useEffect(() => {
+    if (phase === 'review') setPendingImport({ orders, rows, fileErrors });
+  }, [phase, orders, rows, fileErrors]);
 
   const reset = () => {
+    setPendingImport(null);
     setPhase('idle');
     setRows([]);
     setOrders([]);
     setFileErrors([]);
     setProgress('');
+  };
+
+  /** Springt zum vorhandenen Eintrag; die Vorschau wartet auf der Import-Seite. */
+  const openItem = (item: CollectionItem) => {
+    setPendingImport({ orders, rows, fileErrors });
+    navigate(`/category/${item.categoryId}?highlight=${item.id}`);
   };
 
   const handleFiles = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -139,6 +197,11 @@ const CardmarketImport: React.FC = () => {
     if (!hit) return { values: orderValues(category, row) };
     const detail = await fetchCard(hit.cardId, undefined, hit.lang).catch(() => null);
     const price = detail ? summarizePricing(detail) : null;
+    // Japanische Karten kennen im Katalog keine Reverse-Fassung.
+    const variant = lineIsReverse(row.line) && hit.lang !== 'ja' ? 'reverse' : 'normal';
+    const filter = [buildCardmarketFilter(settings, hit.lang, true), row.line.flags?.firstEdition ? 'isFirstEd=Y' : '']
+      .filter(Boolean)
+      .join('&');
     const image = await firstLoadableImage(
       catalogCardImageSources(hit.lang, { image: hit.image, localId: hit.localId }, hit.setId, 'high')
     );
@@ -149,11 +212,11 @@ const CardmarketImport: React.FC = () => {
       lang: hit.lang,
       name: hit.name,
       localId: hit.localId,
-      variant: 'normal',
-      price: pickCatalogPrice(price, settings.priceBasis, 'normal'),
+      variant,
+      price: pickCatalogPrice(price, settings.priceBasis, variant),
       imageUrl: image,
       // Sprache steht in der Bestellung fest: Link immer danach filtern.
-      productUrl: cardmarketProductUrl(price?.idProduct, hit.name, buildCardmarketFilter(settings, hit.lang, true)),
+      productUrl: cardmarketProductUrl(price?.idProduct, hit.name, filter),
       quantity: row.line.quantity,
     });
     return { ...draft, values: orderValues(category, row, draft.values) };
@@ -174,7 +237,7 @@ const CardmarketImport: React.FC = () => {
     }
     // Die Vorschau sperrt die übrige App, `items` ist also noch aktuell.
     const previous: CollectionItem[] = items;
-    const applied = applyImport(previous, rows, drafts);
+    const applied = applyImport(previous, rows, drafts, new Date(), categories);
     setItems(applied.items);
     reset();
     notify(`Cardmarket-Import: ${applied.created} neu angelegt, ${applied.updated} aktualisiert.`, {
@@ -251,19 +314,39 @@ const CardmarketImport: React.FC = () => {
                               <div className="font-medium text-gray-900 dark:text-gray-100">
                                 {row.line.kind === 'sealed' ? row.line.name : row.hit?.name ?? row.line.name}
                                 {row.line.number ? <span className="text-gray-500"> #{row.line.number}</span> : null}
+                                <FlagChips line={row.line} />
                               </div>
-                              <div className="text-gray-500 dark:text-gray-400">
-                                {[row.hit?.setName ?? row.line.setCode, languageWord(row.line.language), conditionWord(row.line.condition)]
-                                  .filter(Boolean)
-                                  .join(' · ')}
+                              <div className="text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-1">
+                                <span>
+                                  {[row.hit?.setName ?? row.line.setCode, languageWord(row.line.language), conditionWord(row.line.condition)]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </span>
+                                {row.line.rarity && (
+                                  <>
+                                    <span>·</span>
+                                    <RarityBadge code={row.line.rarity} />
+                                  </>
+                                )}
                               </div>
                             </td>
                             <td className="py-1.5 pr-2 text-right tabular-nums whitespace-nowrap align-top">{euro(row.line.unitPrice)}</td>
                             <td className="py-1.5 pr-2 text-gray-600 dark:text-gray-300 align-top">
                               {row.note}
                               {row.existing ? (
-                                <div className="text-gray-400">
-                                  Eintrag: {String(row.existing.values?.name ?? '')} ({Number(row.existing.values?.quantity) || 0}×)
+                                <div className="text-gray-400 flex items-center gap-1.5">
+                                  <span>
+                                    Eintrag: {String(row.existing.values?.name ?? '')} ({Number(row.existing.values?.quantity) || 0}×)
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => row.existing && openItem(row.existing)}
+                                    className="inline-flex items-center gap-0.5 text-pokemon-blue hover:underline"
+                                    title="Eintrag in der Sammlung zeigen; die Vorschau bleibt erhalten"
+                                  >
+                                    Zum Eintrag
+                                    <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+                                  </button>
                                 </div>
                               ) : null}
                             </td>
@@ -313,6 +396,8 @@ const CardmarketImport: React.FC = () => {
                                           <td className="px-2 py-1 text-right">
                                             {field.equal ? (
                                               <span>gleich</span>
+                                            ) : field.pickable === false ? (
+                                              <span title="Lässt sich hier nicht ändern – bitte im Eintrag prüfen">Hinweis</span>
                                             ) : blocked ? (
                                               <span title="Wird beim Erhöhen der Anzahl verrechnet">verrechnet</span>
                                             ) : (

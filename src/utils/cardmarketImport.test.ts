@@ -11,6 +11,7 @@ import {
   resolveCatalogCard,
   type CatalogLookup,
 } from './cardmarketImport';
+import { rarityInfo } from './cardmarketRarity';
 
 const categories = DEFAULT_CATEGORIES.map((c) => ({ ...c, createdAt: new Date(), updatedAt: new Date() })) as Category[];
 const singles = categories.find((c) => c.id === 'singles')!;
@@ -251,5 +252,51 @@ describe('Feldvergleich', () => {
     expect(row.fields.find((f) => f.key === 'catalog')).toMatchObject({ incoming: 'Grundset #11' });
     const result = applyImport([existing], [row], new Map());
     expect(result.items[0].catalog).toEqual({ cardId: 'base1-11', setId: 'base1', variant: 'normal' });
+  });
+});
+
+describe('Fassung, Edition und Seltenheit', () => {
+  const withEdition = categories.map((c) =>
+    c.id === 'singles'
+      ? { ...c, attributes: [...c.attributes, { id: 'ed', name: '1. Edition', type: 'boolean' as const, required: false, order: 20 }] }
+      : c
+  );
+
+  it('ordnet Reverse Holo nicht dem normalen verknüpften Eintrag zu', async () => {
+    const normal = item({ id: 'n', values: { name: 'Nidoking', quantity: 1, purchasePrice: 0 }, catalog: { cardId: 'base1-11', setId: 'base1', variant: 'normal' } });
+    const [row] = await planImport([order([line({ flags: { reverseHolo: true } })])], [normal], categories, lookup);
+    expect(row).toMatchObject({ existing: null, action: 'create' });
+
+    const rev = item({ id: 'r', values: { name: 'Nidoking (Reverse Holo)', quantity: 1, purchasePrice: 0 }, catalog: { cardId: 'base1-11', setId: 'base1', variant: 'reverse' } });
+    const [row2] = await planImport([order([line({ flags: { reverseHolo: true } })])], [normal, rev], categories, lookup);
+    expect(row2.existing?.id).toBe('r');
+  });
+
+  it('vergleicht die 1. Edition und schlägt sie nicht von selbst vor', async () => {
+    const existing = item({
+      id: 'v',
+      values: { name: 'Vulnona', quantity: 1, purchasePrice: 0, language: 'Deutsch', ed: false },
+      links: { product: 'https://www.cardmarket.com/de/Pokemon/Products/Singles/Base-Set/Ninetales-V1-BS12?isFirstEd=Y' },
+    });
+    const [row] = await planImport([order([line({ name: 'Vulnona', number: '12' })])], [existing], withEdition, lookup);
+    const ed = row.fields.find((f) => f.key === 'firstEdition');
+    expect(ed).toMatchObject({ current: 'ja', incoming: 'nein', equal: false, pickable: true });
+    expect(row.picks).not.toContain('firstEdition');
+
+    const result = applyImport([existing], [{ ...row, picks: ['firstEdition'] }], new Map(), new Date(), withEdition);
+    expect(result.items[0].values.ed).toBe(false);
+  });
+
+  it('legt neue Karten mit 1. Edition an', () => {
+    const singlesEd = withEdition.find((c) => c.id === 'singles')!;
+    expect(orderValues(singlesEd, { line: line({ flags: { firstEdition: true } }), date: null, hit: null }).ed).toBe(true);
+  });
+
+  it('kennt die Seltenheits-Symbole', () => {
+    expect(rarityInfo('SAR')).toMatchObject({ label: 'Special Illustration Rare', symbol: '★★', tone: 'gold' });
+    expect(rarityInfo('ART')).toMatchObject({ label: 'Illustration Rare', symbol: '★', tone: 'gold' });
+    expect(rarityInfo('UR')).toMatchObject({ symbol: '★★', tone: 'silver' });
+    expect(rarityInfo('C')?.symbol).toBe('●');
+    expect(rarityInfo('XYZ')).toMatchObject({ label: 'XYZ', symbol: '' });
   });
 });
